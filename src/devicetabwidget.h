@@ -12,8 +12,7 @@ class DeviceTabWidget : public QTabWidget
 public:
     explicit DeviceTabWidget(QWidget *parent = nullptr);
 
-    int addTabWithIcon(QWidget *widget, const QPixmap &icon,
-                       const QString &text);
+    int addTabCustom(QWidget *widget, const QString &text);
     void setTabIcon(int index, const QPixmap &icon);
 
 signals:
@@ -23,8 +22,7 @@ private slots:
     void onCloseTab(int index);
 
 private:
-    QWidget *createTabWidget(const QPixmap &icon, const QString &text,
-                             int index);
+    QWidget *createTabWidget(const QString &text, int index);
 
 protected:
     void wheelEvent(QWheelEvent *event) override;

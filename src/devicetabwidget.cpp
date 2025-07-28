@@ -7,9 +7,9 @@
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QStyle>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWheelEvent>
-
 DeviceTabWidget::DeviceTabWidget(QWidget *parent) : QTabWidget(parent)
 {
     setTabsClosable(false);
@@ -17,32 +17,26 @@ DeviceTabWidget::DeviceTabWidget(QWidget *parent) : QTabWidget(parent)
     connect(this, &QTabWidget::tabCloseRequested, this,
             &DeviceTabWidget::onCloseTab);
 }
-
-int DeviceTabWidget::addTabWithIcon(QWidget *widget, const QPixmap &icon,
-                                    const QString &text)
+int DeviceTabWidget::addTabCustom(QWidget *widget, const QString &text)
 {
     int index = addTab(widget, text);
+    QWidget *tabWidget = createTabWidget(text, index);
+    // tabWidget->setMinimumHeight(220); // Set a minimum height for the tab
+    // widget tabWidget->setSizePolicy(QSizePolicy::Expanding,
+    // QSizePolicy::Expanding);
+    // tabWidget->setSizePolicy(QSizePolicy::Expanding,
+    // QSizePolicy::Preferred);
+    tabBar()->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
-    if (!icon.isNull()) {
-        QWidget *tabWidget = createTabWidget(icon, text, index);
-        // tabWidget->setMinimumHeight(220); // Set a minimum height for the tab
-        // widget tabWidget->setSizePolicy(QSizePolicy::Expanding,
-        // QSizePolicy::Expanding);
-        // tabWidget->setSizePolicy(QSizePolicy::Expanding,
-        // QSizePolicy::Preferred);
-        tabBar()->setTabButton(index, QTabBar::LeftSide, tabWidget);
-        tabBar()->setTabText(index, ""); // Clear the default text
-    }
-
+    tabBar()->setTabButton(index, QTabBar::LeftSide, tabWidget);
+    tabBar()->setTabText(index, ""); // Clear the default text
     return index;
 }
-
 void DeviceTabWidget::wheelEvent(QWheelEvent *event)
 {
     // Ignore wheel events to prevent tab switching with scroll wheel
     event->ignore();
 }
-
 void DeviceTabWidget::setTabIcon(int index, const QPixmap &icon)
 {
     if (index >= 0 && index < count()) {
@@ -57,49 +51,32 @@ void DeviceTabWidget::setTabIcon(int index, const QPixmap &icon)
                 }
             }
         }
-
-        QWidget *newTabWidget = createTabWidget(icon, text, index);
+        QWidget *newTabWidget = createTabWidget(text, index);
         tabBar()->setTabButton(index, QTabBar::LeftSide, newTabWidget);
     }
 }
-
-QWidget *DeviceTabWidget::createTabWidget(const QPixmap &icon,
-                                          const QString &text, int index)
+QWidget *DeviceTabWidget::createTabWidget(const QString &text, int index)
 {
     QWidget *tabWidget = new QWidget();
-    tabWidget->setMinimumHeight(220); // Set a minimum height for the tab widget
+    // tabWidget->setMinimumHeight(220); // Set a minimum height for the tab
+    // widget
     tabWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     tabWidget->setStyleSheet("QWidget { "
-                             "  background-color:rgb(240, 0, 0); "
-                             "  border: 1px solid #ccc; "
-                             "  border-radius: 4px; "
                              "}");
-
     QVBoxLayout *mainLayout = new QVBoxLayout(tabWidget);
     mainLayout->setContentsMargins(5, 2, 5, 2);
     mainLayout->setSpacing(2);
     mainLayout->setSizeConstraint(QLayout::SetMinimumSize);
-
     // Top section with icon and text
     QWidget *topSection = new QWidget();
     QHBoxLayout *topLayout = new QHBoxLayout(topSection);
     topLayout->setContentsMargins(0, 0, 0, 0);
     topLayout->setSpacing(5);
-
-    // Add icon
-    QLabel *iconLabel = new QLabel();
-    QPixmap scaledIcon =
-        icon.scaled(16, 16, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    iconLabel->setPixmap(scaledIcon);
-    topLayout->addWidget(iconLabel);
-
     // Add text
     QLabel *textLabel = new QLabel(text);
     textLabel->setObjectName("textLabel");
     topLayout->addWidget(textLabel);
-
     mainLayout->addWidget(topSection);
-
     // Create collapsible options section
     QPushButton *toggleButton = new QPushButton("▶ Options");
     toggleButton->setFlat(true);
@@ -109,29 +86,16 @@ QWidget *DeviceTabWidget::createTabWidget(const QPixmap &icon,
     toggleButton->setMaximumHeight(25);
     toggleButton->setCheckable(true);
     toggleButton->setChecked(false);
-
-    // Create a scroll area for content
-    QScrollArea *contentArea = new QScrollArea();
-    contentArea->setStyleSheet(
-        "QScrollArea { border: 1px solid #ccc; background-color: #f8f8f8; }");
-    contentArea->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    contentArea->setMaximumHeight(0); // Start collapsed
-    contentArea->setMinimumHeight(0);
-    contentArea->setFrameShape(QFrame::NoFrame);
-    contentArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    // Create a widget to hold the navigation buttons
     QWidget *contentWidget = new QWidget();
+    contentWidget->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
     QVBoxLayout *optionsLayout = new QVBoxLayout(contentWidget);
     optionsLayout->setContentsMargins(5, 5, 5, 5);
     optionsLayout->setSpacing(3);
-
     // Create navigation buttons
     QPushButton *infoBtn = new QPushButton("Info");
     QPushButton *appsBtn = new QPushButton("Apps");
     QPushButton *galleryBtn = new QPushButton("Gallery");
     QPushButton *filesBtn = new QPushButton("Files");
-
     // Set button properties
     QList<QPushButton *> buttons = {infoBtn, appsBtn, galleryBtn, filesBtn};
     for (QPushButton *btn : buttons) {
@@ -155,10 +119,8 @@ QWidget *DeviceTabWidget::createTabWidget(const QPixmap &icon,
                            "  background-color: #106ebe; "
                            "}");
     }
-
     // Set info as default active
     infoBtn->setChecked(true);
-
     // Connect button group behavior and emit signals
     for (QPushButton *btn : buttons) {
         connect(btn, &QPushButton::clicked, [this, buttons, btn, index]() {
@@ -171,65 +133,37 @@ QWidget *DeviceTabWidget::createTabWidget(const QPixmap &icon,
             emit navigationButtonClicked(index, btn->text());
         });
     }
-
     // Add buttons to layout
     optionsLayout->addWidget(infoBtn);
     optionsLayout->addWidget(appsBtn);
     optionsLayout->addWidget(galleryBtn);
     optionsLayout->addWidget(filesBtn);
-
     // Set the content widget in the scroll area
-    contentArea->setWidget(contentWidget);
-    contentArea->setWidgetResizable(true);
-
-    // Calculate content height
-    contentWidget->adjustSize();
-    int contentHeight = contentWidget->height() + 10; // Add some padding
-
-    // Create animation for expanding/collapsing
-    QPropertyAnimation *animation =
-        new QPropertyAnimation(contentArea, "maximumHeight");
-    animation->setDuration(300); // 300ms animation
-    animation->setStartValue(0);
-    animation->setEndValue(contentHeight);
-
     // Add widgets to main layout
     mainLayout->addWidget(toggleButton);
-    mainLayout->addWidget(contentArea);
-
-    // Connect toggle button to animation
+    mainLayout->addWidget(contentWidget);
+    contentWidget->setVisible(false); // Initially hidden
+    // Connect toggle button to expand/collapse
+    int prevHeight = tabBar()->sizeHint().height();
     connect(toggleButton, &QPushButton::clicked,
-            [toggleButton, animation, contentArea, contentHeight]() {
-                // Toggle content visibility with animation
+            [this, toggleButton, contentWidget, prevHeight]() {
+                // Toggle content visibility
                 bool isExpanded = toggleButton->isChecked();
-
+                contentWidget->setVisible(isExpanded);
                 if (isExpanded) {
                     // Expanding
                     toggleButton->setText("▼ Options");
-                    animation->setDirection(QAbstractAnimation::Forward);
-                    animation->start();
+                    tabBar()->resize(tabBar()->sizeHint().width(),
+                                     contentWidget->sizeHint().height() +
+                                         tabBar()->sizeHint().height());
+                    tabBar()->adjustSize();
                 } else {
                     // Collapsing
                     toggleButton->setText("▶ Options");
-                    animation->setDirection(QAbstractAnimation::Backward);
-                    animation->start();
+                    tabBar()->setFixedHeight(prevHeight);
                 }
+                // QTimer::singleShot(0, tabBar(), &QWidget::adjustSize);
             });
-
-    connect(animation, &QPropertyAnimation::finished, [this]() {
-        // Find the tallest tab button widget
-        int maxHeight = 0;
-        for (int i = 0; i < tabBar()->count(); ++i) {
-            QWidget *tabBtn = tabBar()->tabButton(i, QTabBar::LeftSide);
-            if (tabBtn) {
-                maxHeight = std::max(maxHeight, tabBtn->sizeHint().height());
-            }
-        }
-        // Set tabBar minimum height to fit the tallest tab button
-        tabBar()->setMinimumHeight(maxHeight);
-    });
-
     return tabWidget;
 }
-
 void DeviceTabWidget::onCloseTab(int index) { removeTab(index); }

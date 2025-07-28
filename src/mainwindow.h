@@ -36,6 +36,5 @@ private:
     std::map<std::string, QWidget *>
         m_device_menu_widgets; // Map to store devices by UDID
     Ui::MainWindow *ui;
-    QPixmap getDeviceIcon(const std::string &productType);
 };
 #endif // MAINWINDOW_H
