@@ -1,0 +1,3 @@
+[submodule "src/core/airplay"]
+	path = src/core/airplay
+	url = https://github.com/uncor3/airplay

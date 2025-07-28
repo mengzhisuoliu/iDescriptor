@@ -11,9 +11,6 @@ include_directories(/usr/local/include)
 include_directories(/usr/include/python3.13)
 set(ENV{PKG_CONFIG_PATH} "/usr/local/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
 
-add_subdirectory(src/core/ipatool)
-
-
 find_package(PkgConfig REQUIRED)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Svg SvgWidgets Multimedia Network)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Svg SvgWidgets Multimedia Network)
@@ -185,7 +182,6 @@ target_link_libraries(iDescriptor PRIVATE
     PkgConfig::PLIST
     PkgConfig::QRENCODE
     airplay
-    ipatool
 )
 
 # Add compile definition for source directory
