@@ -5,11 +5,11 @@
 #include <QDialog>
 #include <QFile>
 #include <QFrame>
+#include <QFutureWatcher>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -43,7 +43,7 @@ private slots:
     void onDownloadIpaClicked(const QString &name, const QString &bundleId);
     void onSearchTextChanged();
     void performSearch();
-    void onSearchFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void onSearchFinished();
 
 private:
     void setupUI();
@@ -63,7 +63,7 @@ private:
     // Search
     QLineEdit *m_searchEdit;
     QTimer *m_debounceTimer;
-    QProcess *m_searchProcess;
+    QFutureWatcher<QString> *m_searchWatcher;
 };
 
 #endif // APPSWIDGET_H

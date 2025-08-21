@@ -3,23 +3,35 @@
 #include "appdownloadbasedialog.h"
 #include "appdownloaddialog.h"
 #include "appinstalldialog.h"
+#include "libipatool-go.h"
+#include <QAction>
 #include <QApplication>
+#include <QBuffer>
 #include <QComboBox>
+#include <QDebug>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFile>
 #include <QFileDialog>
 #include <QFrame>
+#include <QFuture>
+#include <QFutureWatcher>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QImage>
+#include <QInputDialog>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QPainter>
+#include <QPainterPath>
 #include <QPixmap>
-#include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -27,22 +39,32 @@
 #include <QStyle>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QtConcurrent/QtConcurrent>
 
-#include <QAction>
-#include <QBuffer>
-#include <QDebug>
-#include <QImage>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QPainter>
-#include <QPainterPath>
-#include <QPixmap>
-#include <QUrl>
+// 2FA callback for login
+static char *getAuthCodeCallback()
+{
+    static QByteArray buffer;
+    QString code;
+    QMetaObject::invokeMethod(
+        qApp,
+        [&]() {
+            bool ok;
+            code = QInputDialog::getText(
+                nullptr, "Two-Factor Authentication",
+                "Enter the 2FA code:", QLineEdit::Normal, QString(), &ok);
+        },
+        Qt::BlockingQueuedConnection);
+
+    if (code.isEmpty()) {
+        return nullptr;
+    }
+    buffer = code.toUtf8();
+    return buffer.data();
+}
 
 // Callback: void(QPixmap)
 void fetchAppIconFromApple(const QString &bundleId,
@@ -165,7 +187,8 @@ QString LoginDialog::getPassword() const { return m_passwordEdit->text(); }
 
 AppsWidget::AppsWidget(QWidget *parent) : QWidget(parent), m_isLoggedIn(false)
 {
-    m_searchProcess = new QProcess(this);
+    // m_searchProcess = new QProcess(this);
+    m_searchWatcher = new QFutureWatcher<QString>(this);
     m_debounceTimer = new QTimer(this);
     setupUI();
 }
@@ -196,42 +219,20 @@ void AppsWidget::setupUI()
     m_statusLabel->setStyleSheet("margin-right: 20px;");
 
     // --- Status and Login Button ---
-    // int init_result = IpaToolInitialize();
-    // Example: Asynchronous QProcess with interactive input
-    QProcess process;
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    process.setProcessEnvironment(env);
-    // process.
-    // TODO: keychain passphrase
-    process.start("ipatool", QStringList()
-                                 << "auth" << "info" << "--non-interactive"
-                                 << "--format" << "json"
-                                 << "--keychain-passphrase" << "iDescriptor");
-    process.waitForFinished();
-
-    // connect(process, &QProcess::readyReadStandardOutput, [process]() {
-    //     QString output = process->readAllStandardOutput();
-    //     qDebug() << output;
-    //     if (output.contains("Enter 2FA code")) {
-    //         // Show dialog to user, get code, then:
-    //         process->write("123456\n"); // Replace with actual code
-    //     }
-    // });
-
-    // process->start("ipatool auth info --non-interactive --format json
-    // --keychain-passphrase \"iDescriptor\""); qDebug() << "IpaToolInitialize
-    // result:" << init_result;
-    if (process.exitCode() != 0) {
-        qDebug() << "IpaToolInitialize failed with error code:"
-                 << process.exitCode();
+    // TODO: need a singleton for IpaTool
+    int init_result = IpaToolInitialize();
+    if (init_result != 0) {
+        qDebug() << "IpaToolInitialize failed with error code:" << init_result;
         m_statusLabel->setText("Failed to initialize");
     } else {
         qDebug() << "IpaToolInitialize succeeded";
-        QString jsonAccountInfo = process.readAllStandardOutput();
-        if (!jsonAccountInfo.isEmpty()) {
+        char *accountInfoCStr = IpaToolGetAccountInfo();
+        if (accountInfoCStr) {
+            QString jsonAccountInfo(accountInfoCStr);
+            free(accountInfoCStr);
+
             qDebug() << "Account info JSON:" << jsonAccountInfo;
 
-            // Parse JSON with error handling
             QJsonParseError parseError;
             QJsonDocument doc = QJsonDocument::fromJson(
                 QByteArray(jsonAccountInfo.toUtf8()), &parseError);
@@ -256,8 +257,6 @@ void AppsWidget::setupUI()
                 qDebug() << "JSON parse error:" << parseError.errorString();
                 m_statusLabel->setText("Not signed in");
             }
-
-            // free(jsonAccountInfo); // Free the allocated memory
         } else {
             m_statusLabel->setText("Not signed in");
         }
@@ -326,8 +325,7 @@ void AppsWidget::setupUI()
     m_debounceTimer->setSingleShot(true);
     connect(m_debounceTimer, &QTimer::timeout, this,
             &AppsWidget::performSearch);
-    connect(m_searchProcess,
-            QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+    connect(m_searchWatcher, &QFutureWatcher<QString>::finished, this,
             &AppsWidget::onSearchFinished);
 }
 
@@ -501,7 +499,7 @@ void AppsWidget::onDownloadIpaClicked(const QString &name,
 void AppsWidget::onLoginClicked()
 {
     if (m_isLoggedIn) {
-        // Logout
+        IpaToolRevokeCredentials();
         m_isLoggedIn = false;
         m_loginButton->setText("Sign In");
         m_statusLabel->setText("Not signed in");
@@ -511,10 +509,23 @@ void AppsWidget::onLoginClicked()
     LoginDialog dialog(this);
     if (dialog.exec() == QDialog::Accepted) {
         QString email = dialog.getEmail();
-        if (!email.isEmpty()) {
+        QString password = dialog.getPassword();
+        if (email.isEmpty() || password.isEmpty()) {
+            QMessageBox::warning(this, "Login Failed",
+                                 "Email and password cannot be empty.");
+            return;
+        }
+        int result = IpaToolLoginWithCallback(email.toUtf8().data(),
+                                              password.toUtf8().data(),
+                                              getAuthCodeCallback);
+        if (result == 0) {
             m_isLoggedIn = true;
             m_loginButton->setText("Sign Out");
             m_statusLabel->setText("Signed in as " + email);
+        } else {
+            QMessageBox::warning(
+                this, "Login Failed",
+                "Login failed. Please check your credentials and 2FA code.");
         }
     }
 }
@@ -536,9 +547,9 @@ void AppsWidget::onSearchTextChanged() { m_debounceTimer->start(300); }
 
 void AppsWidget::performSearch()
 {
-    if (m_searchProcess->state() == QProcess::Running) {
-        m_searchProcess->kill();
-        m_searchProcess->waitForFinished();
+    if (m_searchWatcher->isRunning()) {
+        m_searchWatcher->cancel();
+        m_searchWatcher->waitForFinished();
     }
 
     QString searchTerm = m_searchEdit->text().trimmed();
@@ -549,25 +560,23 @@ void AppsWidget::performSearch()
 
     showStatusMessage(QString("Searching for \"%1\"...").arg(searchTerm));
 
-    QStringList args;
-    args << "search" << searchTerm << "--non-interactive"
-         << "--keychain-passphrase"
-         << "iDescriptor"
-         << "--format"
-         << "json";
-
-    m_searchProcess->start("ipatool", args);
+    auto searchFn = [searchTerm]() -> QString {
+        char *resultsCStr = IpaToolSearch(searchTerm.toUtf8().data(), 20);
+        if (!resultsCStr) {
+            return QString();
+        }
+        QString results(resultsCStr);
+        free(resultsCStr);
+        return results;
+    };
+    m_searchWatcher->setFuture(QtConcurrent::run(searchFn));
 }
 
-void AppsWidget::onSearchFinished(int exitCode, QProcess::ExitStatus exitStatus)
+void AppsWidget::onSearchFinished()
 {
-    QString jsonOutput = m_searchProcess->readAllStandardOutput();
-    if (jsonOutput.isEmpty() && exitCode != 0) {
-        QString errorOutput = m_searchProcess->readAllStandardError();
-        qDebug() << "Search process failed:" << errorOutput;
-        showStatusMessage(
-            QString("Search failed: %1")
-                .arg(errorOutput.isEmpty() ? "Unknown error" : errorOutput));
+    QString jsonOutput = m_searchWatcher->result();
+    if (jsonOutput.isEmpty()) {
+        showStatusMessage("No apps found or search failed.");
         return;
     }
 
@@ -583,15 +592,15 @@ void AppsWidget::onSearchFinished(int exitCode, QProcess::ExitStatus exitStatus)
     }
 
     QJsonObject rootObj = doc.object();
-    if (rootObj.value("level").toString() == "error") {
+    if (!rootObj.value("success").toBool()) {
         QString errorMessage =
             rootObj.value("error").toString("Unknown search error.");
         showStatusMessage(QString("Search error: %1").arg(errorMessage));
         return;
     }
 
-    QJsonArray appsArray = rootObj.value("apps").toArray();
-    if (appsArray.isEmpty()) {
+    QJsonArray resultsArray = rootObj.value("results").toArray();
+    if (resultsArray.isEmpty()) {
         showStatusMessage("No apps found.");
         return;
     }
@@ -606,10 +615,10 @@ void AppsWidget::onSearchFinished(int exitCode, QProcess::ExitStatus exitStatus)
     int col = 0;
     const int maxCols = 3;
 
-    for (const QJsonValue &appValue : appsArray) {
+    for (const QJsonValue &appValue : resultsArray) {
         QJsonObject appObj = appValue.toObject();
-        QString name = appObj.value("name").toString();
-        QString bundleId = appObj.value("bundleID").toString();
+        QString name = appObj.value("trackName").toString();
+        QString bundleId = appObj.value("bundleId").toString();
         QString description = "Version: " + appObj.value("version").toString();
 
         createAppCard(name, bundleId, description, "", gridLayout, row, col);

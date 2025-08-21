@@ -7,6 +7,7 @@
                 "/usr/include/qt/**",
                 "/usr/local/opt/qt/**",
                 "${workspaceFolder}/build/Desktop-Debug/iDescriptor_autogen/include",
+                "${workspaceFolder}/build/Desktop-Debug/src/lib/**",
                 "/usr/local/include/**",
                 "/usr/include/python3.13"
             ],

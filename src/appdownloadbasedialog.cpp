@@ -1,16 +1,39 @@
 #include "appdownloadbasedialog.h"
+#include "libipatool-go.h"
 #include <QDesktopServices>
 #include <QDir>
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonObject>
+#include <QFutureWatcher>
 #include <QLabel>
 #include <QMessageBox>
-#include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
-#include <QTimer>
 #include <QVBoxLayout>
+#include <QtConcurrent/QtConcurrent>
+
+void downloadProgressCallback(long long current, long long total,
+                              void *userData)
+{
+    // Cast the user data back to the dialog instance.
+    AppDownloadBaseDialog *dialog =
+        static_cast<AppDownloadBaseDialog *>(userData);
+    if (dialog) {
+        int percentage = 0;
+        if (total > 0) {
+            percentage = static_cast<int>((current * 100) / total);
+        }
+        // Safely call the update method on the GUI thread.
+        QMetaObject::invokeMethod(dialog, "updateProgressBar",
+                                  Qt::QueuedConnection, Q_ARG(int, percentage));
+    }
+}
+
+void AppDownloadBaseDialog::updateProgressBar(int percentage)
+{
+
+    if (m_progressBar) {
+        m_progressBar->setValue(percentage);
+    }
+}
 
 void AppDownloadBaseDialog::addProgressBar(int index)
 {
@@ -43,146 +66,74 @@ AppDownloadBaseDialog::AppDownloadBaseDialog(const QString &appName,
     m_actionButton = nullptr; // Derived classes set this
 }
 
-void AppDownloadBaseDialog::startDownloadProcess(const QStringList &args,
+void AppDownloadBaseDialog::startDownloadProcess(const QString &bundleId,
                                                  const QString &outputDir,
                                                  int index)
 {
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    QString timestamp =
-        QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss");
-    QString logFilePath =
-        QDir::temp().filePath(QString("%1_%2.log").arg(m_appName, timestamp));
+    bool acquireLicense = true;
 
-    QFile *logFile = new QFile(logFilePath);
-    if (!logFile->open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::critical(this, "Error",
-                              "Failed to open log file for writing.");
+    if (bundleId.isEmpty()) {
+        QMessageBox::critical(this, "Error", "Bundle ID not provided.");
+        reject();
         return;
     }
-    logFile->close();
 
-    m_downloadProcess = new QProcess(this);
-    // m_downloadProcess->setProcessEnvironment(env);
-    // m_downloadProcess->setWorkingDirectory(workingDir);
-
-    m_downloadProcess->setStandardOutputFile(logFilePath, QIODevice::Append);
-    m_downloadProcess->setStandardErrorFile(logFilePath, QIODevice::Append);
-    m_downloadProcess->start("ipatool", args);
-    // TODO: handle errors
     addProgressBar(index);
-
-    m_progressTimer = new QTimer(this);
-    connect(m_progressTimer, &QTimer::timeout, this,
-            [this, logFilePath, outputDir]() {
-                checkDownloadProgress(logFilePath, m_appName, outputDir);
-            });
-
-    connect(m_downloadProcess,
-            QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
-            [this, logFilePath, outputDir](int exitCode,
-                                           QProcess::ExitStatus exitStatus) {
-                checkDownloadProgress(logFilePath, m_appName, outputDir);
-                m_progressTimer->stop();
-                m_progressTimer->deleteLater();
-                m_downloadProcess->deleteLater();
-                //     m_progressBar->setValue(100);
-                //     QMessageBox::information(
-                //         this, "Download Complete",
-                //         QString("Successfully downloaded
-                //         %1.").arg(m_appName));
-                //     accept();
-                // } else {
-                //     QMessageBox::critical(
-                //         this, "Download Failed",
-                //         QString("Failed to download %1. Exit code: %2")
-                //             .arg(m_appName)
-                //             .arg(exitCode));
-                //     reject();
-                // }
-            });
-
-    m_progressTimer->start(1000);
-
     if (m_actionButton)
         m_actionButton->setEnabled(false);
-}
 
-void AppDownloadBaseDialog::checkDownloadProgress(const QString &logFilePath,
-                                                  const QString &appName,
-                                                  const QString &outputDir)
-{
-    QFile logFile(logFilePath);
-    if (!logFile.open(QIODevice::ReadOnly | QIODevice::Text))
-        return;
+    // // C-style callback function for progress updates from the Go library
+    // auto progressCallback = [this](long long current, long long total) {
 
-    QString fileContents = QString::fromUtf8(logFile.readAll());
-    logFile.close();
+    //     // Use invokeMethod to call a slot on the GUI thread safely
+    //     // QMetaObject::invokeMethod(this, "updateProgressBar",
+    //     //                           Qt::QueuedConnection, Q_ARG(int,
+    //     //                           percentage));
+    //     updateProgressBar(percentage);
+    // };
 
-    int jsonStart = fileContents.indexOf('{');
-    qDebug() << "JSON Start:" << jsonStart;
-    if (jsonStart != -1) {
-        QString jsonString = fileContents.mid(jsonStart);
-        QJsonParseError parseError;
-        QJsonDocument doc =
-            QJsonDocument::fromJson(jsonString.toUtf8(), &parseError);
-        if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
-            qDebug() << "Parsed JSON successfully";
-            QJsonObject jsonObj = doc.object();
-            QString level = jsonObj.value("level").toString();
-            bool success = jsonObj.value("success").toBool();
+    QFuture<int> future =
+        QtConcurrent::run([bundleId, outputDir, acquireLicense, this]() {
+            // Call the Go function directly
+            return IpaToolDownloadApp(
+                bundleId.toUtf8().data(), outputDir.toUtf8().data(), "",
+                acquireLicense, downloadProgressCallback, this);
+        });
 
-            m_progressTimer->stop();
-            // if (m_actionButton)
-            //     m_actionButton->setEnabled(true);
+    QFutureWatcher<int> *watcher = new QFutureWatcher<int>(this);
+    connect(watcher, &QFutureWatcher<int>::finished, this,
+            [this, watcher, outputDir]() {
+                int result = watcher->result();
+                watcher->deleteLater();
 
-            if (level == "error") {
-                QString errorMsg = jsonObj.contains("error")
-                                       ? jsonObj.value("error").toString()
-                                       : "Unknown error";
-                QMessageBox::critical(
-                    this, "Download Failed",
-                    QString("Failed to download %1. Error: %2")
-                        .arg(m_appName, errorMsg));
-                reject();
-                return;
-            } else if (level == "info" && success) {
-                m_progressBar->setValue(100);
-                // QMessageBox::information(
-                //     this, "Download Successful",
-                //     QString("Successfully downloaded %1. Would you like to "
-                //             "open the directory?")
-                //         .arg(m_appName));
-                if (QMessageBox::Yes ==
-                    QMessageBox::question(
-                        this, "Open Directory",
-                        QString("Successfully downloaded. Would you like "
-                                "to open the output directory: %1?")
-                            .arg(outputDir))) {
-                    QDir dir(outputDir);
-                    if (!dir.exists()) {
-                        QMessageBox::warning(
-                            this, "Directory Not Found",
-                            QString("The directory %1 does not exist.")
-                                .arg(outputDir));
-                    } else {
-                        QDesktopServices::openUrl(
-                            QUrl::fromLocalFile(outputDir));
+                if (result == 0) { // Success
+                    m_progressBar->setValue(100);
+                    if (QMessageBox::Yes ==
+                        QMessageBox::question(
+                            this, "Download Successful",
+                            QString("Successfully downloaded. Would you like "
+                                    "to open the output directory: %1?")
+                                .arg(outputDir))) {
+                        QDir dir(outputDir);
+                        if (!dir.exists()) {
+                            QMessageBox::warning(
+                                this, "Directory Not Found",
+                                QString("The directory %1 does not exist.")
+                                    .arg(outputDir));
+                        } else {
+                            QDesktopServices::openUrl(
+                                QUrl::fromLocalFile(outputDir));
+                        }
                     }
+                    accept();
+                } else { // Failure
+                    QMessageBox::critical(
+                        this, "Download Failed",
+                        QString("Failed to download %1. Error code: %2")
+                            .arg(m_appName)
+                            .arg(result));
+                    reject();
                 }
-                accept();
-                return;
-            }
-        }
-    }
-
-    QRegularExpression re(R"(downloading\s+(\d+)%\s+\|)");
-    QRegularExpressionMatchIterator i = re.globalMatch(fileContents);
-    int percent = -1;
-    while (i.hasNext()) {
-        QRegularExpressionMatch match = i.next();
-        percent = match.captured(1).toInt();
-    }
-    if (percent != -1) {
-        m_progressBar->setValue(percent);
-    }
+            });
+    watcher->setFuture(future);
 }

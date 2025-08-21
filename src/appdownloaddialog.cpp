@@ -1,5 +1,6 @@
 #include "appdownloaddialog.h"
 #include "clickablelabel.h"
+#include "libipatool-go.h"
 #include <QDesktopServices>
 #include <QFileDialog>
 #include <QLabel>
@@ -82,15 +83,5 @@ void AppDownloadDialog::onDownloadClicked()
     layout()->removeWidget(m_actionButton);
     m_actionButton->deleteLater();
 
-    QStringList args = {"download",
-                        "-b",
-                        m_bundleId,
-                        "-o",
-                        m_outputDir,
-                        "--purchase",
-                        "--keychain-passphrase",
-                        "iDescriptor",
-                        "--format",
-                        "json"};
-    startDownloadProcess(args, m_outputDir, buttonIndex);
+    startDownloadProcess(m_bundleId, m_outputDir, buttonIndex);
 }

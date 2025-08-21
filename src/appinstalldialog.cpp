@@ -112,22 +112,22 @@ void AppInstallDialog::onInstallClicked()
     }
     m_deviceCombo->setEnabled(false);
     QString selectedDevice = m_deviceCombo->currentData().toString();
-    QStringList args = {"download",
-                        "-b",
-                        m_bundleId,
-                        "-o",
-                        "./",
-                        "--purchase",
-                        "--keychain-passphrase",
-                        "iDescriptor",
-                        "--format",
-                        "json"};
+    // QStringList args = {"download",
+    //                     "-b",
+    //                     m_bundleId,
+    //                     "-o",
+    //                     "./",
+    //                     "--purchase",
+    //                     "--keychain-passphrase",
+    //                     "iDescriptor",
+    //                     "--format",
+    //                     "json"};
     m_actionButton->setEnabled(false);
 
     int buttonIndex = m_layout->indexOf(m_actionButton);
     layout()->removeWidget(m_actionButton);
     m_actionButton->deleteLater();
     m_actionButton = nullptr; // Reset to avoid double deletion
-
-    startDownloadProcess(args, QDir::currentPath(), buttonIndex);
+    // TODO: need to implement the actual installation logic
+    // startDownloadProcess(args, QDir::currentPath(), buttonIndex);
 }

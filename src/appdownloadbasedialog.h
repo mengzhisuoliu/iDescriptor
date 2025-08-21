@@ -14,8 +14,11 @@ public:
     explicit AppDownloadBaseDialog(const QString &appName,
                                    QWidget *parent = nullptr);
 
+public slots:
+    void updateProgressBar(int percentage);
+
 protected:
-    void startDownloadProcess(const QStringList &args,
+    void startDownloadProcess(const QString &bundleId,
                               const QString &workingDir, int index);
     void checkDownloadProgress(const QString &logFilePath,
                                const QString &appName,

@@ -18,10 +18,11 @@ DeviceMenuWidget::DeviceMenuWidget(iDescriptorDevice *device, QWidget *parent)
 
     tabWidget->addTab(new DeviceInfoWidget(device, this), "");
 
-    FileExplorerWidget *explorer = new FileExplorerWidget(device, this);
-    explorer->setMinimumHeight(300);
+    // FIXME:race condition with lockdownd_client_new_with_handshake
+    // FileExplorerWidget *explorer = new FileExplorerWidget(device, this);
+    // explorer->setMinimumHeight(300);
 
-    tabWidget->addTab(explorer, "");
+    // tabWidget->addTab(explorer, "");
 
     setLayout(mainLayout);
 }

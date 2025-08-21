@@ -120,6 +120,7 @@ file(GLOB PROJECT_SOURCES
 )
 
 add_subdirectory(src/core/airplay)
+add_subdirectory(src/lib/ipatool-go)
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     find_package(Qt6 REQUIRED COMPONENTS Widgets)
@@ -129,6 +130,7 @@ find_package(Qt6 REQUIRED COMPONENTS Quick)
 find_package(Qt6 REQUIRED COMPONENTS Location)
 find_package(Qt6 REQUIRED COMPONENTS Positioning)
 find_package(Qt6 REQUIRED COMPONENTS QuickWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 
     qt_add_executable(iDescriptor
@@ -182,7 +184,9 @@ target_link_libraries(iDescriptor PRIVATE
     PkgConfig::PLIST
     PkgConfig::QRENCODE
     airplay
+    ipatool-go
 )
+target_link_libraries(iDescriptor PRIVATE Qt6::Widgets)
 
 # Add compile definition for source directory
 target_compile_definitions(iDescriptor PRIVATE 
