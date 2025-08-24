@@ -37,7 +37,8 @@ private:
     void parseAndDisplayImages(const QByteArray &jsonData);
     void startDownload(const QString &version);
     void mountImage(const QString &version);
-
+    void onDeviceSelectionChanged(int index);
+    void closeEvent(QCloseEvent *event) override;
     struct DownloadItem {
         QNetworkReply *dmgReply = nullptr;
         QNetworkReply *sigReply = nullptr;
@@ -53,6 +54,8 @@ private:
     QStackedWidget *m_stackedWidget;
     QListWidget *m_imageListWidget;
     QLabel *m_statusLabel;
+    QLabel *m_initialStatusLabel;
+    QWidget *m_errorWidget;
     QLineEdit *m_downloadPathEdit;
     QComboBox *m_deviceComboBox;
     QPushButton *m_mountButton;
