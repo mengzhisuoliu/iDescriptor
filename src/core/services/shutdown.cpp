@@ -19,8 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#define TOOL_NAME "idevicediagnostics"
-
+#include "../../iDescriptor.h"
 #include <libimobiledevice/diagnostics_relay.h>
 #include <libimobiledevice/libimobiledevice.h>
 #include <libimobiledevice/lockdown.h>

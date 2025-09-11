@@ -4,13 +4,23 @@
 #include <libimobiledevice/afc.h>
 #include <libimobiledevice/libimobiledevice.h>
 #include <libimobiledevice/lockdown.h>
+#include <libimobiledevice/screenshotr.h>
 #include <libirecovery.h>
+#include <pugixml.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#define TOOL_NAME "iDescriptor"
+#define APP_LABEL "iDescriptor"
+#define APP_VERSION "0.0.1"
+#define APP_COPYRIGHT "© 2023 Uncore. All rights reserved."
+
 #define RECOVERY_CLIENT_CONNECTION_TRIES 3
 #define APPLE_VENDOR_ID 0x05ac
+
+// This is because afc_read_directory accepts  "/var/mobile/Media" as "/"
+#define POSSIBLE_ROOT "../../../../"
 
 struct BatteryInfo {
     QString health;
@@ -200,10 +210,6 @@ void warn(const QString &message, const QString &title = "Warning",
 
 enum class AddType { Regular, Pairing };
 
-#define APP_LABEL "iDescriptor"
-#define APP_VERSION "0.0.1"
-#define APP_COPYRIGHT "© 2023 Uncore. All rights reserved."
-
 class PlistNavigator
 {
 private:
@@ -245,3 +251,52 @@ struct MediaFileTree {
 
 MediaFileTree get_file_tree(afc_client_t afcClient, idevice_t device,
                             const std::string &path = "/");
+
+bool detect_jailbroken(afc_client_t afc);
+
+void get_device_info_xml(const char *udid, int use_network, int simple,
+                         pugi::xml_document &infoXml, lockdownd_client_t client,
+                         idevice_t device);
+
+IDescriptorInitDeviceResult init_idescriptor_device(const char *udid);
+
+IDescriptorInitDeviceResultRecovery
+init_idescriptor_recovery_device(irecv_device_info *info);
+
+bool set_location(idevice_t device, char *lat, char *lon);
+
+bool shutdown(idevice_t device);
+
+TakeScreenshotResult take_screenshot(screenshotr_client_t shotr);
+
+bool mount_dev_image(const char *udid, const char *image_dir_path);
+
+struct GetMountedImageResult {
+    bool success;
+    std::string output;
+    std::string message;
+};
+
+QPair<bool, plist_t> _get_mounted_image(const char *udid);
+
+bool restart(idevice_t device);
+
+// TODO:move
+struct ImageInfo {
+    QString version;
+    QString dmgPath;
+    QString sigPath;
+    bool isCompatible = false;
+    bool isDownloaded = false;
+    bool isMounted = false;
+};
+
+struct GetImagesSortedResult {
+    QStringList compatibleImages;
+    QStringList otherImages;
+};
+
+struct GetImagesSortedFinalResult {
+    QList<ImageInfo> compatibleImages;
+    QList<ImageInfo> otherImages;
+};

@@ -1,5 +1,5 @@
 #include "virtual_location.h"
-#include "./core/services/set_location.cpp"
+#include "devdiskmanager.h"
 #include "iDescriptor.h"
 #include <QDebug>
 #include <QDoubleValidator>
@@ -24,6 +24,9 @@ VirtualLocation::VirtualLocation(iDescriptorDevice *device, QWidget *parent)
     : QWidget{parent}, m_device(device)
 {
     // Create the main layout
+    bool res = DevDiskManager::sharedInstance()->mountCompatibleImage(
+        m_device, QString("/tmp"));
+    qDebug() << "Mount result:" << res;
     QHBoxLayout *mainLayout = new QHBoxLayout(this);
     mainLayout->setContentsMargins(10, 10, 10, 10);
     mainLayout->setSpacing(10);

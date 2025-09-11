@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
+#include "../../iDescriptor.h"
 #define DT_SIMULATELOCATION_SERVICE "com.apple.dt.simulatelocation"
-#define TOOL_NAME "idevicesetlocation"
 
 #include <errno.h>
 #include <getopt.h>

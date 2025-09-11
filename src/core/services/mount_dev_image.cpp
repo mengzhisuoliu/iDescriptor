@@ -19,16 +19,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-//  TODO:
-// we need to dynamically fetch dev imgs because every iOS version has a
-// different one
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#define TOOL_NAME "ideviceimagemounter"
-
+#include "../../iDescriptor.h"
 #include <stdlib.h>
 #define _GNU_SOURCE 1
 #define __USE_GNU 1
@@ -44,7 +35,6 @@
 #ifndef _WIN32
 #include <signal.h>
 #endif
-
 #include <QDebug>
 #include <libimobiledevice-glue/sha.h>
 #include <libimobiledevice-glue/utils.h>
@@ -91,6 +81,8 @@ static ssize_t mim_upload_cb(void *buf, size_t size, void *userdata)
 // TODO: cleanup
 // TODO: may not work on a broken ,faulty or fake usb cable
 // TypeC cables work better
+// TODO : sometimes ERROR: Device is locked, can't mount. Unlock device and try
+// again.
 bool mount_dev_image(const char *udid, const char *image_dir_path)
 {
     mobile_image_mounter_client_t mim = NULL;

@@ -1,6 +1,4 @@
 #include "../../iDescriptor.h"
-#include "./detect_jailbroken.cpp"
-#include "./get-device-info.cpp"
 #include "libirecovery.h"
 #include <QDebug>
 #include <libimobiledevice/diagnostics_relay.h>
@@ -77,19 +75,19 @@ DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
         PlistNavigator(diagnostics)["IORegistry"]["BatteryData"]["CycleCount"],
         &cycleCount);
 
-    char *batterySerialNumber;
+    char *batterySerialNumber = nullptr;
     plist_get_string_val(
         PlistNavigator(
             diagnostics)["IORegistry"]["BatteryData"]["BatterySerialNumber"],
         &batterySerialNumber);
 
-    uint64_t designCapacity;
+    uint64_t designCapacity = 0;
     plist_get_uint_val(
         PlistNavigator(
             diagnostics)["IORegistry"]["BatteryData"]["DesignCapacity"],
         &designCapacity);
 
-    uint64_t absoluteCapacity;
+    uint64_t absoluteCapacity = 0;
     plist_get_uint_val(
         PlistNavigator(diagnostics)["IORegistry"]["AbsoluteCapacity"],
         &absoluteCapacity);
@@ -117,6 +115,8 @@ IDescriptorInitDeviceResult init_idescriptor_device(const char *udid)
     IDescriptorInitDeviceResult result = {};
 
     lockdownd_client_t client;
+    // TODO: LOCKDOWN_E_PAIRING_DIALOG_RESPONSE_PENDING
+    // LOCKDOWN_E_PAIRING_DIALOG_RESPONSE_PENDING         = -19,
     lockdownd_error_t ldret = LOCKDOWN_E_UNKNOWN_ERROR;
     lockdownd_service_descriptor_t lockdownService = nullptr;
     diagnostics_relay_client_t diagnostics_client = nullptr;

@@ -1,5 +1,4 @@
 #include "realtimescreen.h"
-#include "./core/services/take_screenshot.cpp"
 #include "appcontext.h"
 #include "iDescriptor.h"
 #include <QDebug>

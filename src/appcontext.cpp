@@ -1,5 +1,4 @@
 #include "appcontext.h"
-#include "./core/services/init_device.cpp"
 #include "iDescriptor.h"
 #include <QDBusConnection>
 #include <QDBusMessage>

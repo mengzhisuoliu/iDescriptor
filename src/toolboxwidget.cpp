@@ -1,6 +1,4 @@
 #include "toolboxwidget.h"
-#include "./core/services/mount_dev_image.cpp"
-#include "./core/services/restart.cpp"
 #include "airplaywindow.h"
 #include "appcontext.h"
 #include "devdiskimageswidget.h"

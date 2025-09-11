@@ -115,6 +115,7 @@ find_library(PLIST_LIBRARY
 file(GLOB PROJECT_SOURCES
     src/*.cpp
     src/core/helpers/*.cpp
+    src/core/services/*.cpp
     src/*.h
     src/*.ui
     resources.qrc
@@ -190,7 +191,6 @@ target_link_libraries(iDescriptor PRIVATE
     airplay
     ipatool-go
 )
-target_link_libraries(iDescriptor PRIVATE Qt6::Widgets)
 
 # Add compile definition for source directory
 target_compile_definitions(iDescriptor PRIVATE 
