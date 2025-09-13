@@ -168,7 +168,37 @@ const std::unordered_map<std::string, std::string> DEVICE_MAP = {
     {"iPhone9,4", "iPhone 7 Plus (GSM+CDMA)"},
     {"iPhone10,1", "iPhone 8 (GSM)"},
     {"iPhone10,2", "iPhone 8 Plus (GSM)"},
-    {"iPhone10,3", "iPhone X (GSM)"}};
+    {"iPhone10,3", "iPhone X (GSM)"},
+    {"iPhone10,4", "iPhone 8 (GSM+CDMA)"},
+    {"iPhone10,5", "iPhone 8 Plus (GSM+CDMA)"},
+    {"iPhone10,6", "iPhone X (GSM+CDMA)"},
+    {"iPhone11,2", "iPhone XS"},
+    {"iPhone11,4", "iPhone XS Max"},
+    {"iPhone11,6", "iPhone XS Max (China)"},
+    {"iPhone11,8", "iPhone XR"},
+    {"iPhone12,1", "iPhone 11"},
+    {"iPhone12,3", "iPhone 11 Pro"},
+    {"iPhone12,5", "iPhone 11 Pro Max"},
+    {"iPhone12,8", "iPhone SE (2nd generation)"},
+    {"iPhone13,1", "iPhone 12 mini"},
+    {"iPhone13,2", "iPhone 12"},
+    {"iPhone13,3", "iPhone 12 Pro"},
+    {"iPhone13,4", "iPhone 12 Pro Max"},
+    {"iPhone14,4", "iPhone 13 mini"},
+    {"iPhone14,5", "iPhone 13"},
+    {"iPhone14,2", "iPhone 13 Pro"},
+    {"iPhone14,3", "iPhone 13 Pro Max"},
+    {"iPhone14,6", "iPhone SE (3rd generation)"},
+    {"iPhone15,2", "iPhone 14 Pro"},
+    {"iPhone15,3", "iPhone 14 Pro Max"},
+    {"iPad1,1", "iPad 1st generation"},
+    {"iPad2,1", "iPad 2 (WiFi)"},
+    {"iPad2,2", "iPad 2 (GSM)"},
+    {"iPad2,3", "iPad 2 (CDMA)"},
+    {"iPad2,4", "iPad 2 (Rev A)"},
+    {"iPad3,1", "iPad 3rd generation (WiFi)"},
+    {"iPad3,2", "iPad 3rd generation (GSM)"},
+};
 
 struct RecoveryDeviceInfo : public QObject {
     Q_OBJECT
@@ -300,3 +330,44 @@ struct GetImagesSortedFinalResult {
     QList<ImageInfo> compatibleImages;
     QList<ImageInfo> otherImages;
 };
+
+/**
+ * @brief Compare two iPhone product types to determine which is newer
+ * @param productType First iPhone product type (e.g., "iPhone8,1")
+ * @param otherProductType Second iPhone product type (e.g., "iPhone7,2")
+ * @return true if productType is newer than otherProductType, false otherwise
+ *
+ * Examples:
+ * - compare_product_type("iPhone8,1", "iPhone7,2") returns true
+ * - compare_product_type("iPhone6,1", "iPhone8,1") returns false
+ * - compare_product_type("iPhone8,2", "iPhone8,1") returns true
+ */
+bool compare_product_type(std::string productType,
+                          std::string otherProductType);
+
+/**
+ * @brief Check if two iPhone product types are exactly equal
+ * @param productType First iPhone product type
+ * @param otherProductType Second iPhone product type
+ * @return true if both product types are identical
+ */
+bool are_product_types_equal(const std::string &productType,
+                             const std::string &otherProductType);
+
+/**
+ * @brief Check if first product type is newer than second
+ * @param productType First iPhone product type
+ * @param otherProductType Second iPhone product type
+ * @return true if productType is newer than otherProductType
+ */
+bool is_product_type_newer(const std::string &productType,
+                           const std::string &otherProductType);
+
+/**
+ * @brief Check if first product type is older than second
+ * @param productType First iPhone product type
+ * @param otherProductType Second iPhone product type
+ * @return true if productType is older than otherProductType
+ */
+bool is_product_type_older(const std::string &productType,
+                           const std::string &otherProductType);

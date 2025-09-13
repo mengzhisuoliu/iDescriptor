@@ -6,12 +6,26 @@
 #include <libimobiledevice/lockdown.h>
 #include <pugixml.hpp>
 
+std::string safeGet(const char *key, pugi::xml_node dict)
+{
+    for (pugi::xml_node child = dict.first_child(); child;
+         child = child.next_sibling()) {
+        if (strcmp(child.name(), "key") == 0 &&
+            strcmp(child.text().as_string(), key) == 0) {
+            pugi::xml_node value = child.next_sibling();
+            if (value)
+                return value.text().as_string();
+        }
+    }
+    return "";
+};
+
+// TODO: return tyype
 DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
                           afc_client_t &afcClient, plist_t &diagnostics,
                           DeviceInfo &d)
 {
     pugi::xml_node dict = doc.child("plist").child("dict");
-
     auto safeGet = [&](const char *key) -> std::string {
         for (pugi::xml_node child = dict.first_child(); child;
              child = child.next_sibling()) {
@@ -23,6 +37,21 @@ DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
             }
         }
         return "";
+    };
+
+    auto safeGetBool = [&](const char *key) -> bool {
+        for (pugi::xml_node child = dict.first_child(); child;
+             child = child.next_sibling()) {
+            if (strcmp(child.name(), "key") == 0 &&
+                strcmp(child.text().as_string(), key) == 0) {
+                pugi::xml_node value = child.next_sibling();
+                if (value && strcmp(value.name(), "true") == 0)
+                    return true;
+                else
+                    return false;
+            }
+        }
+        return false;
     };
 
     d.deviceName = safeGet("DeviceName");
@@ -54,8 +83,13 @@ DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
     }
 
     std::string _activationState = safeGet("ActivationState");
-    // TODO: does "ProductionSOC: true" work as well ?
-    d.productionDevice = std::stoi(safeGet("FusingStatus")) == 3;
+
+    /* older devices dont have fusing status lets default to ProductionSOC for
+     * now*/
+    // std::string fStatus = safeGet("FusingStatus");
+    // d.productionDevice = std::stoi(fStatus.empty() ? "0" : fStatus) == 3;
+
+    d.productionDevice = safeGetBool("ProductionSOC");
     if (_activationState == "Activated") {
         d.activationState = DeviceInfo::ActivationState::Activated;
     } else if (_activationState == "FactoryActivated") {
@@ -170,12 +204,46 @@ IDescriptorInitDeviceResult init_idescriptor_device(const char *udid)
             return result;
         }
 
-        plist_t diagnostics = nullptr;
+        pugi::xml_document infoXml;
+        get_device_info_xml(udid, 0, 0, infoXml, client, result.device);
 
+        if (infoXml.empty()) {
+            qDebug() << "Failed to retrieve device info XML for UDID: "
+                     << QString::fromUtf8(udid);
+            // Clean up resources before returning
+            // afc_client_free(result.afcClient);
+            // lockdownd_service_descriptor_free(result.lockdownService);
+            // lockdownd_client_free(result.client);
+            idevice_free(result.device);
+            return result;
+        }
+
+        plist_t diagnostics = nullptr;
+        std::string productType =
+            safeGet("ProductType", infoXml.child("plist").child("dict"));
+
+        bool is_iphone =
+            safeGet("DeviceClass", infoXml.child("plist").child("dict")) ==
+            "iPhone";
+        if (is_iphone) {
+
+            qDebug() << "iPhone is newer than iPhone 8 ?"
+                     << is_product_type_newer(productType,
+                                              std::string("iPhone10,1"));
+        }
+
+        const char *batteryQuery =
+            is_iphone
+                ? is_product_type_newer(productType, std::string("iPhone8,1"))
+                      ? "AppleSmartBattery"
+                      : "AppleARMPMUCharger"
+                : "AppleARMPMUCharger";
         // TODO: iPhone 8 and above should query AppleSmartBattery
+        // TODO: try catch here
+
         if (diagnostics_relay_query_ioregistry_entry(
-                diagnostics_client, nullptr, "AppleARMPMUCharger",
-                &diagnostics) != DIAGNOSTICS_RELAY_E_SUCCESS &&
+                diagnostics_client, nullptr, batteryQuery, &diagnostics) !=
+                DIAGNOSTICS_RELAY_E_SUCCESS &&
             !diagnostics) {
 
             qDebug()
@@ -189,20 +257,6 @@ IDescriptorInitDeviceResult init_idescriptor_device(const char *udid)
                 lockdownd_client_free(client);
             if (diagnostics_client)
                 diagnostics_relay_client_free(diagnostics_client);
-            return result;
-        }
-
-        pugi::xml_document infoXml;
-        get_device_info_xml(udid, 0, 0, infoXml, client, result.device);
-
-        if (infoXml.empty()) {
-            qDebug() << "Failed to retrieve device info XML for UDID: "
-                     << QString::fromUtf8(udid);
-            // Clean up resources before returning
-            // afc_client_free(result.afcClient);
-            // lockdownd_service_descriptor_free(result.lockdownService);
-            // lockdownd_client_free(result.client);
-            idevice_free(result.device);
             return result;
         }
 

@@ -95,6 +95,9 @@ void DevDiskImagesWidget::setupUi()
         SettingsManager::sharedInstance()->devdiskimgpath());
 
     displayImages();
+    if (DevDiskManager::sharedInstance()->isImageListReady()) {
+        m_stackedWidget->setCurrentWidget(m_imageListWidget);
+    }
 }
 
 void DevDiskImagesWidget::fetchImages()
@@ -107,6 +110,8 @@ void DevDiskImagesWidget::fetchImages()
 void DevDiskImagesWidget::onImageListFetched(bool success,
                                              const QString &errorMessage)
 {
+
+    qDebug() << "Image list fetched successfully";
     if (!success) {
         m_statusLabel->setText(
             QString("Error fetching image list: %1").arg(errorMessage));
@@ -144,6 +149,8 @@ void DevDiskImagesWidget::displayImages()
         hasConnectedDevice = true;
     }
 
+    qDebug() << "Device version:" << deviceMajorVersion << "."
+             << deviceMinorVersion << "displayImages";
     // Parse images using manager
     GetImagesSortedFinalResult sortedResult =
         DevDiskManager::sharedInstance()->parseImageList(
@@ -152,6 +159,9 @@ void DevDiskImagesWidget::displayImages()
 
     auto compatibleImages = sortedResult.compatibleImages;
     auto otherImages = sortedResult.otherImages;
+
+    qDebug() << "Compatible images:" << compatibleImages.size();
+    qDebug() << "Other images:" << otherImages.size();
 
     // Create UI items - compatible versions first
     auto createVersionItem = [&](const ImageInfo &info, bool isCompatible) {
@@ -491,8 +501,7 @@ void DevDiskImagesWidget::mountImage(const QString &version)
     m_mountButton->setEnabled(false);
     m_mountButton->setText("Mounting...");
 
-    bool success = DevDiskManager::sharedInstance()->mountImage(
-        version, udid);
+    bool success = DevDiskManager::sharedInstance()->mountImage(version, udid);
 
     m_mountButton->setEnabled(true);
     m_mountButton->setText("Mount");

@@ -1,4 +1,5 @@
 #include "virtual_location.h"
+#include "appcontext.h"
 #include "devdiskmanager.h"
 #include "iDescriptor.h"
 #include <QDebug>
@@ -24,9 +25,6 @@ VirtualLocation::VirtualLocation(iDescriptorDevice *device, QWidget *parent)
     : QWidget{parent}, m_device(device)
 {
     // Create the main layout
-    bool res = DevDiskManager::sharedInstance()->mountCompatibleImage(
-        m_device, QString("/tmp"));
-    qDebug() << "Mount result:" << res;
     QHBoxLayout *mainLayout = new QHBoxLayout(this);
     mainLayout->setContentsMargins(10, 10, 10, 10);
     mainLayout->setSpacing(10);
@@ -152,6 +150,20 @@ VirtualLocation::VirtualLocation(iDescriptorDevice *device, QWidget *parent)
 
     qDebug() << "QuickWidget status:" << m_quickWidget->status();
     qDebug() << "QuickWidget errors:" << m_quickWidget->errors();
+
+    connect(AppContext::sharedInstance(), &AppContext::deviceRemoved, this,
+            [this](const std::string &udid) {
+                if (m_device->udid == udid) {
+                    this->close();
+                    this->deleteLater();
+                }
+                // qDebug() << "VirtualLocation detected device change to"
+                //  << (device ? device->udid.c_str() : "null");
+            });
+
+    bool res =
+        DevDiskManager::sharedInstance()->downloadCompatibleImage(m_device);
+    qDebug() << "Mount result:" << res;
 }
 
 void VirtualLocation::onQuickWidgetStatusChanged(QQuickWidget::Status status)
@@ -286,6 +298,15 @@ void VirtualLocation::updateInputsFromMap(double latitude, double longitude)
 
 void VirtualLocation::onApplyClicked()
 {
+    bool devImgSuccess =
+        DevDiskManager::sharedInstance()->mountCompatibleImage(m_device);
+    if (!devImgSuccess) {
+        warn("Failed to mount developer image on device. Cannot set location.");
+        qDebug() << "Failed to mount developer image on device. Cannot set "
+                    "location.";
+        return;
+    }
+
     bool latOk, lonOk, altOk;
     double latitude = m_latitudeEdit->text().toDouble(&latOk);
     double longitude = m_longitudeEdit->text().toDouble(&lonOk);

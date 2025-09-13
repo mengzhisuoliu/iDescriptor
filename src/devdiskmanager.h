@@ -44,6 +44,7 @@ public:
     GetMountedImageResult getMountedImage(const char *udid);
     bool mountCompatibleImage(iDescriptorDevice *device);
     bool downloadCompatibleImage(iDescriptorDevice *device);
+    bool isImageListReady() const;
 
 signals:
     void imageListFetched(bool success,

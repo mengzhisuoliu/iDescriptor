@@ -28,8 +28,8 @@ DevDiskManager::DevDiskManager(QObject *parent) : QObject{parent}
 
 QNetworkReply *DevDiskManager::fetchImageList()
 {
-    QUrl url("https://api.github.com/repos/mspvirajpatel/"
-             "Xcode_Developer_Disk_Images/git/trees/master?recursive=true");
+    QUrl url("https://raw.githubusercontent.com/uncor3/resources/refs/heads/"
+             "main/DeveloperDiskImages.json");
     QNetworkRequest request(url);
     auto *reply = m_networkManager->get(request);
 
@@ -50,25 +50,69 @@ QNetworkReply *DevDiskManager::fetchImageList()
 QMap<QString, QMap<QString, QString>> DevDiskManager::parseDiskDir()
 {
     QJsonDocument doc = QJsonDocument::fromJson(m_imageListJsonData);
-    // if (!doc.isObject()) {
-    //     return false;
-    // }
+    if (!doc.isObject()) {
+        qWarning() << "Invalid JSON response from image list API";
+        return {};
+    }
 
     QMap<QString, QMap<QString, QString>>
-        imageFiles; // dir -> {filename -> path}
+        imageFiles; // version -> {type -> url}
 
-    QJsonArray tree = doc.object()["tree"].toArray();
-    for (const QJsonValue &value : tree) {
-        QJsonObject obj = value.toObject();
-        QString path = obj["path"].toString();
-        if (path.endsWith(".dmg") || path.endsWith(".dmg.signature")) {
-            QFileInfo fileInfo(path);
-            QString dir = fileInfo.path();
-            QString filename = fileInfo.fileName();
-            if (!dir.isEmpty() && dir != ".")
-                imageFiles[dir][filename] = path;
+    QJsonObject root = doc.object();
+    for (auto it = root.constBegin(); it != root.constEnd(); ++it) {
+        const QString version = it.key();
+        const QJsonObject versionData = it.value().toObject();
+
+        // Skip special entries
+        if (version == "Fallback") {
+            continue;
+        }
+
+        QMap<QString, QString> versionFiles;
+
+        // Handle Image URLs
+        if (versionData.contains("Image")) {
+            QJsonArray imageArray = versionData["Image"].toArray();
+            if (!imageArray.isEmpty()) {
+                versionFiles["DeveloperDiskImage.dmg"] =
+                    imageArray[0].toString();
+            }
+        }
+
+        // Handle Signature URLs
+        if (versionData.contains("Signature")) {
+            QJsonArray sigArray = versionData["Signature"].toArray();
+            if (!sigArray.isEmpty()) {
+                versionFiles["DeveloperDiskImage.dmg.signature"] =
+                    sigArray[0].toString();
+            }
+        }
+
+        // Handle Trustcache URLs (for iOS 17+)
+        if (versionData.contains("Trustcache")) {
+            QJsonArray trustcacheArray = versionData["Trustcache"].toArray();
+            if (!trustcacheArray.isEmpty()) {
+                versionFiles["Image.dmg.trustcache"] =
+                    trustcacheArray[0].toString();
+            }
+        }
+
+        // Handle BuildManifest URLs (for iOS 17+)
+        if (versionData.contains("BuildManifest")) {
+            QJsonArray manifestArray = versionData["BuildManifest"].toArray();
+            if (!manifestArray.isEmpty()) {
+                versionFiles["BuildManifest.plist"] =
+                    manifestArray[0].toString();
+            }
+        }
+
+        // Only add versions that have at least an image file
+        if (!versionFiles.isEmpty() &&
+            versionFiles.contains("DeveloperDiskImage.dmg")) {
+            imageFiles[version] = versionFiles;
         }
     }
+
     return imageFiles;
 }
 
@@ -136,8 +180,7 @@ GetImagesSortedResult DevDiskManager::getImagesSorted(
     for (auto it = imageFiles.constBegin(); it != imageFiles.constEnd(); ++it) {
         if (it.value().contains("DeveloperDiskImage.dmg") &&
             it.value().contains("DeveloperDiskImage.dmg.signature")) {
-            QFileInfo dirInfo(it.key());
-            QString version = dirInfo.fileName();
+            QString version = it.key();
 
             ImageInfo info;
             info.version = version;
@@ -150,14 +193,24 @@ GetImagesSortedResult DevDiskManager::getImagesSorted(
             if (hasConnectedDevice) {
                 QStringList versionParts = version.split('.');
                 if (versionParts.size() >= 1) {
-                    bool ok;
-                    int imageMajorVersion = versionParts[0].toInt(&ok);
-                    if (ok) {
+                    bool ma_ok;
+                    bool mi_ok;
+                    int imageMajorVersion = versionParts[0].toInt(&ma_ok);
+                    int imageMinorVersion = (versionParts.size() >= 2)
+                                                ? versionParts[1].toInt(&mi_ok)
+                                                : 0;
+                    if (ma_ok && mi_ok) {
                         if (deviceMajorVersion >= 16) {
                             info.isCompatible = (imageMajorVersion == 16);
                         } else {
-                            info.isCompatible =
-                                (imageMajorVersion == deviceMajorVersion);
+                            // FIXME: this seems to work only for older iphones
+                            // so commented out but in the future , it may be
+                            // enabled (imageMajorVersion ==
+                            // deviceMajorVersion);
+                            if (imageMajorVersion == deviceMajorVersion &&
+                                imageMinorVersion == deviceMinorVersion) {
+                                info.isCompatible = true;
+                            }
                         }
                     }
                 }
@@ -203,7 +256,9 @@ DevDiskManager::downloadImage(const QString &version)
         return {nullptr, nullptr};
     }
 
-    QString targetDir = QDir("devdiskimages").filePath(version);
+    QString targetDir =
+        QDir(SettingsManager::sharedInstance()->devdiskimgpath())
+            .filePath(version);
     if (!QDir().mkpath(targetDir)) {
         qDebug() << "Could not create directory:" << targetDir;
         emit imageDownloadFinished(
@@ -214,15 +269,11 @@ DevDiskManager::downloadImage(const QString &version)
 
     const ImageInfo &info = m_availableImages[version];
 
-    QUrl dmgUrl("https://raw.githubusercontent.com/mspvirajpatel/"
-                "Xcode_Developer_Disk_Images/master/" +
-                info.dmgPath);
+    QUrl dmgUrl(info.dmgPath);
     QNetworkRequest dmgRequest(dmgUrl);
     QNetworkReply *dmgReply = m_networkManager->get(dmgRequest);
 
-    QUrl sigUrl("https://raw.githubusercontent.com/mspvirajpatel/"
-                "Xcode_Developer_Disk_Images/master/" +
-                info.sigPath);
+    QUrl sigUrl(info.sigPath);
     QNetworkRequest sigRequest(sigUrl);
     QNetworkReply *sigReply = m_networkManager->get(sigRequest);
 
@@ -242,7 +293,14 @@ bool DevDiskManager::isImageDownloaded(const QString &version,
 
 bool DevDiskManager::downloadCompatibleImageInternal(iDescriptorDevice *device)
 {
-    GetImagesSortedFinalResult images = parseImageList(15, 0, "", 0);
+
+    unsigned int device_version = idevice_get_device_version(device->device);
+    unsigned int deviceMajorVersion = (device_version >> 16) & 0xFF;
+    unsigned int deviceMinorVersion = (device_version >> 8) & 0xFF;
+    qDebug() << "Device version:" << deviceMajorVersion << "."
+             << deviceMinorVersion;
+    GetImagesSortedFinalResult images =
+        parseImageList(deviceMajorVersion, deviceMinorVersion, "", 0);
 
     for (const ImageInfo &info : images.compatibleImages) {
         if (info.isDownloaded) {
@@ -324,19 +382,31 @@ bool DevDiskManager::mountCompatibleImageInternal(iDescriptorDevice *device)
         return true;
     }
 
+    unsigned int device_version = idevice_get_device_version(device->device);
+    unsigned int deviceMajorVersion = (device_version >> 16) & 0xFF;
+    unsigned int deviceMinorVersion = (device_version >> 8) & 0xFF;
+
+    // TODO: use actual device version
     GetImagesSortedFinalResult images =
-        parseImageList(15, 0, res.output.c_str(), res.output.length());
+        parseImageList(deviceMajorVersion, deviceMinorVersion,
+                       res.output.c_str(), res.output.length());
 
     // 1. Try to mount an already downloaded compatible image
     for (const ImageInfo &info : images.compatibleImages) {
         if (info.isDownloaded) {
             qDebug() << "There is a compatible image already downloaded:"
                      << info.version;
-            return true;
+            qDebug() << "Attempting to mount image version" << info.version
+                     << "on device:" << device->udid.c_str();
             if (mountImage(info.version, device->udid.c_str())) {
                 qDebug() << "Mounted existing image version" << info.version
                          << "on device:" << device->udid.c_str();
                 return true;
+            } else {
+                qDebug() << "Failed to mount existing image version"
+                         << info.version
+                         << "on device:" << device->udid.c_str();
+                return false;
             }
         }
     }
@@ -495,10 +565,9 @@ void DevDiskManager::onFileDownloadFinished()
     // QString targetPath =
     // QDir(QDir(item->downloadPath).filePath(item->version))
 
+    // TODO: change to settings path
     QString targetPath = QDir(QDir("./devdiskimages").filePath(item->version))
                              .filePath(filename);
-    // Saving downloaded file to: "/tmp/15.7/DeveloperDiskImage.dmg.signature"
-    // Saving downloaded file to: "/tmp/15.7/DeveloperDiskImage.dmg"
 
     QFile file(targetPath);
     qDebug() << "Saving downloaded file to:" << targetPath;
@@ -610,3 +679,5 @@ GetMountedImageResult DevDiskManager::getMountedImage(const char *udid)
     }
     return GetMountedImageResult{true, mounted_sig_str, "Success"};
 }
+
+bool DevDiskManager::isImageListReady() const { return m_isImageListReady; }

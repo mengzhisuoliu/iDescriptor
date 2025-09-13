@@ -6,7 +6,14 @@
 
 QT_BEGIN_NAMESPACE
 class QListView;
+class QComboBox;
+class QPushButton;
+class QHBoxLayout;
+class QVBoxLayout;
 QT_END_NAMESPACE
+
+class PhotoModel;
+class PhotoExportManager;
 
 /**
  * @brief Widget for displaying a gallery of photos and videos from iOS devices
@@ -25,17 +32,36 @@ class GalleryWidget : public QWidget
 public:
     explicit GalleryWidget(iDescriptorDevice *device,
                            QWidget *parent = nullptr);
-
-public slots:
-    /**
-     * @brief Load photos from device (called when tab becomes active)
-     */
     void load();
 
+private slots:
+    void onSortOrderChanged();
+    void onFilterChanged();
+    void onExportSelected();
+    void onExportAll();
+
 private:
+    void setupUI();
+    void setupControlsLayout();
+    QString selectExportDirectory();
+
     iDescriptorDevice *m_device;
-    QListView *m_listView;
     bool m_loaded = false;
+
+    // UI components
+    QVBoxLayout *m_mainLayout;
+    QHBoxLayout *m_controlsLayout;
+    QListView *m_listView;
+    PhotoModel *m_model;
+
+    // Control widgets
+    QComboBox *m_sortComboBox;
+    QComboBox *m_filterComboBox;
+    QPushButton *m_exportSelectedButton;
+    QPushButton *m_exportAllButton;
+
+    // Export manager
+    PhotoExportManager *m_exportManager;
 };
 
 #endif // GALLERYWIDGET_H

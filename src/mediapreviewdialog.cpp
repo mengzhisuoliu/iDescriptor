@@ -174,25 +174,26 @@ void MediaPreviewDialog::loadMedia()
 
 void MediaPreviewDialog::loadImage()
 {
-    // Load image asynchronously
-    auto future = QtConcurrent::run([this]() {
-        return PhotoModel::loadThumbnailFromDevice(m_device, m_filePath,
-                                                   QSize(4096, 4096), "");
-    });
+    // TODO
+    // // Load image asynchronously
+    // auto future = QtConcurrent::run([this]() {
+    //     return PhotoModel::loadThumbnailFromDevice(m_device, m_filePath,
+    //                                                QSize(4096, 4096), "");
+    // });
 
-    auto *watcher = new QFutureWatcher<QPixmap>(this);
-    connect(watcher, &QFutureWatcher<QPixmap>::finished, this,
-            [this, watcher]() {
-                QPixmap pixmap = watcher->result();
-                if (!pixmap.isNull()) {
-                    m_originalPixmap = pixmap;
-                    onImageLoaded();
-                } else {
-                    onImageLoadFailed();
-                }
-                watcher->deleteLater();
-            });
-    watcher->setFuture(future);
+    // auto *watcher = new QFutureWatcher<QPixmap>(this);
+    // connect(watcher, &QFutureWatcher<QPixmap>::finished, this,
+    //         [this, watcher]() {
+    //             QPixmap pixmap = watcher->result();
+    //             if (!pixmap.isNull()) {
+    //                 m_originalPixmap = pixmap;
+    //                 onImageLoaded();
+    //             } else {
+    //                 onImageLoadFailed();
+    //             }
+    //             watcher->deleteLater();
+    //         });
+    // watcher->setFuture(future);
 }
 
 void MediaPreviewDialog::loadVideo()
