@@ -39,6 +39,7 @@ jobs:
             libusb-1.0-0-dev \
             libqrencode-dev \
             libirecovery-1.0-dev
+            libcurl4-openssl-dev
 
       # required version is '>= 2.6.0'
       - name: Install libplist
