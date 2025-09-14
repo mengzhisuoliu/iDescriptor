@@ -179,7 +179,8 @@ jobs:
         run: |
           # export VERSION=$(git rev-parse --short HEAD)
           export VERSION=1.0.0
-          ../linuxdeployqt-continuous-x86_64.AppImage iDescriptor -appimage
+          # Explicitly include the Go library
+          ../linuxdeployqt-continuous-x86_64.AppImage iDescriptor -extra-plugins=lib/libipatool-go.so -appimage
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
