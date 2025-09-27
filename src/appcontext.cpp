@@ -111,6 +111,7 @@ void AppContext::addDevice(QString udid, idevice_connection_type conn_type,
             .device = initResult.device,
             .deviceInfo = initResult.deviceInfo,
             .afcClient = initResult.afcClient,
+            .afc2Client = initResult.afc2Client,
         };
         m_devices[device->udid] = device;
         if (addType == AddType::Regular)

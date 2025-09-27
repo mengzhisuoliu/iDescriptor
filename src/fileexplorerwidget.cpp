@@ -1,68 +1,58 @@
 #include "fileexplorerwidget.h"
 #include "iDescriptor.h"
 #include "mediapreviewdialog.h"
+#include "settingsmanager.h"
 #include <QDebug>
 #include <QDesktopServices>
 #include <QFileDialog>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QIcon>
+#include <QInputDialog>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSignalBlocker>
+#include <QSplitter>
+#include <QTreeWidget>
 #include <QVariant>
 #include <libimobiledevice/afc.h>
 #include <libimobiledevice/libimobiledevice.h>
 
 FileExplorerWidget::FileExplorerWidget(iDescriptorDevice *device,
                                        QWidget *parent)
-    : QWidget(parent), device(device)
+    : QWidget(parent), device(device), usingAFC2(false)
 {
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    // Initialize current AFC client to default
+    currentAfcClient = device->afcClient;
+    qDebug() << "AFC2 available:" << (device->afc2Client != nullptr);
+    // Create main splitter
+    mainSplitter = new QSplitter(Qt::Horizontal, this);
 
-    // --- New: Export/Import buttons layout ---
-    QHBoxLayout *exportLayout = new QHBoxLayout();
-    exportBtn = new QPushButton("Export");
-    exportDeleteBtn = new QPushButton("Export & Delete");
-    importBtn = new QPushButton("Import"); // NEW
-    exportLayout->addWidget(exportBtn);
-    exportLayout->addWidget(exportDeleteBtn);
-    exportLayout->addWidget(importBtn); // NEW
-    exportLayout->addStretch();
-    mainLayout->addLayout(exportLayout);
+    // Setup sidebar
+    setupSidebar();
 
-    // --- Navigation layout (Back + Breadcrumb) ---
-    QHBoxLayout *navLayout = new QHBoxLayout();
-    backBtn = new QPushButton("Back");
-    breadcrumbLayout = new QHBoxLayout();
-    breadcrumbLayout->setSpacing(0);
-    navLayout->addWidget(backBtn);
-    navLayout->addLayout(breadcrumbLayout);
-    navLayout->addStretch();
-    mainLayout->addLayout(navLayout);
+    // Setup file explorer
+    setupFileExplorer();
 
-    fileList = new QListWidget();
-    fileList->setSelectionMode(
-        QAbstractItemView::ExtendedSelection); // Enable multi-select
-    mainLayout->addWidget(fileList);
+    // Add widgets to splitter
+    mainSplitter->addWidget(sidebarTree);
+    mainSplitter->addWidget(fileExplorerWidget);
+    mainSplitter->setSizes({400, 800});
 
-    connect(backBtn, &QPushButton::clicked, this, &FileExplorerWidget::goBack);
-    connect(fileList, &QListWidget::itemDoubleClicked, this,
-            &FileExplorerWidget::onItemDoubleClicked);
-
-    // --- New: Export/Import buttons connections ---
-    connect(exportBtn, &QPushButton::clicked, this,
-            &FileExplorerWidget::onExportClicked);
-    connect(exportDeleteBtn, &QPushButton::clicked, this,
-            &FileExplorerWidget::onExportDeleteClicked);
-    connect(importBtn, &QPushButton::clicked, this,
-            &FileExplorerWidget::onImportClicked); // NEW
-
+    // Main layout
+    QHBoxLayout *mainLayout = new QHBoxLayout(this);
+    mainLayout->addWidget(mainSplitter);
     setLayout(mainLayout);
+
+    // Initialize
     history.push("/");
     loadPath("/");
 
     setupContextMenu();
+    connect(SettingsManager::sharedInstance(),
+            &SettingsManager::favoritePlacesChanged, this,
+            &FileExplorerWidget::refreshFavoritePlaces);
 }
 
 void FileExplorerWidget::goBack()
@@ -162,7 +152,7 @@ void FileExplorerWidget::loadPath(const QString &path)
     updateBreadcrumb(path);
 
     MediaFileTree tree =
-        get_file_tree(device->afcClient, device->device, path.toStdString());
+        get_file_tree(currentAfcClient, device->device, path.toStdString());
     if (!tree.success) {
         fileList->addItem("Failed to load directory");
         return;
@@ -283,7 +273,7 @@ void FileExplorerWidget::exportSelectedFile(QListWidgetItem *item,
 
     // Export file using the validated connections
     int result =
-        export_file_to_path(device->afcClient, devicePath.toStdString().c_str(),
+        export_file_to_path(currentAfcClient, devicePath.toStdString().c_str(),
                             savePath.toStdString().c_str());
 
     qDebug() << "Export result:" << result;
@@ -366,7 +356,7 @@ void FileExplorerWidget::onImportClicked()
     for (const QString &localPath : fileNames) {
         QFileInfo fi(localPath);
         QString devicePath = currPath + fi.fileName();
-        int result = import_file_to_device(device->afcClient,
+        int result = import_file_to_device(currentAfcClient,
                                            devicePath.toStdString().c_str(),
                                            localPath.toStdString().c_str());
         if (result == 0)
@@ -415,4 +405,207 @@ int FileExplorerWidget::import_file_to_device(afc_client_t afc,
     afc_file_close(afc, handle);
     in.close();
     return 0;
+}
+
+// useAFC2 ,path,
+typedef QPair<bool, QString> SidebarItemData;
+
+void FileExplorerWidget::setupSidebar()
+{
+    sidebarTree = new QTreeWidget();
+    sidebarTree->setHeaderLabel("Files");
+    sidebarTree->setMinimumWidth(350);
+    sidebarTree->setMaximumWidth(400);
+
+    // AFC Default section
+    afcDefaultItem = new QTreeWidgetItem(sidebarTree);
+    afcDefaultItem->setText(0, "Explorer");
+    afcDefaultItem->setIcon(0, QIcon::fromTheme("folder"));
+    afcDefaultItem->setData(0, Qt::UserRole,
+                            QVariant::fromValue(SidebarItemData(false, "/")));
+    afcDefaultItem->setExpanded(true);
+
+    // Add root folder under Default
+    QTreeWidgetItem *rootItem = new QTreeWidgetItem(afcDefaultItem);
+    rootItem->setText(0, "Default");
+    rootItem->setIcon(0, QIcon::fromTheme("folder"));
+    rootItem->setData(0, Qt::UserRole,
+                      QVariant::fromValue(SidebarItemData(false, "/")));
+    rootItem->setData(0, Qt::UserRole + 1, QVariant::fromValue(false));
+
+    // AFC2 Jailbroken section
+    afcJailbrokenItem = new QTreeWidgetItem(afcDefaultItem);
+    afcJailbrokenItem->setText(0, "Jailbroken (AFC2)");
+    afcJailbrokenItem->setIcon(0, QIcon::fromTheme("applications-system"));
+    afcJailbrokenItem->setData(0, Qt::UserRole,
+                               QVariant::fromValue(SidebarItemData(true, "/")));
+    afcJailbrokenItem->setExpanded(false);
+
+    // Common Places section
+    commonPlacesItem = new QTreeWidgetItem(sidebarTree);
+    commonPlacesItem->setText(0, "Common Places");
+    commonPlacesItem->setIcon(0, QIcon::fromTheme("places-bookmarks"));
+    commonPlacesItem->setData(
+        0, Qt::UserRole,
+        QVariant::fromValue(
+            SidebarItemData(false, "../../../var/mobile/Library/Wallpapers")));
+    commonPlacesItem->setExpanded(true);
+
+    QTreeWidgetItem *wallpapersItem = new QTreeWidgetItem(commonPlacesItem);
+    wallpapersItem->setText(0, "Wallpapers");
+    wallpapersItem->setIcon(0, QIcon::fromTheme("image-x-generic"));
+    wallpapersItem->setData(
+        0, Qt::UserRole,
+        QVariant::fromValue(
+            SidebarItemData(false, "../../../var/mobile/Library/Wallpapers")));
+    wallpapersItem->setData(0, Qt::UserRole + 1,
+                            QVariant::fromValue(false)); // Default AFC
+
+    // Favorite Places section
+    favoritePlacesItem = new QTreeWidgetItem(sidebarTree);
+    favoritePlacesItem->setText(0, "Favorite Places");
+    favoritePlacesItem->setIcon(0, QIcon::fromTheme("user-bookmarks"));
+    favoritePlacesItem->setData(
+        // todo:implement
+        0, Qt::UserRole, QVariant::fromValue(SidebarItemData(false, "/")));
+    favoritePlacesItem->setExpanded(true);
+
+    loadFavoritePlaces();
+
+    connect(sidebarTree, &QTreeWidget::itemClicked, this,
+            &FileExplorerWidget::onSidebarItemClicked);
+}
+
+void FileExplorerWidget::setupFileExplorer()
+{
+    fileExplorerWidget = new QWidget();
+    QVBoxLayout *explorerLayout = new QVBoxLayout(fileExplorerWidget);
+
+    // Export/Import buttons layout
+    QHBoxLayout *exportLayout = new QHBoxLayout();
+    exportBtn = new QPushButton("Export");
+    exportDeleteBtn = new QPushButton("Export & Delete");
+    importBtn = new QPushButton("Import");
+    addToFavoritesBtn = new QPushButton("Add to Favorites");
+    exportLayout->addWidget(exportBtn);
+    exportLayout->addWidget(exportDeleteBtn);
+    exportLayout->addWidget(importBtn);
+    exportLayout->addWidget(addToFavoritesBtn);
+    exportLayout->addStretch();
+    explorerLayout->addLayout(exportLayout);
+
+    // Navigation layout (Back + Breadcrumb)
+    QHBoxLayout *navLayout = new QHBoxLayout();
+    backBtn = new QPushButton("Back");
+    breadcrumbLayout = new QHBoxLayout();
+    breadcrumbLayout->setSpacing(0);
+    navLayout->addWidget(backBtn);
+    navLayout->addLayout(breadcrumbLayout);
+    navLayout->addStretch();
+    explorerLayout->addLayout(navLayout);
+
+    // File list
+    fileList = new QListWidget();
+    fileList->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    explorerLayout->addWidget(fileList);
+
+    // Connect buttons
+    connect(backBtn, &QPushButton::clicked, this, &FileExplorerWidget::goBack);
+    connect(fileList, &QListWidget::itemDoubleClicked, this,
+            &FileExplorerWidget::onItemDoubleClicked);
+    connect(exportBtn, &QPushButton::clicked, this,
+            &FileExplorerWidget::onExportClicked);
+    connect(exportDeleteBtn, &QPushButton::clicked, this,
+            &FileExplorerWidget::onExportDeleteClicked);
+    connect(importBtn, &QPushButton::clicked, this,
+            &FileExplorerWidget::onImportClicked);
+    connect(addToFavoritesBtn, &QPushButton::clicked, this,
+            &FileExplorerWidget::onAddToFavoritesClicked);
+}
+
+void FileExplorerWidget::onSidebarItemClicked(QTreeWidgetItem *item, int column)
+{
+    Q_UNUSED(column)
+
+    bool useAfc2 = item->data(0, Qt::UserRole).value<SidebarItemData>().first;
+    QString path = item->data(0, Qt::UserRole).value<SidebarItemData>().second;
+
+    // if (itemType == "try_install_afc2") {
+    //     onTryInstallAFC2Clicked();
+    //     return;
+    // }
+
+    switchToAFC(useAfc2);
+    loadPath(path);
+}
+
+void FileExplorerWidget::onAddToFavoritesClicked()
+{
+    QString currentPath = "/";
+    if (!history.isEmpty())
+        currentPath = history.top();
+
+    bool ok;
+    QString alias = QInputDialog::getText(
+        this, "Add to Favorites",
+        "Enter alias for this location:", QLineEdit::Normal, currentPath, &ok);
+    if (ok && !alias.isEmpty()) {
+        saveFavoritePlace(currentPath, alias);
+        refreshFavoritePlaces();
+    }
+}
+
+void FileExplorerWidget::onTryInstallAFC2Clicked()
+{
+    qDebug() << "Clicked on try to install AFC2";
+}
+
+void FileExplorerWidget::switchToAFC(bool useAFC2)
+{
+    if (useAFC2 && device->afc2Client) {
+        usingAFC2 = true;
+        currentAfcClient = device->afc2Client;
+    } else {
+        usingAFC2 = false;
+        currentAfcClient = device->afcClient;
+    }
+}
+
+void FileExplorerWidget::loadFavoritePlaces()
+{
+    SettingsManager *settings = SettingsManager::sharedInstance();
+    QList<QPair<QString, QString>> favorites = settings->getFavoritePlaces();
+    qDebug() << "Loading favorite places:" << favorites.size();
+    for (const auto &favorite : favorites) {
+        QString path = favorite.first;
+        QString alias = favorite.second;
+
+        qDebug() << "Favorite:" << alias << "->" << path;
+        QTreeWidgetItem *favoriteItem = new QTreeWidgetItem(favoritePlacesItem);
+        favoriteItem->setText(0, alias);
+        favoriteItem->setIcon(0, QIcon::fromTheme("folder-favorites"));
+        favoriteItem->setData(
+            0, Qt::UserRole, QVariant::fromValue(SidebarItemData(false, path)));
+        favoriteItem->setData(0, Qt::UserRole + 1,
+                              QVariant::fromValue(false)); // Default to AFC
+    }
+}
+
+void FileExplorerWidget::saveFavoritePlace(const QString &path,
+                                           const QString &alias)
+{
+    qDebug() << "Saving favorite place:" << alias << "->" << path;
+    SettingsManager *settings = SettingsManager::sharedInstance();
+    settings->saveFavoritePlace(path, alias);
+}
+
+void FileExplorerWidget::refreshFavoritePlaces()
+{
+    // Clear existing favorite items
+    while (favoritePlacesItem->childCount() > 0) {
+        delete favoritePlacesItem->takeChild(0);
+    }
+
+    // Reload favorite places
+    loadFavoritePlaces();
 }

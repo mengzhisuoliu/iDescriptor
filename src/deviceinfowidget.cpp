@@ -2,6 +2,7 @@
 #include "batterywidget.h"
 #include "diskusagewidget.h"
 #include "fileexplorerwidget.h"
+#include "iDescriptor-ui.h"
 #include "iDescriptor.h"
 #include <QDebug>
 #include <QGraphicsPixmapItem>
@@ -19,26 +20,6 @@
 #include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
-
-// A custom QGraphicsView that keeps the content fitted with aspect ratio on
-// resize
-class ResponsiveGraphicsView : public QGraphicsView
-{
-public:
-    ResponsiveGraphicsView(QGraphicsScene *scene, QWidget *parent = nullptr)
-        : QGraphicsView(scene, parent)
-    {
-    }
-
-protected:
-    void resizeEvent(QResizeEvent *event) override
-    {
-        if (scene() && !scene()->items().isEmpty()) {
-            fitInView(scene()->itemsBoundingRect(), Qt::KeepAspectRatio);
-        }
-        QGraphicsView::resizeEvent(event);
-    }
-};
 
 DeviceInfoWidget::DeviceInfoWidget(iDescriptorDevice *device, QWidget *parent)
     : QWidget(parent), m_device(device)

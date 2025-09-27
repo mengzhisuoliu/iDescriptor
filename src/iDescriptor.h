@@ -15,7 +15,7 @@
 #define APP_LABEL "iDescriptor"
 #define APP_VERSION "0.0.1"
 #define APP_COPYRIGHT "© 2023 Uncore. All rights reserved."
-
+#define AFC2_SERVICE_NAME "com.apple.afc2"
 #define RECOVERY_CLIENT_CONNECTION_TRIES 3
 #define APPLE_VENDOR_ID 0x05ac
 
@@ -144,6 +144,7 @@ struct iDescriptorDevice {
      clients are not long lived, so do not assume this will be valid
     */
     afc_client_t afcClient;
+    afc_client_t afc2Client;
     bool is_iPhone;
 };
 
@@ -153,6 +154,7 @@ struct IDescriptorInitDeviceResult {
     idevice_t device;
     DeviceInfo deviceInfo;
     afc_client_t afcClient;
+    afc_client_t afc2Client;
 };
 
 // Device model identifier to marketing name mapping
@@ -441,3 +443,9 @@ void get_battery_info(std::string productType, idevice_t idevice,
 
 void parseOldDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d);
 void parseDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d);
+
+void fetchAppIconFromApple(const QString &bundleId,
+                           std::function<void(const QPixmap &)> callback,
+                           QObject *context);
+
+afc_error_t afc2_client_new(idevice_t device, afc_client_t *afc);

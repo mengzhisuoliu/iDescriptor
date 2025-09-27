@@ -209,7 +209,6 @@ DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
     /*BatteryInfo*/
     plist_t diagnostics = nullptr;
     get_battery_info(rawProductType, result.device, d.is_iPhone, diagnostics);
-    plist_print(diagnostics);
 
     if (!diagnostics) {
         qDebug() << "Failed to get diagnostics plist.";
@@ -266,7 +265,7 @@ DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
     }
 }
 
-// TODO: need to handle errors and free resources properly
+// TODO: IDescriptorInitDeviceResult
 IDescriptorInitDeviceResult init_idescriptor_device(const char *udid)
 {
     // TODO:on a broken usb cable this can hang for a long time
@@ -281,6 +280,7 @@ IDescriptorInitDeviceResult init_idescriptor_device(const char *udid)
     lockdownd_error_t ldret = LOCKDOWN_E_UNKNOWN_ERROR;
     lockdownd_service_descriptor_t lockdownService = nullptr;
     afc_client_t afcClient = nullptr;
+    afc_client_t afc2Client = nullptr;
     try {
         idevice_error_t ret = idevice_new_with_options(&result.device, udid,
                                                        IDEVICE_LOOKUP_USBMUX);
@@ -321,6 +321,20 @@ IDescriptorInitDeviceResult init_idescriptor_device(const char *udid)
             idevice_free(result.device);
             qDebug() << "Failed to create AFC client: " << ldret;
             return result;
+        }
+
+        try {
+            afc_error_t err = AFC_E_UNKNOWN_ERROR;
+            if ((err = afc2_client_new(result.device, &afc2Client)) !=
+                AFC_E_SUCCESS) {
+                qDebug() << "AFC2 client not available." << "Error:" << err;
+            } else {
+                result.afc2Client = afc2Client;
+                qDebug() << "AFC2 client created successfully.";
+            }
+        } catch (const std::exception &e) {
+            /* Fine! This only works on Jailbroken and AFC2 tweak installed
+             * devices */
         }
 
         pugi::xml_document infoXml;
