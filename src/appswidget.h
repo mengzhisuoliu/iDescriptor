@@ -2,11 +2,10 @@
 #define APPSWIDGET_H
 
 #include "appstoremanager.h"
+#include "qprocessindicator.h"
 #include <QComboBox>
 #include <QDialog>
 #include <QFile>
-#include <QFrame>
-#include <QFutureWatcher>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -15,6 +14,7 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScrollArea>
+#include <QStackedWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -31,7 +31,7 @@ private slots:
     void onDownloadIpaClicked(const QString &name, const QString &bundleId);
     void onSearchTextChanged();
     void performSearch();
-    void onSearchFinished();
+    void onSearchFinished(bool success, const QString &results);
     void onAppStoreInitialized(const QJsonObject &accountInfo);
 
 private:
@@ -39,10 +39,22 @@ private:
     void createAppCard(const QString &name, const QString &bundleId,
                        const QString &description, const QString &iconPath,
                        QGridLayout *gridLayout, int row, int col);
-    void populateDefaultApps();
+    void setupDefaultAppsPage();
+    void setupLoadingPage();
+    void setupErrorPage();
+    void showDefaultApps();
+    void showLoading(const QString &message = "Loading...");
+    void showError(const QString &message);
     void clearAppGrid();
-    void showStatusMessage(const QString &message);
+    void populateDefaultApps();
 
+    QStackedWidget *m_stackedWidget;
+    QWidget *m_defaultAppsPage;
+    QWidget *m_loadingPage;
+    QWidget *m_errorPage;
+    QProcessIndicator *m_loadingIndicator;
+    QLabel *m_loadingLabel;
+    QLabel *m_errorLabel;
     QScrollArea *m_scrollArea;
     QWidget *m_contentWidget;
     QPushButton *m_loginButton;
@@ -53,7 +65,6 @@ private:
     // Search
     QLineEdit *m_searchEdit;
     QTimer *m_debounceTimer;
-    QFutureWatcher<QString> *m_searchWatcher;
 };
 
 #endif // APPSWIDGET_H

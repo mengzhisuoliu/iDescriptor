@@ -6,6 +6,7 @@
 #include <QSettings>
 #include <QString>
 #include <QStringList>
+#include <QDialog>
 
 class SettingsManager : public QObject
 {
@@ -25,11 +26,13 @@ public:
     bool isFavoritePlace(const QString &path) const;
     QString getFavoritePlaceAlias(const QString &path) const;
     void clearFavoritePlaces();
+    void showSettingsDialog();
 
 signals:
     void favoritePlacesChanged();
 
 private:
+    QDialog *m_dialog;
     explicit SettingsManager(QObject *parent = nullptr);
     QSettings *m_settings;
 

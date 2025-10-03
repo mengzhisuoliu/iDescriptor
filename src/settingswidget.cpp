@@ -1,6 +1,7 @@
 #include "settingswidget.h"
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialog>
 #include <QFileDialog>
 #include <QFrame>
 #include <QGroupBox>
@@ -15,7 +16,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
-SettingsWidget::SettingsWidget(QWidget *parent) : QWidget{parent}
+SettingsWidget::SettingsWidget(QWidget *parent) : QDialog{parent}
 {
     setupUI();
     loadSettings();
@@ -25,7 +26,7 @@ SettingsWidget::SettingsWidget(QWidget *parent) : QWidget{parent}
 void SettingsWidget::setupUI()
 {
     auto *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(20, 20, 20, 20);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(15);
 
     // Create scroll area for the settings
@@ -42,6 +43,7 @@ void SettingsWidget::setupUI()
     downloadLayout->addWidget(new QLabel("Download Path:"));
     m_downloadPathEdit = new QLineEdit();
     m_downloadPathEdit->setReadOnly(true);
+    m_downloadPathEdit->setMaximumWidth(300);
     downloadLayout->addWidget(m_downloadPathEdit);
     auto *browseButton = new QPushButton("Browse...");
     downloadLayout->addWidget(browseButton);
@@ -165,25 +167,22 @@ void SettingsWidget::setupUI()
     scrollArea->setWidget(scrollWidget);
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameStyle(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-    mainLayout->addWidget(scrollArea);
-
-    // === BOTTOM BUTTONS ===
+    // == BUTTONS ===
     auto *buttonLayout = new QHBoxLayout();
 
     m_checkUpdatesButton = new QPushButton("Check for Updates");
-    m_resetButton = new QPushButton("Reset to Defaults");
+    m_resetButton = new QPushButton("Reset Settings");
     m_applyButton = new QPushButton("Apply");
-    m_okButton = new QPushButton("OK");
-    m_cancelButton = new QPushButton("Cancel");
 
     buttonLayout->addWidget(m_checkUpdatesButton);
-    buttonLayout->addStretch();
+    // buttonLayout->addStretch();
     buttonLayout->addWidget(m_resetButton);
     buttonLayout->addWidget(m_applyButton);
-    buttonLayout->addWidget(m_okButton);
-    buttonLayout->addWidget(m_cancelButton);
+    buttonLayout->setContentsMargins(10, 10, 10, 10);
 
+    mainLayout->addWidget(scrollArea);
     mainLayout->addLayout(buttonLayout);
 
     // Connect button signals
@@ -193,10 +192,6 @@ void SettingsWidget::setupUI()
             &SettingsWidget::onResetToDefaultsClicked);
     connect(m_applyButton, &QPushButton::clicked, this,
             &SettingsWidget::onApplyClicked);
-    connect(m_okButton, &QPushButton::clicked, this,
-            &SettingsWidget::onOkClicked);
-    connect(m_cancelButton, &QPushButton::clicked, this,
-            &SettingsWidget::onCancelClicked);
 }
 
 void SettingsWidget::loadSettings()
@@ -284,14 +279,6 @@ void SettingsWidget::onApplyClicked()
     saveSettings();
     QMessageBox::information(this, "Settings", "Settings have been applied.");
 }
-
-void SettingsWidget::onOkClicked()
-{
-    saveSettings();
-    close();
-}
-
-void SettingsWidget::onCancelClicked() { close(); }
 
 void SettingsWidget::onSettingChanged()
 {

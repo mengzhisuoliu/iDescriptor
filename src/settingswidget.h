@@ -1,16 +1,15 @@
 #ifndef SETTINGSWIDGET_H
 #define SETTINGSWIDGET_H
 
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDialog>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QSpinBox>
 #include <QWidget>
 
-// Forward declarations
-class QLineEdit;
-class QCheckBox;
-class QComboBox;
-class QSpinBox;
-class QPushButton;
-
-class SettingsWidget : public QWidget
+class SettingsWidget : public QDialog
 {
     Q_OBJECT
 
@@ -22,8 +21,6 @@ private slots:
     void onCheckUpdatesClicked();
     void onResetToDefaultsClicked();
     void onApplyClicked();
-    void onOkClicked();
-    void onCancelClicked();
     void onSettingChanged();
 
 private:
@@ -63,8 +60,6 @@ private:
     QPushButton *m_checkUpdatesButton;
     QPushButton *m_resetButton;
     QPushButton *m_applyButton;
-    QPushButton *m_okButton;
-    QPushButton *m_cancelButton;
 };
 
 #endif // SETTINGSWIDGET_H

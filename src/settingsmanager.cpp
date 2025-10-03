@@ -1,4 +1,5 @@
 #include "settingsmanager.h"
+#include "settingswidget.h"
 #include <QDebug>
 #include <QSettings>
 
@@ -8,6 +9,23 @@ SettingsManager *SettingsManager::sharedInstance()
 {
     static SettingsManager instance;
     return &instance;
+}
+
+void SettingsManager::showSettingsDialog()
+{
+    if (m_dialog) {
+        m_dialog->raise();
+        m_dialog->activateWindow();
+        return;
+    }
+
+    m_dialog = new SettingsWidget();
+    m_dialog->setWindowTitle("Settings - iDescriptor");
+    m_dialog->setModal(true);
+    m_dialog->setAttribute(Qt::WA_DeleteOnClose);
+    connect(m_dialog, &QObject::destroyed, [this]() { m_dialog = nullptr; });
+
+    m_dialog->show();
 }
 
 SettingsManager::SettingsManager(QObject *parent) : QObject{parent}

@@ -11,6 +11,7 @@
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QGridLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QList>
@@ -57,15 +58,8 @@ DeviceInfoWidget::DeviceInfoWidget(iDescriptorDevice *device, QWidget *parent)
     // infoLayout->setSpacing(10);
 
     // Header
-    QWidget *headerWidget = new QWidget();
-    headerWidget->setObjectName("headerWidget");
-    headerWidget->setStyleSheet("QWidget#headerWidget { "
-                                "   border: 1px solid #ccc; "
-                                "   border-radius: 6px; "
-                                "}");
-
+    QGroupBox *headerWidget = new QGroupBox();
     QHBoxLayout *headerLayout = new QHBoxLayout(headerWidget);
-    headerLayout->setContentsMargins(10, 10, 10, 10);
     headerLayout->setSpacing(15);
 
     QLabel *devProductType =
@@ -132,59 +126,14 @@ DeviceInfoWidget::DeviceInfoWidget(iDescriptorDevice *device, QWidget *parent)
     // Add maximum stretch between header and grid
     infoLayout->addStretch();
 
-    // --- Neumorphic Grid Widget ---
-
-    // 1. Create a container for the shadows
-    QWidget *shadowContainer = new QWidget();
-    // The container must be transparent to not hide the main window background
-    shadowContainer->setStyleSheet("background: transparent;");
-    // Use a layout to make the gridWidget fill the container
-    QVBoxLayout *shadowLayout = new QVBoxLayout(shadowContainer);
-    shadowLayout->setContentsMargins(15, 15, 15,
-                                     15); // Margins to make space for shadows
-
-    // 2. Create the dark (bottom-right) shadow and apply to the container
-    QGraphicsDropShadowEffect *darkShadow = new QGraphicsDropShadowEffect();
-    darkShadow->setBlurRadius(30);
-    darkShadow->setColor(QColor(0, 0, 0, 70)); // Dark, semi-transparent color
-    darkShadow->setOffset(0, 0);
-    shadowContainer->setGraphicsEffect(darkShadow);
-
-    // 3. Create the grid widget (the main content)
-    QWidget *gridWidget = new QWidget();
-    gridWidget->setObjectName("infoGrid");
-
-    QPalette palette = qApp->palette();
-    QColor background = palette.color(QPalette::Window);
-
-    gridWidget->setStyleSheet("QWidget#infoGrid {"
-                              "    background-color: " +
-                              background.name() +
-                              ";"
-                              //   "    background-color: #161d37;"
-                              //   "    border: 1px solid #29356b;"
-                              "    border-radius: 8px;"
-                              "}");
-
-    // 4. Create the light (top-left) shadow and apply to the grid widget
-    QGraphicsDropShadowEffect *lightShadow = new QGraphicsDropShadowEffect();
-    lightShadow->setBlurRadius(30);
-    lightShadow->setColor(
-        QColor(255, 255, 255, 40)); // Light, semi-transparent color
-    lightShadow->setOffset(0, 0);
-    gridWidget->setGraphicsEffect(lightShadow);
-
-    // Add gridWidget to the container's layout
-    shadowLayout->addWidget(gridWidget);
-
-    QGridLayout *gridLayout =
-        new QGridLayout(gridWidget); // Set layout on gridWidget
+    QGroupBox *gridContainer = new QGroupBox("Device Information");
+    QGridLayout *gridLayout = new QGridLayout(); // Set layout on gridWidget
     gridLayout->setSpacing(8);
     gridLayout->setColumnStretch(1, 1); // Allow value column to stretch
     gridLayout->setColumnStretch(
         3, 1); // Allow value column for right side to stretch
     gridLayout->setContentsMargins(17, 17, 17, 17);
-    gridWidget->setLayout(gridLayout);
+    gridContainer->setLayout(gridLayout);
     QList<QPair<QString, QWidget *>> infoItems;
 
     auto createValueLabel = [](const QString &text) {
@@ -292,8 +241,7 @@ DeviceInfoWidget::DeviceInfoWidget(iDescriptorDevice *device, QWidget *parent)
         }
     }
 
-    infoLayout->addWidget(
-        shadowContainer); // Add the container to the main layout
+    infoLayout->addWidget(gridContainer);
     // infoLayout->addStretch(); // Pushes footer to the bottom
 
     // Footer

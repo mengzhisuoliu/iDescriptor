@@ -39,6 +39,7 @@
 #include "fileexplorerwidget.h"
 #include "jailbrokenwidget.h"
 #include "recoverydeviceinfowidget.h"
+#include "settingsmanager.h"
 #include <QApplication>
 #include <QMenu>
 #include <QMenuBar>
@@ -132,6 +133,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    // setStyleSheet("background-color: white; color: black;");
     // Create custom tab widget
     m_customTabWidget = new CustomTabWidget(this);
     m_customTabWidget->setAttribute(Qt::WA_ContentsMarginsRespectsSafeArea,
@@ -178,16 +180,14 @@ MainWindow::MainWindow(QWidget *parent)
     m_customTabWidget->addTab(jailbrokenWidget, "Jailbroken");
     m_customTabWidget->finalizeStyles();
 
-    // todo: is this ok ?
-    auto connection = std::make_shared<QMetaObject::Connection>();
-    *connection =
-        connect(m_customTabWidget, &CustomTabWidget::currentChanged, this,
-                [this, jailbrokenWidget, connection](int index) {
-                    if (index == 3) { // Jailbroken tab
-                        jailbrokenWidget->initWidget();
-                        QObject::disconnect(*connection);
-                    }
-                });
+    connect(
+        m_customTabWidget, &CustomTabWidget::currentChanged, this,
+        [this, jailbrokenWidget](int index) {
+            if (index == 3) { // Jailbroken tab
+                jailbrokenWidget->initWidget();
+            }
+        },
+        Qt::SingleShotConnection);
 
     // settings button
     QPushButton *settingsButton = new QPushButton();
@@ -197,31 +197,16 @@ MainWindow::MainWindow(QWidget *parent)
     settingsButton->setCursor(Qt::PointingHandCursor);
     settingsButton->setFixedSize(24, 24);
     connect(settingsButton, &QPushButton::clicked, this, [this]() {
-        QDialog settingsDialog(this);
-        settingsDialog.setWindowTitle("Settings");
-        settingsDialog.setModal(true);
-        settingsDialog.resize(400, 300);
-        QVBoxLayout *layout = new QVBoxLayout(&settingsDialog);
-        SettingsWidget *settingsWidget = new SettingsWidget(&settingsDialog);
-        layout->addWidget(settingsWidget);
-        settingsDialog.setLayout(layout);
-        settingsDialog.exec();
+        SettingsManager::sharedInstance()->showSettingsDialog();
     });
+
     m_connectedDeviceCountLabel = new QLabel("iDescriptor: no devices");
     m_connectedDeviceCountLabel->setContentsMargins(5, 0, 5, 0);
     m_connectedDeviceCountLabel->setStyleSheet(
         "QLabel:hover { background-color : #13131319; }");
 
     ui->statusbar->addWidget(m_connectedDeviceCountLabel);
-
     ui->statusbar->setContentsMargins(0, 0, 0, 0);
-
-    // QWidget *statusSpacer = new QWidget();
-    // statusSpacer->setSizePolicy(QSizePolicy::Expanding,
-    // QSizePolicy::Preferred);
-    // statusSpacer->setAttribute(Qt::WA_TransparentForMouseEvents);
-    // ui->statusbar->addWidget(statusSpacer);
-
     ui->statusbar->addPermanentWidget(settingsButton);
 
 #ifdef Q_OS_LINUX
@@ -264,7 +249,6 @@ void MainWindow::createMenus()
 #ifdef Q_OS_MAC
     QMenu *actionsMenu = menuBar()->addMenu("&Actions");
 
-    // Add a custom "About" action for your app
     QAction *aboutAct = new QAction("&About iDescriptor", this);
     connect(aboutAct, &QAction::triggered, this, [=]() {
         QMessageBox::about(this, "About iDescriptor",

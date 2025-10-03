@@ -98,16 +98,23 @@ else()
     )
 endif()
 
+# Add libssh for SSH connections
+find_library(SSH_LIBRARY 
+    NAMES ssh
+    PATHS ${CUSTOM_LIB_PATH} /usr/lib /usr/lib/x86_64-linux-gnu
+    REQUIRED
+)
+
+# Apple-specific crypto libraries for SSH
+if(APPLE)
+    find_library(SECURITY_FRAMEWORK Security REQUIRED)
+    find_library(COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+endif()
+
 # Remove frida support for now
 # find_library(FRIDA_LIBRARY 
 #     NAMES frida-core
 #     PATHS /usr/local/lib /usr/lib /usr/lib/x86_64-linux-gnu
-#     REQUIRED
-# )
-
-# find_library(SSH_LIBRARY 
-#     NAMES ssh
-#     PATHS /usr/lib /usr/lib/x86_64-linux-gnu
 #     REQUIRED
 # )
 
@@ -145,10 +152,9 @@ src/*.ui
 resources.qrc
 )
 
-if(MACOS)
+if(APPLE)
     list(APPEND PROJECT_SOURCES
-        src/platform/macos/*.mm
-        src/platform/macos/*.h
+        src/platform/macos.mm
     )
 endif()
 
@@ -195,10 +201,10 @@ target_link_libraries(iDescriptor PRIVATE
     # ${PLIST_LIBRARY}
     ${TATSU_LIBRARY}
     ${IRECOVERY_LIBRARY}
-    # ${SSL_LIBRARY}
-    # ${CRYPTO_LIBRARY}
+    ${SSL_LIBRARY}
+    ${CRYPTO_LIBRARY}
+    ${SSH_LIBRARY}
     # ${FRIDA_LIBRARY}
-    # ${SSH_LIBRARY}
     # ${ZIP_LIBRARY}
     PkgConfig::PUGIXML
     PkgConfig::USB
@@ -208,6 +214,14 @@ target_link_libraries(iDescriptor PRIVATE
     airplay
     ipatool-go
 )
+
+# Add Apple-specific frameworks for SSH
+if(APPLE)
+    target_link_libraries(iDescriptor PRIVATE
+        ${SECURITY_FRAMEWORK}
+        ${COREFOUNDATION_FRAMEWORK}
+    )
+endif()
 
 # Add compile definition for source directory
 target_compile_definitions(iDescriptor PRIVATE 

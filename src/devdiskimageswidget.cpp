@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
+#include <QGraphicsDropShadowEffect>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -52,18 +53,9 @@ DevDiskImagesWidget::DevDiskImagesWidget(iDescriptorDevice *device,
 
 void DevDiskImagesWidget::setupUi()
 {
+    setWindowTitle("Developer Disk Images - iDescriptor");
     auto *layout = new QVBoxLayout(this);
-
-    auto *pathLayout = new QHBoxLayout();
-    pathLayout->addWidget(new QLabel("Download Path:"));
-    m_downloadPathEdit = new QLineEdit();
-    m_downloadPathEdit->setReadOnly(true);
-    pathLayout->addWidget(m_downloadPathEdit);
-    auto *changeDirButton = new QPushButton("Change...");
-    connect(changeDirButton, &QPushButton::clicked, this,
-            &DevDiskImagesWidget::changeDownloadDirectory);
-    pathLayout->addWidget(changeDirButton);
-    layout->addLayout(pathLayout);
+    layout->setContentsMargins(0, 0, 0, 0);
 
     auto *mountLayout = new QHBoxLayout();
     mountLayout->addWidget(new QLabel("Device:"));
@@ -75,9 +67,54 @@ void DevDiskImagesWidget::setupUi()
             &DevDiskImagesWidget::onMountButtonClicked);
     connect(m_check_mountedButton, &QPushButton::clicked, this,
             &DevDiskImagesWidget::checkMountedImage);
+    mountLayout->setContentsMargins(10, 10, 10, 10);
     mountLayout->addWidget(m_mountButton);
     mountLayout->addWidget(m_check_mountedButton);
     layout->addLayout(mountLayout);
+
+    auto *pathLayout = new QHBoxLayout();
+    // main path/info row (no shadow)
+    auto *pathWidget = new QWidget();
+    pathWidget->setLayout(pathLayout);
+    pathLayout->addWidget(
+        new QLabel("You can change the download path from settings :"));
+    QPushButton *openSettingsButton = new QPushButton("Open Settings");
+    pathLayout->addWidget(openSettingsButton);
+    connect(openSettingsButton, &QPushButton::clicked, this, [this]() {
+        SettingsManager::sharedInstance()->showSettingsDialog();
+    });
+    pathLayout->setContentsMargins(10, 10, 10, 10);
+    layout->addWidget(pathWidget);
+
+    // thin centered bottom line + shadow (shadow only applied to this line)
+    QWidget *lineContainer = new QWidget();
+    QHBoxLayout *lineLayout = new QHBoxLayout(lineContainer);
+    lineLayout->setContentsMargins(0, 0, 0, 0); // adjust centering / width
+    lineLayout->setSpacing(0);
+
+    QWidget *innerLine = new QWidget();
+    innerLine->setFixedHeight(2); // thickness of the visible border
+    innerLine->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    innerLine->setStyleSheet("background-color: #363d32;");
+    innerLine->setLayout(new QHBoxLayout());
+    innerLine->layout()->setContentsMargins(0, 0, 0, 0);
+    innerLine->layout()->setSpacing(0);
+
+    // apply shadow only to the thin line so shadow appears only under bottom
+    QGraphicsDropShadowEffect *shadow = new QGraphicsDropShadowEffect(this);
+    shadow->setBlurRadius(30);
+    shadow->setColor(QColor(0, 0, 0, 30));
+    shadow->setOffset(0, 6);
+    innerLine->setGraphicsEffect(shadow);
+
+    // If you want the line to be shorter than full width, give it a max width:
+    // innerLine->setMaximumWidth( int(width * 0.8) ); // or manage in
+    // resizeEvent
+
+    lineLayout->addStretch();
+    lineLayout->addWidget(innerLine);
+    lineLayout->addStretch();
+    layout->addWidget(lineContainer);
 
     m_stackedWidget = new QStackedWidget(this);
     layout->addWidget(m_stackedWidget);
@@ -87,12 +124,12 @@ void DevDiskImagesWidget::setupUi()
     m_stackedWidget->addWidget(m_statusLabel);
 
     m_imageListWidget = new QListWidget(this);
-    m_stackedWidget->addWidget(m_imageListWidget);
+    m_imageListWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_imageListWidget->setStyleSheet(
+        "QListWidget { background: transparent; border: none; }");
+    m_imageListWidget->viewport()->setStyleSheet("background: transparent;");
 
-    // m_downloadPath =
-    //     QDir(QCoreApplication::applicationDirPath()).filePath("devdiskimages");
-    m_downloadPathEdit->setText(
-        SettingsManager::sharedInstance()->devdiskimgpath());
+    m_stackedWidget->addWidget(m_imageListWidget);
 
     displayImages();
     if (DevDiskManager::sharedInstance()->isImageListReady()) {
@@ -516,19 +553,6 @@ void DevDiskImagesWidget::mountImage(const QString &version)
                               QString("Failed to mount image on %1.")
                                   .arg(m_deviceComboBox->currentText()));
     }
-}
-
-void DevDiskImagesWidget::changeDownloadDirectory()
-{
-    // TODO: logic moved to settings manager
-    // QString dir = QFileDialog::getExistingDirectory(
-    //     this, "Select Download Directory", m_downloadPath,
-    //     QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
-    // if (!dir.isEmpty() && dir != m_downloadPath) {
-    //     m_downloadPath = dir;
-    //     m_downloadPathEdit->setText(m_downloadPath);
-    //     displayImages();
-    // }
 }
 
 void DevDiskImagesWidget::closeEvent(QCloseEvent *event)

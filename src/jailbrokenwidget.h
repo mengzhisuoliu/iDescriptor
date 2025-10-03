@@ -5,7 +5,9 @@
 #include <QLabel>
 #include <QProcess>
 #include <QPushButton>
+#include <QTimer>
 #include <QWidget>
+#include <libssh/libssh.h>
 #include <qtermwidget6/qtermwidget.h>
 
 class JailbrokenWidget : public QWidget
@@ -21,16 +23,21 @@ private slots:
     void deviceConnected(iDescriptorDevice *device);
     void onConnectSSH();
     void startSSH();
-    void onSshProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void checkSshData();
 
 private:
     void setupTerminal();
-    void connectTerminalToProcess();
+    void connectLibsshToTerminal();
+    void disconnectSSH();
 
     QLabel *m_infoLabel;
     iDescriptorDevice *m_device = nullptr;
     QProcess *iproxyProcess = nullptr;
-    QProcess *sshProcess = nullptr;
+
+    // SSH session variables
+    ssh_session m_sshSession;
+    ssh_channel m_sshChannel;
+    QTimer *m_sshTimer;
 
     // Terminal widgets
     QTermWidget *m_terminal;

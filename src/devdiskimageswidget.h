@@ -2,18 +2,17 @@
 #define DEVDISKIMAGESWIDGET_H
 
 #include "iDescriptor.h"
+#include <QComboBox>
+#include <QLabel>
+#include <QListWidget>
 #include <QMap>
+#include <QNetworkReply>
+#include <QPair>
+#include <QProgressBar>
+#include <QPushButton>
+#include <QStackedWidget>
+#include <QStringList>
 #include <QWidget>
-
-class QNetworkAccessManager;
-class QNetworkReply;
-class QListWidget;
-class QStackedWidget;
-class QLabel;
-class QLineEdit;
-class QPushButton;
-class QProgressBar;
-class QComboBox;
 
 class DevDiskImagesWidget : public QWidget
 {
@@ -27,7 +26,6 @@ private slots:
     void onDownloadButtonClicked();
     void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
     void onFileDownloadFinished();
-    void changeDownloadDirectory();
     void updateDeviceList();
     void onMountButtonClicked();
     void onImageListFetched(bool success,
@@ -62,7 +60,6 @@ private:
     QLabel *m_statusLabel;
     QLabel *m_initialStatusLabel;
     QWidget *m_errorWidget;
-    QLineEdit *m_downloadPathEdit;
     QComboBox *m_deviceComboBox;
     QPushButton *m_mountButton;
     QPushButton *m_check_mountedButton;

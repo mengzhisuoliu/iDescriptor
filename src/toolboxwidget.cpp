@@ -82,7 +82,7 @@ ToolboxWidget::ToolboxWidget(QWidget *parent) : QWidget{parent}
 void ToolboxWidget::setupUI()
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(5, 5, 5, 5);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
 
     // Device selection section
     QHBoxLayout *deviceLayout = new QHBoxLayout();
@@ -92,7 +92,7 @@ void ToolboxWidget::setupUI()
 
     deviceLayout->addWidget(m_deviceLabel);
     deviceLayout->addWidget(m_deviceCombo);
-    deviceLayout->setContentsMargins(0, 0, 0, 0);
+    deviceLayout->setContentsMargins(15, 5, 15, 5);
     deviceLayout->addStretch();
 
     mainLayout->addLayout(deviceLayout);
