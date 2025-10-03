@@ -2,6 +2,7 @@
 #define INSTALLEDAPPSWIDGET_H
 
 #include "iDescriptor.h"
+#include <QCheckBox>
 #include <QEnterEvent>
 #include <QFrame>
 #include <QFutureWatcher>
@@ -68,6 +69,7 @@ private slots:
     void onAppsDataReady();
     void onAppTabClicked();
     void onContainerDataReady();
+    void onFileSharingFilterChanged(bool enabled);
 
 private:
     void setupUI();
@@ -83,6 +85,7 @@ private:
     iDescriptorDevice *m_device;
     QHBoxLayout *m_mainLayout;
     QLineEdit *m_searchEdit;
+    QCheckBox *m_fileSharingCheckBox;
     QScrollArea *m_tabScrollArea;
     QWidget *m_tabContainer;
     QVBoxLayout *m_tabLayout;

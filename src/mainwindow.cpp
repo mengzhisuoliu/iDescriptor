@@ -180,14 +180,14 @@ MainWindow::MainWindow(QWidget *parent)
     m_customTabWidget->addTab(jailbrokenWidget, "Jailbroken");
     m_customTabWidget->finalizeStyles();
 
-    connect(
-        m_customTabWidget, &CustomTabWidget::currentChanged, this,
-        [this, jailbrokenWidget](int index) {
-            if (index == 3) { // Jailbroken tab
-                jailbrokenWidget->initWidget();
-            }
-        },
-        Qt::SingleShotConnection);
+    // connect(
+    //     m_customTabWidget, &CustomTabWidget::currentChanged, this,
+    //     [this, jailbrokenWidget](int index) {
+    //         if (index == 3) { // Jailbroken tab
+    //             jailbrokenWidget->initWidget();
+    //         }
+    //     },
+    //     Qt::SingleShotConnection);
 
     // settings button
     QPushButton *settingsButton = new QPushButton();

@@ -1,4 +1,5 @@
 #include "installedappswidget.h"
+#include "afcexplorerwidget.h"
 #include "iDescriptor.h"
 #include <QAction>
 #include <QApplication>
@@ -207,6 +208,17 @@ void InstalledAppsWidget::setupUI()
     searchAction->setToolTip("Search");
 
     searchLayout->addWidget(m_searchEdit);
+
+    // Add checkbox for file sharing filter
+    m_fileSharingCheckBox = new QCheckBox("File Sharing Enabled");
+    m_fileSharingCheckBox->setChecked(true); // Default enabled
+    m_fileSharingCheckBox->setStyleSheet("QCheckBox { "
+                                         "    font-size: 12px; "
+                                         "    color: #333; "
+                                         "    margin-left: 5px; "
+                                         "}");
+    searchLayout->addWidget(m_fileSharingCheckBox);
+
     tabFrameLayout->addWidget(searchContainer);
 
     // Add a separator line
@@ -279,6 +291,10 @@ void InstalledAppsWidget::setupUI()
     // Connect search functionality
     connect(m_searchEdit, &QLineEdit::textChanged, this,
             &InstalledAppsWidget::filterApps);
+
+    // Connect file sharing filter
+    connect(m_fileSharingCheckBox, &QCheckBox::toggled, this,
+            &InstalledAppsWidget::onFileSharingFilterChanged);
 
     showLoadingState();
 }
@@ -361,6 +377,8 @@ void InstalledAppsWidget::fetchInstalledApps()
                     plist_new_string("CFBundleShortVersionString"));
                 plist_array_append_item(return_attrs,
                                         plist_new_string("CFBundleVersion"));
+                plist_array_append_item(
+                    return_attrs, plist_new_string("UIFileSharingEnabled"));
 
                 plist_dict_set_item(client_opts, "ReturnAttributes",
                                     return_attrs);
@@ -420,6 +438,21 @@ void InstalledAppsWidget::fetchInstalledApps()
                                     appData["version"] = QString(version_str);
                                     free(version_str);
                                 }
+                            }
+
+                            // Get file sharing enabled status
+                            plist_t file_sharing = plist_dict_get_item(
+                                app_info, "UIFileSharingEnabled");
+                            if (file_sharing &&
+                                plist_get_node_type(file_sharing) ==
+                                    PLIST_BOOLEAN) {
+                                uint8_t file_sharing_enabled = 0;
+                                plist_get_bool_val(file_sharing,
+                                                   &file_sharing_enabled);
+                                appData["fileSharingEnabled"] =
+                                    (file_sharing_enabled != 0);
+                            } else {
+                                appData["fileSharingEnabled"] = false;
                             }
 
                             appData["type"] = appType;
@@ -497,6 +530,13 @@ void InstalledAppsWidget::onAppsDataReady()
         QString bundleId = appData.value("bundleId").toString();
         QString version = appData.value("version").toString();
         QString appType = appData.value("type").toString();
+        bool fileSharingEnabled =
+            appData.value("fileSharingEnabled", false).toBool();
+
+        // Filter by file sharing status if checkbox is checked
+        if (m_fileSharingCheckBox->isChecked() && !fileSharingEnabled) {
+            continue;
+        }
 
         if (displayName.isEmpty()) {
             displayName = bundleId;
@@ -673,10 +713,10 @@ void InstalledAppsWidget::loadAppContainer(const QString &bundleId)
             lockdowndService = nullptr;
 
             // Send vendor container command
-            if (house_arrest_send_command(houseArrestClient, "VendContainer",
+            if (house_arrest_send_command(houseArrestClient, "VendDocuments",
                                           bundleId.toUtf8().constData()) !=
                 HOUSE_ARREST_E_SUCCESS) {
-                result["error"] = "Could not send VendContainer command";
+                result["error"] = "Could not send VendDocuments command";
                 house_arrest_client_free(houseArrestClient);
                 lockdownd_client_free(lockdownClient);
                 return result;
@@ -743,12 +783,17 @@ void InstalledAppsWidget::loadAppContainer(const QString &bundleId)
                 }
                 afc_dictionary_free(list);
             }
-
+            qDebug() << "App container files:" << files;
             result["files"] = files;
+            result["afcClient"] =
+                QVariant::fromValue(reinterpret_cast<void *>(afcClient));
+            result["houseArrestClient"] = QVariant::fromValue(
+                reinterpret_cast<void *>(houseArrestClient));
             result["success"] = true;
 
-            afc_client_free(afcClient);
-            house_arrest_client_free(houseArrestClient);
+            // Don't free the clients here - they will be used by
+            // AfcExplorerWidget afc_client_free(afcClient);
+            // house_arrest_client_free(houseArrestClient);
             lockdownd_client_free(lockdownClient);
 
         } catch (const std::exception &e) {
@@ -792,49 +837,38 @@ void InstalledAppsWidget::onContainerDataReady()
         return;
     }
 
-    QStringList files = result.value("files").toStringList();
-    if (files.isEmpty()) {
-        QLabel *emptyLabel = new QLabel("App container is empty");
-        emptyLabel->setStyleSheet("color: #999; font-style: italic;");
-        m_containerLayout->addWidget(emptyLabel);
+    // Get the AFC clients from the result
+    afc_client_t afcClient = reinterpret_cast<afc_client_t>(
+        result.value("afcClient").value<void *>());
+    house_arrest_client_t houseArrestClient =
+        reinterpret_cast<house_arrest_client_t>(
+            result.value("houseArrestClient").value<void *>());
+
+    if (!afcClient) {
+        QLabel *errorLabel =
+            new QLabel("Failed to get AFC client for app container");
+        errorLabel->setStyleSheet("color: #999; font-style: italic;");
+        m_containerLayout->addWidget(errorLabel);
         return;
     }
 
-    // Sort files/directories
-    files.sort();
+    // Create AfcExplorerWidget with the house arrest AFC client
+    AfcExplorerWidget *explorer = new AfcExplorerWidget(
+        afcClient,
+        [houseArrestClient]() {
+            // Cleanup callback when client becomes invalid
+            if (houseArrestClient) {
+                house_arrest_client_free(houseArrestClient);
+            }
+        },
+        m_device, this);
 
-    // Add files/directories to the container view
-    for (const QString &fileName : files) {
-        QLabel *fileLabel = new QLabel();
+    m_containerLayout->addWidget(explorer);
+}
 
-        // Determine if it's likely a directory (simple heuristic)
-        QString displayText = fileName;
-        QIcon icon;
-        if (!fileName.contains('.') || fileName.endsWith("/")) {
-            icon = this->style()->standardIcon(QStyle::SP_DirIcon);
-            displayText = "📁 " + fileName;
-        } else {
-            icon = this->style()->standardIcon(QStyle::SP_FileIcon);
-            displayText = "📄 " + fileName;
-        }
-
-        fileLabel->setText(displayText);
-        fileLabel->setStyleSheet("QLabel { "
-                                 "    padding: 4px 8px; "
-                                 "    border: 1px solid transparent; "
-                                 "    border-radius: 3px; "
-                                 "    font-family: monospace; "
-                                 "    font-size: 13px; "
-                                 "} "
-                                 "QLabel:hover { "
-                                 "    background-color: #f0f0f0; "
-                                 "    border: 1px solid #ddd; "
-                                 "}");
-        fileLabel->setWordWrap(true);
-
-        m_containerLayout->addWidget(fileLabel);
-    }
-
-    // Add stretch to push items to top
-    m_containerLayout->addStretch();
+void InstalledAppsWidget::onFileSharingFilterChanged(bool enabled)
+{
+    Q_UNUSED(enabled)
+    // Refresh the apps list when filter changes
+    fetchInstalledApps();
 }

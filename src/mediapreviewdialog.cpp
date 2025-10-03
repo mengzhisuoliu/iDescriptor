@@ -24,7 +24,7 @@
 #include <QWheelEvent>
 #include <QtConcurrent/QtConcurrent>
 #include <QtGlobal>
-
+// todo : need to pass afc as well
 MediaPreviewDialog::MediaPreviewDialog(iDescriptorDevice *device,
                                        const QString &filePath, QWidget *parent)
     : QDialog(parent), m_device(device), m_filePath(filePath),
@@ -164,7 +164,14 @@ void MediaPreviewDialog::setupVideoView()
             &MediaPreviewDialog::onMediaPlayerPositionChanged);
     connect(m_mediaPlayer, &QMediaPlayer::playbackStateChanged, this,
             &MediaPreviewDialog::onMediaPlayerStateChanged);
-
+    connect(m_mediaPlayer, &QMediaPlayer::errorOccurred, this,
+            [this](QMediaPlayer::Error error, const QString &errorString) {
+                qDebug() << "MediaPlayer Error:" << error << errorString;
+                m_statusLabel->setText("Error: " + errorString);
+                m_loadingLabel->setText("Error: " + errorString);
+                m_loadingLabel->show();
+                m_videoWidget->hide();
+            });
     // Setup progress timer for smooth updates
     m_progressTimer = new QTimer(this);
     connect(m_progressTimer, &QTimer::timeout, this,
