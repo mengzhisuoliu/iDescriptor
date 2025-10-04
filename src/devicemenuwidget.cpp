@@ -12,6 +12,7 @@ DeviceMenuWidget::DeviceMenuWidget(iDescriptorDevice *device, QWidget *parent)
     : QWidget{parent}, device(device)
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    setContentsMargins(0, 0, 0, 0);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 

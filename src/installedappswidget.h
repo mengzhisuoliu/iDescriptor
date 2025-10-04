@@ -6,6 +6,7 @@
 #include <QEnterEvent>
 #include <QFrame>
 #include <QFutureWatcher>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -17,11 +18,12 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSplitter>
 #include <QVBoxLayout>
 #include <QWidget>
 
 // Custom App Tab Widget
-class AppTabWidget : public QWidget
+class AppTabWidget : public QGroupBox
 {
     Q_OBJECT
 
@@ -40,21 +42,24 @@ signals:
     void clicked();
 
 protected:
-    void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
-    // TODO override?
-    void enterEvent(QEnterEvent *event);
+    void enterEvent(QEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
 
 private:
     void fetchAppIcon();
+    void setupUI();
+    void updateStyles();
 
     QString m_appName;
     QString m_bundleId;
     QString m_version;
-    QPixmap m_icon;
     bool m_selected = false;
     bool m_hovered = false;
+
+    QLabel *m_iconLabel;
+    QLabel *m_nameLabel;
+    QLabel *m_versionLabel;
 };
 
 class InstalledAppsWidget : public QWidget
@@ -97,6 +102,7 @@ private:
     QVBoxLayout *m_containerLayout;
     QFutureWatcher<QVariantMap> *m_watcher;
     QFutureWatcher<QVariantMap> *m_containerWatcher;
+    QSplitter *m_splitter;
 
     // App data storage
     QList<AppTabWidget *> m_appTabs;

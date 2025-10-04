@@ -71,8 +71,7 @@ void DeviceManagerWidget::setupUI()
 
     // Add to layout
     m_mainLayout->addWidget(m_sidebar);
-    m_mainLayout->addWidget(m_stackedWidget,
-                            1); // Give stacked widget more space
+    m_mainLayout->addWidget(m_stackedWidget);
 
     // Connect signals
     connect(m_sidebar, &DeviceSidebarWidget::sidebarDeviceChanged, this,
@@ -92,7 +91,6 @@ void DeviceManagerWidget::addDevice(iDescriptorDevice *device)
              << QString::fromStdString(device->udid);
 
     DeviceMenuWidget *deviceWidget = new DeviceMenuWidget(device, this);
-    deviceWidget->setContentsMargins(35, 15, 35, 15);
 
     QString tabTitle = QString::fromStdString(device->deviceInfo.productType);
 

@@ -25,7 +25,7 @@ DiskUsageWidget::DiskUsageWidget(iDescriptorDevice *device, QWidget *parent)
 void DiskUsageWidget::setupUI()
 {
     m_mainLayout = new QVBoxLayout(this);
-    m_mainLayout->setContentsMargins(0, 0, 0, 0);
+    m_mainLayout->setContentsMargins(0, 0, 14, 10);
     m_mainLayout->setSpacing(0);
 
     // Title
@@ -67,16 +67,6 @@ void DiskUsageWidget::setupUI()
     m_othersBar = new QWidget();
     m_freeBar = new QWidget();
 #endif
-    // Set size policies to prevent any extra spacing
-    // m_systemBar->setSizePolicy(QSizePolicy::Expanding,
-    // QSizePolicy::Expanding); m_appsBar->setSizePolicy(QSizePolicy::Expanding,
-    // QSizePolicy::Expanding);
-    // m_mediaBar->setSizePolicy(QSizePolicy::Expanding,
-    // QSizePolicy::Expanding);
-    // m_othersBar->setSizePolicy(QSizePolicy::Expanding,
-    // QSizePolicy::Expanding); m_freeBar->setSizePolicy(QSizePolicy::Expanding,
-    // QSizePolicy::Expanding);
-
     // Set colors
     m_systemBar->setStyleSheet(
         "background-color: #a1384d; border: 1px solid"
@@ -115,14 +105,13 @@ void DiskUsageWidget::setupUI()
     m_freeLabel = new QLabel("Free", this);
 
     // Style legend labels with colored backgrounds
-    QString labelStyle = "QLabel { padding: 2px 6px; margin: 0px; "
-                         "border-radius: 3px; color: white; font-size: 10px; }";
-    m_systemLabel->setStyleSheet(labelStyle + "background-color: #a1384d;");
-    m_appsLabel->setStyleSheet(labelStyle + "background-color: #3498DB;");
-    m_mediaLabel->setStyleSheet(labelStyle + "background-color: #2ECC71;");
-    m_othersLabel->setStyleSheet(labelStyle + "background-color: #F39C12;");
-    m_freeLabel->setStyleSheet(labelStyle +
-                               "background-color: #BDC3C7; color: black;");
+    QString labelStyle =
+        "padding: 2px 6px; margin: 0px; border-radius: 3px; font-size: 10px;";
+    m_systemLabel->setStyleSheet(labelStyle);
+    m_appsLabel->setStyleSheet(labelStyle);
+    m_mediaLabel->setStyleSheet(labelStyle);
+    m_othersLabel->setStyleSheet(labelStyle);
+    m_freeLabel->setStyleSheet(labelStyle);
 
     m_legendLayout->addWidget(m_systemLabel);
     m_legendLayout->addWidget(m_appsLabel);

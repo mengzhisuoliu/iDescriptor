@@ -1,10 +1,12 @@
 #include "installedappswidget.h"
 #include "afcexplorerwidget.h"
 #include "iDescriptor.h"
+#include "qprocessindicator.h"
 #include <QAction>
 #include <QApplication>
 #include <QDebug>
 #include <QEnterEvent>
+#include <QGroupBox>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -20,18 +22,14 @@
 // AppTabWidget Implementation
 AppTabWidget::AppTabWidget(const QString &appName, const QString &bundleId,
                            const QString &version, QWidget *parent)
-    : QWidget(parent), m_appName(appName), m_bundleId(bundleId),
-      m_version(version)
+    : QGroupBox(parent), m_appName(appName), m_bundleId(bundleId),
+      m_version(version), m_selected(false), m_hovered(false)
 {
     setFixedHeight(60);
     setMinimumWidth(250);
     setCursor(Qt::PointingHandCursor);
 
-    // Load placeholder icon
-    m_icon = QApplication::style()
-                 ->standardIcon(QStyle::SP_ComputerIcon)
-                 .pixmap(32, 32);
-
+    setupUI();
     fetchAppIcon();
 }
 
@@ -55,8 +53,7 @@ void AppTabWidget::fetchAppIcon()
                 painter.drawPixmap(0, 0, scaled);
                 painter.end();
 
-                m_icon = rounded;
-                update();
+                m_iconLabel->setPixmap(rounded);
             }
         },
         this);
@@ -65,65 +62,64 @@ void AppTabWidget::fetchAppIcon()
 void AppTabWidget::setSelected(bool selected)
 {
     m_selected = selected;
-    update();
+    updateStyles();
 }
 
-void AppTabWidget::paintEvent(QPaintEvent *event)
+void AppTabWidget::setupUI()
 {
-    Q_UNUSED(event)
+    // Create main layout
+    QHBoxLayout *mainLayout = new QHBoxLayout(this);
+    mainLayout->setContentsMargins(10, 8, 10, 8);
+    mainLayout->setSpacing(10);
 
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
+    // Icon label
+    m_iconLabel = new QLabel();
+    m_iconLabel->setFixedSize(32, 32);
+    m_iconLabel->setScaledContents(true);
 
-    // Background
-    QColor bgColor;
-    if (m_selected) {
-        bgColor = QColor(0, 122, 255); // #007AFF
-    } else if (m_hovered) {
-        bgColor = QColor(224, 224, 224); // #e0e0e0
-    } else {
-        bgColor = QColor(245, 245, 245); // #f5f5f5
-    }
+    // Load placeholder icon
+    QPixmap placeholderIcon = QApplication::style()
+                                  ->standardIcon(QStyle::SP_ComputerIcon)
+                                  .pixmap(32, 32);
+    m_iconLabel->setPixmap(placeholderIcon);
 
-    painter.fillRect(rect().adjusted(2, 2, -2, -2), bgColor);
+    mainLayout->addWidget(m_iconLabel);
 
-    // Border
-    painter.setPen(QPen(QColor(204, 204, 204), 1)); // #ccc
-    painter.drawRoundedRect(rect().adjusted(2, 2, -2, -2), 4, 4);
+    // Text container
+    QVBoxLayout *textLayout = new QVBoxLayout();
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    textLayout->setSpacing(2);
 
-    // Icon
-    QRect iconRect(10, 14, 32, 32);
-    painter.drawPixmap(iconRect, m_icon);
+    // App name label
+    m_nameLabel = new QLabel();
+    m_nameLabel->setFont(QFont(m_nameLabel->font().family(),
+                               m_nameLabel->font().pointSize(), QFont::Medium));
 
-    // Text
-    QColor textColor = m_selected ? Qt::white : Qt::black;
-    painter.setPen(textColor);
-
-    QFont font = painter.font();
-    font.setWeight(QFont::Medium);
-    painter.setFont(font);
-
-    QRect textRect(50, 10, width() - 60, 20);
     QString displayText = m_appName;
     if (displayText.length() > 20) {
         displayText = displayText.left(17) + "...";
     }
-    painter.drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, displayText);
+    m_nameLabel->setText(displayText);
 
-    // Version
+    textLayout->addWidget(m_nameLabel);
+
+    // Version label
     if (!m_version.isEmpty()) {
-        font.setPointSize(font.pointSize() - 1);
-        font.setWeight(QFont::Normal);
-        painter.setFont(font);
-
-        QColor versionColor =
-            m_selected ? QColor(255, 255, 255, 180) : QColor(102, 102, 102);
-        painter.setPen(versionColor);
-
-        QRect versionRect(50, 32, width() - 60, 16);
-        painter.drawText(versionRect, Qt::AlignLeft | Qt::AlignVCenter,
-                         m_version);
+        m_versionLabel = new QLabel(m_version);
+        QFont versionFont = m_versionLabel->font();
+        versionFont.setPointSize(versionFont.pointSize() - 1);
+        m_versionLabel->setFont(versionFont);
+        // m_versionLabel->setStyleSheet("color: #666666;");
+        textLayout->addWidget(m_versionLabel);
+    } else {
+        m_versionLabel = nullptr;
     }
+
+    mainLayout->addLayout(textLayout);
+    mainLayout->addStretch();
+
+    // Set initial styles
+    // updateStyles();
 }
 
 void AppTabWidget::mousePressEvent(QMouseEvent *event)
@@ -136,14 +132,48 @@ void AppTabWidget::enterEvent(QEnterEvent *event)
 {
     Q_UNUSED(event)
     m_hovered = true;
-    update();
+    // updateStyles();
 }
 
 void AppTabWidget::leaveEvent(QEvent *event)
 {
     Q_UNUSED(event)
     m_hovered = false;
-    update();
+    // updateStyles();
+}
+
+void AppTabWidget::updateStyles()
+{
+    QString backgroundColor;
+    QString nameColor = "#000000";
+    QString versionColor = "#666666";
+    QString borderStyle;
+
+    if (m_selected) {
+        backgroundColor = "#007AFF";
+        nameColor = "#ffffff";
+        versionColor = "#ffffff";
+        borderStyle = "border: 2px solid #007AFF; border-radius: 6px;";
+    } else if (m_hovered) {
+        backgroundColor = "#f0f0f0";
+        borderStyle = "border: 1px solid #e0e0e0; border-radius: 6px;";
+    } else {
+        backgroundColor = "transparent";
+        borderStyle = "border: 1px solid transparent; border-radius: 6px;";
+    }
+
+    // Update widget background
+    // setStyleSheet(QString("AppTabWidget { background-color: %1; %2 }")
+    //                   .arg(backgroundColor, borderStyle));
+
+    // Update name label color
+    // m_nameLabel->setStyleSheet(QString("color: %1;").arg(nameColor));
+
+    // Update version label color if it exists
+    // if (m_versionLabel) {
+    //     m_versionLabel->setStyleSheet(QString("color:
+    //     %1;").arg(versionColor));
+    // }
 }
 
 InstalledAppsWidget::InstalledAppsWidget(iDescriptorDevice *device,
@@ -168,65 +198,64 @@ void InstalledAppsWidget::setupUI()
     m_mainLayout->setContentsMargins(0, 0, 0, 0);
     m_mainLayout->setSpacing(0);
 
-    // Left side - Custom tab area with scroll
-    QFrame *tabFrame = new QFrame();
-    tabFrame->setMinimumWidth(350);
-    tabFrame->setMaximumWidth(400);
-    tabFrame->setStyleSheet("QFrame { border: 1px solid #ccc; }");
+    // Create main splitter
+    m_splitter = new QSplitter(Qt::Horizontal, this);
+    m_splitter->setChildrenCollapsible(false);
+    m_mainLayout->addWidget(m_splitter);
 
-    QVBoxLayout *tabFrameLayout = new QVBoxLayout(tabFrame);
-    tabFrameLayout->setContentsMargins(0, 0, 0, 0);
-    tabFrameLayout->setSpacing(0);
+    // Left side - Custom tab area with scroll
+    QWidget *tabWidget = new QWidget();
+    tabWidget->setMinimumWidth(300);
+    tabWidget->setMaximumWidth(500);
+
+    QVBoxLayout *tabWidgetLayout = new QVBoxLayout(tabWidget);
+    tabWidgetLayout->setContentsMargins(0, 0, 0, 0);
+    tabWidgetLayout->setSpacing(0);
 
     // Search box at the top
     QWidget *searchContainer = new QWidget();
     searchContainer->setFixedHeight(50);
     QHBoxLayout *searchLayout = new QHBoxLayout(searchContainer);
-    searchLayout->setContentsMargins(10, 10, 10, 10);
+    searchLayout->setContentsMargins(0, 0, 0, 0);
 
     m_searchEdit = new QLineEdit();
     m_searchEdit->setPlaceholderText("Search apps...");
     m_searchEdit->setStyleSheet("QLineEdit { "
                                 "    border: 2px solid #e0e0e0; "
                                 "    border-radius: 6px; "
-                                "    padding: 8px 12px; "
+                                "    padding: 4px 8px; "
                                 "    font-size: 14px; "
-                                "    color: #333; "
                                 "} "
                                 "QLineEdit:focus { "
                                 "    border: 2px solid #007AFF; "
                                 "    outline: none; "
-                                "} "
-                                "QLineEdit::placeholder { "
-                                "    color: #999; "
-                                "}");
+                                "} ");
 
     // Add search icon
-    QAction *searchAction = m_searchEdit->addAction(
-        this->style()->standardIcon(QStyle::SP_FileDialogContentsView),
-        QLineEdit::LeadingPosition);
-    searchAction->setToolTip("Search");
+    // QAction *searchAction = m_searchEdit->addAction(
+    //     this->style()->standardIcon(QStyle::SP_FileDialogContentsView),
+    //     QLineEdit::LeadingPosition);
+    m_searchEdit->setToolTip("Search");
 
     searchLayout->addWidget(m_searchEdit);
 
     // Add checkbox for file sharing filter
-    m_fileSharingCheckBox = new QCheckBox("File Sharing Enabled");
+    m_fileSharingCheckBox = new QCheckBox("Show Only File Sharing Enabled");
     m_fileSharingCheckBox->setChecked(true); // Default enabled
     m_fileSharingCheckBox->setStyleSheet("QCheckBox { "
-                                         "    font-size: 12px; "
-                                         "    color: #333; "
+                                         "    font-size: 10px; "
                                          "    margin-left: 5px; "
                                          "}");
     searchLayout->addWidget(m_fileSharingCheckBox);
 
-    tabFrameLayout->addWidget(searchContainer);
+    tabWidgetLayout->addWidget(searchContainer);
 
     // Add a separator line
-    QFrame *separator = new QFrame();
-    separator->setFrameShape(QFrame::HLine);
-    separator->setFrameShadow(QFrame::Sunken);
-    separator->setStyleSheet("QFrame { color: #e0e0e0; }");
-    tabFrameLayout->addWidget(separator);
+    // QFrame *separator = new QFrame();
+    // separator->setFrameShape(QFrame::HLine);
+    // separator->setFrameShadow(QFrame::Sunken);
+    // separator->setStyleSheet("QFrame { color: #e0e0e0; }");
+    // tabFrameLayout->addWidget(separator);
 
     m_tabScrollArea = new QScrollArea();
     m_tabScrollArea->setWidgetResizable(true);
@@ -237,56 +266,62 @@ void InstalledAppsWidget::setupUI()
     m_tabContainer = new QWidget();
     // m_tabContainer->setStyleSheet("");
     m_tabLayout = new QVBoxLayout(m_tabContainer);
-    m_tabLayout->setContentsMargins(0, 0, 0, 0);
-    m_tabLayout->setSpacing(0);
+    m_tabLayout->setContentsMargins(0, 0, 10, 0);
+    m_tabLayout->setSpacing(10);
     m_tabLayout->addStretch(); // Push tabs to top
 
     m_tabScrollArea->setWidget(m_tabContainer);
-    tabFrameLayout->addWidget(m_tabScrollArea);
+    tabWidgetLayout->addWidget(m_tabScrollArea);
+
+    // Add tab widget to splitter
+    m_splitter->addWidget(tabWidget);
 
     // Right side - Content area
     m_contentWidget = new QWidget();
-    m_contentWidget->setStyleSheet("border: 1px solid #ccc;");
+    // m_contentWidget->setStyleSheet("border: 1px solid #ccc;");
 
     QVBoxLayout *contentLayout = new QVBoxLayout(m_contentWidget);
-    contentLayout->setContentsMargins(20, 20, 20, 20);
-    contentLayout->setSpacing(15);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(0);
 
     m_contentLabel = new QLabel("Select an app to view details");
     m_contentLabel->setAlignment(Qt::AlignCenter);
-    m_contentLabel->setStyleSheet("font-size: 16px; color: #666;");
+    // m_contentLabel->setStyleSheet("font-size: 16px; color: #666;");
     contentLayout->addWidget(m_contentLabel);
 
     // Container explorer area
-    QLabel *containerTitle = new QLabel("App Container:");
-    containerTitle->setStyleSheet(
-        "font-size: 14px; font-weight: bold; color: #333;");
-    containerTitle->setVisible(false);
-    contentLayout->addWidget(containerTitle);
+    // QLabel *containerTitle = new QLabel("App Container:");
+    // containerTitle->setStyleSheet(
+    //     "font-size: 14px; font-weight: bold; color: #333;");
+    // containerTitle->setVisible(false);
+    // contentLayout->addWidget(containerTitle);
 
     m_containerScrollArea = new QScrollArea();
     m_containerScrollArea->setWidgetResizable(true);
     m_containerScrollArea->setMinimumHeight(200);
-    m_containerScrollArea->setStyleSheet(
-        "QScrollArea { border: 1px solid #ddd; border-radius: 4px; }");
+    // m_containerScrollArea->setStyleSheet(
+    //     "QScrollArea { border: 1px solid #ddd; border-radius: 4px; }");
     m_containerScrollArea->setVisible(false);
 
     m_containerWidget = new QWidget();
     m_containerLayout = new QVBoxLayout(m_containerWidget);
-    m_containerLayout->setContentsMargins(10, 10, 10, 10);
-    m_containerLayout->setSpacing(5);
+    m_containerLayout->setContentsMargins(0, 0, 0, 0);
+    m_containerLayout->setSpacing(0);
 
     m_containerScrollArea->setWidget(m_containerWidget);
     contentLayout->addWidget(m_containerScrollArea);
 
-    // Progress bar for loading
-    m_progressBar = new QProgressBar();
-    m_progressBar->setRange(0, 0); // Indeterminate progress
-    m_progressBar->setVisible(false);
-    contentLayout->addWidget(m_progressBar);
+    // Add content widget to splitter
+    m_splitter->addWidget(m_contentWidget);
 
-    m_mainLayout->addWidget(tabFrame);
-    m_mainLayout->addWidget(m_contentWidget, 1); // Give content area more space
+    // Set initial splitter sizes (30% for tabs, 70% for content)
+    m_splitter->setSizes({300, 700});
+
+    // // Progress bar for loading
+    // m_progressBar = new QProgressBar();
+    // m_progressBar->setRange(0, 0); // Indeterminate progress
+    // m_progressBar->setVisible(false);
+    // contentLayout->addWidget(m_progressBar);
 
     // Connect search functionality
     connect(m_searchEdit, &QLineEdit::textChanged, this,
@@ -302,7 +337,7 @@ void InstalledAppsWidget::setupUI()
 void InstalledAppsWidget::showLoadingState()
 {
     m_contentLabel->setText("Loading installed apps...");
-    m_progressBar->setVisible(true);
+    // m_progressBar->setVisible(true);
 
     // Clear existing tabs
     qDeleteAll(m_appTabs);
@@ -313,9 +348,9 @@ void InstalledAppsWidget::showLoadingState()
 void InstalledAppsWidget::showErrorState(const QString &error)
 {
     m_contentLabel->setText(QString("Error loading apps: %1").arg(error));
-    m_progressBar->setVisible(false);
+    // m_progressBar->setVisible(false);
 }
-
+// todo: move to services
 void InstalledAppsWidget::fetchInstalledApps()
 {
     if (!m_device || !m_device->device) {
@@ -493,7 +528,7 @@ void InstalledAppsWidget::fetchInstalledApps()
 void InstalledAppsWidget::onAppsDataReady()
 {
     QVariantMap result = m_watcher->result();
-    m_progressBar->setVisible(false);
+    // m_progressBar->setVisible(false);
 
     if (!result.value("success", false).toBool()) {
         showErrorState(result.value("error", "Unknown error").toString());
@@ -569,6 +604,7 @@ void InstalledAppsWidget::createAppTab(const QString &appName,
     connect(tabWidget, &AppTabWidget::clicked, this,
             &InstalledAppsWidget::onAppTabClicked);
 
+    // TODO: is this needed ?
     // Remove the stretch before adding the new tab
     m_tabLayout->removeItem(m_tabLayout->itemAt(m_tabLayout->count() - 1));
 
@@ -659,21 +695,21 @@ void InstalledAppsWidget::loadAppContainer(const QString &bundleId)
         delete item;
     }
 
-    // Show loading state
-    QLabel *loadingLabel = new QLabel("Loading app container...");
-    loadingLabel->setStyleSheet("color: #666; font-style: italic;");
-    m_containerLayout->addWidget(loadingLabel);
+    QProcessIndicator *l = new QProcessIndicator();
+    l->setFixedSize(32, 32);
+    l->start();
+    m_containerLayout->addWidget(l);
     m_containerScrollArea->setVisible(true);
 
-    // Find container title and make it visible
-    QVBoxLayout *contentLayout =
-        qobject_cast<QVBoxLayout *>(m_contentWidget->layout());
-    if (contentLayout && contentLayout->count() > 1) {
-        QLayoutItem *titleItem = contentLayout->itemAt(1);
-        if (titleItem && titleItem->widget()) {
-            titleItem->widget()->setVisible(true);
-        }
-    }
+    // // Find container title and make it visible
+    // QVBoxLayout *contentLayout =
+    //     qobject_cast<QVBoxLayout *>(m_contentWidget->layout());
+    // if (contentLayout && contentLayout->count() > 1) {
+    //     QLayoutItem *titleItem = contentLayout->itemAt(1);
+    //     if (titleItem && titleItem->widget()) {
+    //         titleItem->widget()->setVisible(true);
+    //     }
+    // }
 
     QFuture<QVariantMap> future = QtConcurrent::run([this, bundleId]()
                                                         -> QVariantMap {
@@ -830,8 +866,8 @@ void InstalledAppsWidget::onContainerDataReady()
 
     if (!result.value("success", false).toBool()) {
         QLabel *errorLabel = new QLabel("No data available for this app");
-        errorLabel->setStyleSheet(
-            "color: #999; font-style: italic; text-align: center;");
+        // errorLabel->setStyleSheet(
+        //     "color: #999; font-style: italic; text-align: center;");
         errorLabel->setAlignment(Qt::AlignCenter);
         m_containerLayout->addWidget(errorLabel);
         return;
@@ -847,7 +883,7 @@ void InstalledAppsWidget::onContainerDataReady()
     if (!afcClient) {
         QLabel *errorLabel =
             new QLabel("Failed to get AFC client for app container");
-        errorLabel->setStyleSheet("color: #999; font-style: italic;");
+        // errorLabel->setStyleSheet("color: #999; font-style: italic;");
         m_containerLayout->addWidget(errorLabel);
         return;
     }

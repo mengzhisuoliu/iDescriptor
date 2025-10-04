@@ -46,8 +46,8 @@ void FileExplorerWidget::setupSidebar()
 {
     m_sidebarTree = new QTreeWidget();
     m_sidebarTree->setHeaderLabel("Files");
-    m_sidebarTree->setMinimumWidth(350);
-    m_sidebarTree->setMaximumWidth(400);
+    m_sidebarTree->setMinimumWidth(50);
+    m_sidebarTree->setMaximumWidth(200);
 
     // AFC Default section
     m_afcDefaultItem = new QTreeWidgetItem(m_sidebarTree);

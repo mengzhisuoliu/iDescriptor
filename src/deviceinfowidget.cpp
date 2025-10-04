@@ -30,8 +30,8 @@ DeviceInfoWidget::DeviceInfoWidget(iDescriptorDevice *device, QWidget *parent)
 {
     // Main layout with horizontal orientation
     QHBoxLayout *mainLayout = new QHBoxLayout(this);
-    mainLayout->setContentsMargins(2, 2, 2, 2);
-    mainLayout->setSpacing(2);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(1);
     m_graphicsScene = new QGraphicsScene(this); // no parent
     QGraphicsPixmapItem *pixmapItem =
         new QGraphicsPixmapItem(QPixmap(":/resources/iphone.png"));
