@@ -46,7 +46,18 @@ find_package(PkgConfig REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Network QuickControls2 SerialPort Positioning Location QuickWidgets) 
 
 # Add QTermWidget
-pkg_check_modules(QTERMWIDGET REQUIRED IMPORTED_TARGET qtermwidget6)
+# Prefer CMake-native qtermwidget6, fallback to pkg-config if needed
+find_package(qtermwidget6 QUIET)
+
+if(NOT qtermwidget6_FOUND)
+    message(STATUS "qtermwidget6 not found via CMake, trying pkg-config...")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(QTERMWIDGET REQUIRED IMPORTED_TARGET qtermwidget6)
+    # Create alias so we can use qtermwidget6::qtermwidget6 uniformly
+    add_library(qtermwidget6 ALIAS PkgConfig::QTERMWIDGET)
+else()
+    message(STATUS "Found qtermwidget6 via CMake")
+endif()
 
 if(WIN32)
     # Get the path to the Qt bin directory
@@ -223,7 +234,7 @@ target_link_libraries(iDescriptor PRIVATE
     PkgConfig::USB
     PkgConfig::PLIST
     PkgConfig::QRENCODE
-    PkgConfig::QTERMWIDGET
+    qtermwidget6
     PkgConfig::HEIF
     PkgConfig::ZIP
     airplay

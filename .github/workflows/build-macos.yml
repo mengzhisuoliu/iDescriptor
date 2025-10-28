@@ -124,8 +124,6 @@ jobs:
 
       - name: Configure CMake
         run: |
-          PKG_CONFIG_PATH="${QT_ROOT_DIR}/lib/pkgconfig:${PKG_CONFIG_PATH:-}" \
-          CMAKE_PREFIX_PATH="${QT_ROOT_DIR}/lib/cmake:${CMAKE_PREFIX_PATH:-}" \
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DRUN_CLANG_TIDY=OFF
 
       - name: Build with CMake
