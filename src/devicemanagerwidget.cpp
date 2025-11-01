@@ -18,7 +18,10 @@ DeviceManagerWidget::DeviceManagerWidget(QWidget *parent)
                 // Apply settings-based behavior for switching to new device
                 SettingsManager::sharedInstance()->doIfEnabled(
                     SettingsManager::Setting::SwitchToNewDevice,
-                    [this, device]() { setCurrentDevice(device->udid); });
+                    [this, device]() {
+                        AppContext::sharedInstance()->setCurrentDeviceSelection(
+                            DeviceSelection(device->udid));
+                    });
 
                 emit updateNoDevicesConnected();
             });
@@ -26,6 +29,10 @@ DeviceManagerWidget::DeviceManagerWidget(QWidget *parent)
     connect(AppContext::sharedInstance(), &AppContext::deviceRemoved, this,
             [this](const std::string &uuid) {
                 removeDevice(uuid);
+                auto devices = AppContext::sharedInstance()->getAllDevices();
+                if (!devices.isEmpty())
+                    AppContext::sharedInstance()->setCurrentDeviceSelection(
+                        DeviceSelection(devices.first()->udid));
                 emit updateNoDevicesConnected();
             });
 
@@ -44,6 +51,13 @@ DeviceManagerWidget::DeviceManagerWidget(QWidget *parent)
     connect(AppContext::sharedInstance(), &AppContext::devicePaired, this,
             [this](iDescriptorDevice *device) {
                 addPairedDevice(device);
+                SettingsManager::sharedInstance()->doIfEnabled(
+                    SettingsManager::Setting::SwitchToNewDevice,
+                    [this, device]() {
+                        AppContext::sharedInstance()->setCurrentDeviceSelection(
+                            DeviceSelection(device->udid));
+                    });
+
                 emit updateNoDevicesConnected();
             });
 
@@ -107,12 +121,6 @@ void DeviceManagerWidget::addDevice(iDescriptorDevice *device)
     m_stackedWidget->addWidget(deviceWidget);
     m_deviceWidgets[device->udid] =
         std::pair{deviceWidget, m_sidebar->addDevice(tabTitle, device->udid)};
-
-    // todo
-    //  If this is the first device, make it current
-    //  if (m_currentDeviceIndex == -1) {
-    //      setCurrentDevice(deviceIndex);
-    //  }
 }
 
 void DeviceManagerWidget::addRecoveryDevice(
@@ -248,10 +256,10 @@ void DeviceManagerWidget::removeDevice(const std::string &uuid)
         m_sidebar->removeDevice(uuid);
         deviceWidget->deleteLater();
 
-        // TODO:
-        if (m_deviceWidgets.count() > 0) {
-            setCurrentDevice(m_deviceWidgets.firstKey());
-        }
+        // // TODO:
+        // if (m_deviceWidgets.count() > 0) {
+        //     setCurrentDevice(m_deviceWidgets.firstKey());
+        // }
     }
 }
 
@@ -268,13 +276,13 @@ void DeviceManagerWidget::setCurrentDevice(const std::string &uuid)
 
     m_currentDeviceUuid = uuid;
 
-    // Update stacked widget
     QWidget *widget = m_deviceWidgets[uuid].first;
     m_stackedWidget->setCurrentWidget(widget);
 
-    // Update sidebar selection through the AppContext to keep state consistent
-    AppContext::sharedInstance()->setCurrentDeviceSelection(
-        DeviceSelection(uuid));
+    // This creates a feedback loop. The widget should only react to state
+    // changes from AppContext, not create them here.
+    // AppContext::sharedInstance()->setCurrentDeviceSelection(
+    //     DeviceSelection(uuid));
 }
 
 std::string DeviceManagerWidget::getCurrentDevice() const

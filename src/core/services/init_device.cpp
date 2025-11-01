@@ -174,6 +174,15 @@ DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
     d.firmwareVersion = safeGet("FirmwareVersion");
     d.productVersion = safeGet("ProductVersion");
 
+    QString q_version = QString::fromStdString(d.productVersion);
+    QStringList parts = q_version.split('.');
+
+    int major = (parts.length() > 0) ? parts[0].toInt() : 0;
+    int minor = (parts.length() > 1) ? parts[1].toInt() : 0;
+    int patch = (parts.length() > 2) ? parts[2].toInt() : 0;
+
+    d.parsedDeviceVersion = IDESCRIPTOR_DEVICE_VERSION(major, minor, patch);
+
     /*DiskInfo*/
     try {
         d.diskInfo.totalDiskCapacity =

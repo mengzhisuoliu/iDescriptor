@@ -1,9 +1,9 @@
 #ifndef IFUSEDISKUNMOUNTBUTTON_H
 #define IFUSEDISKUNMOUNTBUTTON_H
 
-#include <QPushButton>
+#include "iDescriptor-ui.h"
 
-class iFuseDiskUnmountButton : public QPushButton
+class iFuseDiskUnmountButton : public ZIconWidget
 {
     Q_OBJECT
 public:

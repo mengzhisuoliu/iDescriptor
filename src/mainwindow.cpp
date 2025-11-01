@@ -168,7 +168,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Add tabs with icons
     QIcon deviceIcon(":/resources/icons/MdiLightningBolt.png");
     m_customTabWidget->addTab(m_mainStackedWidget, deviceIcon, "iDevice");
-    m_customTabWidget->addTab(new AppsWidget(this), "Apps");
+    m_customTabWidget->addTab(AppsWidget::sharedInstance(), "Apps");
     m_customTabWidget->addTab(new ToolboxWidget(this), "Toolbox");
 
     auto *jailbrokenWidget = new JailbrokenWidget(this);
@@ -185,15 +185,21 @@ MainWindow::MainWindow(QWidget *parent)
     //     Qt::SingleShotConnection);
 
     // settings button
-    QPushButton *settingsButton = new QPushButton();
-    settingsButton->setIcon(
-        QIcon(":/resources/icons/MingcuteSettings7Line.png"));
-    settingsButton->setToolTip("Settings");
-    settingsButton->setFlat(true);
+    ZIconWidget *settingsButton = new ZIconWidget(
+        QIcon(":/resources/icons/MingcuteSettings7Line.png"), "Settings");
     settingsButton->setCursor(Qt::PointingHandCursor);
     settingsButton->setFixedSize(24, 24);
-    connect(settingsButton, &QPushButton::clicked, this, [this]() {
+    connect(settingsButton, &ZIconWidget::clicked, this, [this]() {
         SettingsManager::sharedInstance()->showSettingsDialog();
+    });
+
+    ZIconWidget *githubButton = new ZIconWidget(
+        QIcon(":/resources/icons/MdiGithub.png"), "iDescriptor on GitHub");
+    githubButton->setCursor(Qt::PointingHandCursor);
+    githubButton->setFixedSize(24, 24);
+    connect(githubButton, &ZIconWidget::clicked, this, []() {
+        QDesktopServices::openUrl(
+            QUrl("https://github.com/uncor3/iDescriptor"));
     });
 
     m_connectedDeviceCountLabel = new QLabel("iDescriptor: no devices");
@@ -204,6 +210,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->statusbar->addWidget(m_connectedDeviceCountLabel);
     ui->statusbar->setContentsMargins(0, 0, 0, 0);
     ui->statusbar->addPermanentWidget(settingsButton);
+    ui->statusbar->addPermanentWidget(githubButton);
 
 #ifdef __linux__
     QList<QString> mounted_iFusePaths = iFuseManager::getMountPoints();
@@ -243,6 +250,56 @@ MainWindow::MainWindow(QWidget *parent)
     }
     qDebug() << "Subscribed to device events successfully.";
     createMenus();
+    // Example usage with customization
+
+    UpdateProcedure updateProcedure;
+
+    switch (ZUpdater::detectPlatform()) {
+    // todo: adjust for portable
+    case Platform::Windows:
+        updateProcedure = UpdateProcedure{
+            true,
+            false,
+            true,
+            "The application will now quit to install the update.",
+            "Do you want to install the downloaded update now?",
+        };
+        break;
+        // todo: adjust for pkg managers
+    case Platform::MacOS:
+        updateProcedure = UpdateProcedure{
+            false,
+            false,
+            true,
+            "The application will now quit to install the update.",
+            "Do you want to install the downloaded update now?",
+        };
+        break;
+        // todo: adjust for pkg managers
+    case Platform::Linux:
+        updateProcedure = UpdateProcedure{
+            false,
+            true,
+            false,
+            "There is new update available",
+            "Would you like to download it now?",
+        };
+        break;
+    default:
+        updateProcedure = UpdateProcedure{
+            false, false, false, "", "",
+        };
+    }
+
+    m_updater = new ZUpdater("uncor3/libtest", APP_VERSION, "iDescriptor",
+                             updateProcedure,
+                             false, // isPortable - set to true if running
+                                    // portable version on Windows
+                             false, // isPackageManaged - set to true if
+                                    // installed via package manager on Linux
+                             this);
+    qDebug() << "Checking for updates...";
+    m_updater->checkForUpdates();
 }
 
 void MainWindow::createMenus()
@@ -280,5 +337,6 @@ MainWindow::~MainWindow()
     idevice_event_unsubscribe();
     irecv_device_event_unsubscribe(context);
     delete ui;
+    delete m_updater;
     sleep(2); // Give some time for cleanup to finish
 }

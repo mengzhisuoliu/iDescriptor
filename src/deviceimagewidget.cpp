@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <QMap>
 #include <QPainter>
+#include <QPainterPath>
 #include <QVBoxLayout>
 #include <libimobiledevice/libimobiledevice.h>
 
@@ -11,12 +12,13 @@ DeviceImageWidget::DeviceImageWidget(iDescriptorDevice *device, QWidget *parent)
 {
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-
     m_imageLabel = new ResponsiveQLabel(this);
     m_imageLabel->setMinimumWidth(200);
     m_imageLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     m_imageLabel->setStyleSheet("background: transparent; border: none;");
 
+    m_mockupName = getMockupNameFromDisplayName(
+        QString::fromStdString(m_device->deviceInfo.productType));
     layout->addWidget(m_imageLabel);
 
     setupDeviceImage();
@@ -46,11 +48,15 @@ void DeviceImageWidget::setupDeviceImage()
 
 QString DeviceImageWidget::getDeviceMockupPath() const
 {
-    QString displayName =
-        QString::fromStdString(m_device->deviceInfo.productType);
-    QString mockupName = getMockupNameFromDisplayName(displayName);
+    if (m_mockupName == "iPad") {
+        return QString(":/resources/ipad-mockups/ipad.png");
+    }
+    if (m_mockupName == "unknown") {
+        return QString(":/resources/ipad-mockups/ipad.png");
+    }
 
-    return QString(":/resources/iphone-mockups/iphone-%1.png").arg(mockupName);
+    return QString(":/resources/iphone-mockups/iphone-%1.png")
+        .arg(m_mockupName);
 }
 
 QString DeviceImageWidget::getWallpaperPath() const
@@ -96,7 +102,6 @@ QString DeviceImageWidget::getWallpaperPath() const
         // For future versions, use the latest available wallpaper
         wallpaperVersion = "ios26";
     }
-
     return QString(":/resources/ios-wallpapers/iphone-%1.png")
         .arg(wallpaperVersion);
 }
@@ -128,9 +133,10 @@ QString DeviceImageWidget::getMockupNameFromDisplayName(
         return "4";
     } else if (displayName.contains("iPhone 3", Qt::CaseInsensitive)) {
         return "3";
+    } else if (displayName.contains("iPad", Qt::CaseInsensitive)) {
+        return "iPad";
     } else {
-        // Unknown device, use iPhone X as default
-        return "x";
+        return "unknown";
     }
 }
 
@@ -227,62 +233,92 @@ QPixmap DeviceImageWidget::createCompositeImage() const
         return mockup; // Return just the mockup
     }
 
-    // Start with the mockup as the base layer
-    QPixmap composite = mockup.copy();
+    // Create composite with mockup dimensions
+    QPixmap composite(mockup.size());
+    composite.fill(Qt::transparent);
+
     QPainter painter(&composite);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
 
-    // Use pre-calculated screen areas for optimal performance
     QRect screenRect;
-    QString mockupName = getMockupNameFromDisplayName(
-        QString::fromStdString(m_device->deviceInfo.productType));
+    // QString mockupName = "16";
 
-    if (mockupName == "3") {
+    bool useRoundedCorners = false;
+    int cornerRadius = 45;
+    bool isUnknown = (m_mockupName == "unknown");
+
+    if (m_mockupName == "3") {
         screenRect = QRect(145, 72, 209, 310);
-    } else if (mockupName == "4") {
+    } else if (m_mockupName == "4") {
         screenRect = QRect(414, 181, 380, 548);
-    } else if (mockupName == "5") {
+    } else if (m_mockupName == "5") {
         screenRect = QRect(27, 106, 304, 537);
-    } else if (mockupName == "6") {
+    } else if (m_mockupName == "6") {
         screenRect = QRect(68, 348, 1279, 2270);
-    } else if (mockupName == "x") {
-        screenRect = QRect(245, 429, 2389, 5003);
-    } else if (mockupName == "15") {
-        screenRect = QRect(15, 49, 337, 688);
-    } else if (mockupName == "16") {
-        screenRect = QRect(17, 54, 333, 682);
+    } else if (m_mockupName == "x") {
+        screenRect = QRect(245, 200, 2389, 5303);
+        useRoundedCorners = true;
+    } else if (m_mockupName == "15") {
+        screenRect = QRect(15, 18, 337, 715);
+        useRoundedCorners = true;
+    } else if (m_mockupName == "16") {
+        screenRect = QRect(17, 18, 333, 715);
+        useRoundedCorners = true;
+    } else if (m_mockupName == "iPad") {
+        screenRect = QRect(33, 36, 471, 680);
+    } else if (m_mockupName == "unknown") {
+        screenRect = QRect(33, 36, 471, 680);
     } else {
-        // Fallback for unknown devices
         screenRect = QRect(mockup.width() * 0.12, mockup.height() * 0.08,
                            mockup.width() * 0.76, mockup.height() * 0.84);
     }
 
-    // Draw wallpaper BEHIND the mockup (into the screen area)
     QPixmap scaledWallpaper = wallpaper.scaled(
         screenRect.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+
+    // Create a clipping path with rounded corners
+    if (useRoundedCorners) {
+        QPainterPath clipPath;
+        clipPath.addRoundedRect(screenRect, cornerRadius, cornerRadius);
+        painter.setClipPath(clipPath);
+    }
+
     painter.drawPixmap(screenRect, scaledWallpaper);
 
-    // Draw current time in the center of the screen
+    if (useRoundedCorners) {
+        painter.setClipping(false);
+    }
+
+    painter.drawPixmap(0, 0, mockup);
+
+    // Draw question mark for unknown devices
+    if (isUnknown) {
+        QFont questionFont;
+        questionFont.setFamily("SF Pro Display, Helvetica, Arial");
+        int questionSize = screenRect.width() / 3;
+        questionFont.setPointSize(questionSize);
+        questionFont.setWeight(QFont::Bold);
+        painter.setFont(questionFont);
+
+        // Question mark shadow
+        painter.setPen(QColor(0, 0, 0, 150));
+        painter.drawText(screenRect.adjusted(3, 3, 3, 3), Qt::AlignCenter, "?");
+
+        // Question mark main
+        painter.setPen(QColor(255, 255, 255, 255));
+        painter.drawText(screenRect, Qt::AlignCenter, "?");
+    }
+
     QString currentTime = QDateTime::currentDateTime().toString("hh:mm");
 
-    // Setup text rendering with better font sizing
     QFont timeFont;
     timeFont.setFamily("SF Pro Display, Helvetica, Arial");
-
-    // Scale font size based on screen dimensions
     int fontSize = screenRect.width() / 5;
     timeFont.setPointSize(fontSize);
     timeFont.setWeight(QFont::Light);
-
     painter.setFont(timeFont);
 
-    // Draw text shadow for better readability
-    painter.setPen(QColor(0, 0, 0, 150));
-    painter.drawText(screenRect.adjusted(2, 2, 2, 2), Qt::AlignCenter,
-                     currentTime);
-
-    // Draw main text - perfectly centered in the screen area
     painter.setPen(QColor(255, 255, 255, 255));
     painter.drawText(screenRect, Qt::AlignCenter, currentTime);
 

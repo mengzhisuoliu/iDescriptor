@@ -1,5 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
+#include "ZDownloader.h"
+#include "ZUpdater.h"
 #include "customtabwidget.h"
 #include "devicemanagerwidget.h"
 #include "iDescriptor.h"
@@ -34,5 +36,6 @@ private:
     DeviceManagerWidget *m_deviceManager;
     QStackedWidget *m_mainStackedWidget;
     QLabel *m_connectedDeviceCountLabel;
+    ZUpdater *m_updater = nullptr;
 };
 #endif // MAINWINDOW_H

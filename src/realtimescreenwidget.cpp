@@ -12,7 +12,7 @@
 #include <QVBoxLayout>
 #include <libimobiledevice/libimobiledevice.h>
 #include <libimobiledevice/screenshotr.h>
-
+// todo: rename to livescreenwidget
 RealtimeScreenWidget::RealtimeScreenWidget(iDescriptorDevice *device,
                                            QWidget *parent)
     : QWidget{parent}, m_device(device), m_timer(nullptr),
@@ -87,6 +87,11 @@ RealtimeScreenWidget::RealtimeScreenWidget(iDescriptorDevice *device,
                 }
             });
 
+    const bool initializeScreenshotServiceSuccess =
+        initializeScreenshotService(false);
+    if (initializeScreenshotServiceSuccess)
+        return;
+
     // Start the initialization process - auto-mount mode
     auto *helper = new DevDiskImageHelper(m_device, this);
 
@@ -97,9 +102,9 @@ RealtimeScreenWidget::RealtimeScreenWidget(iDescriptorDevice *device,
 
             if (success) {
                 // for some reason it does not work immediately, so delay a bit
-                QTimer::singleShot(
-                    1000, this,
-                    &RealtimeScreenWidget::initializeScreenshotService);
+                QTimer::singleShot(1000, this, [this]() {
+                    initializeScreenshotService(true);
+                });
             } else {
                 m_statusLabel->setText("Failed to mount developer disk image");
                 QMessageBox::critical(this, "Mount Failed",
@@ -123,7 +128,7 @@ RealtimeScreenWidget::~RealtimeScreenWidget()
     }
 }
 
-void RealtimeScreenWidget::initializeScreenshotService()
+bool RealtimeScreenWidget::initializeScreenshotService(bool notify)
 {
     lockdownd_client_t lockdownClient = nullptr;
     lockdownd_service_descriptor_t service = nullptr;
@@ -136,11 +141,12 @@ void RealtimeScreenWidget::initializeScreenshotService()
 
         if (ldret != LOCKDOWN_E_SUCCESS) {
             m_statusLabel->setText("Failed to connect to lockdown service");
-            QMessageBox::critical(this, "Connection Failed",
-                                  "Could not connect to lockdown service.\n"
-                                  "Error code: " +
-                                      QString::number(ldret));
-            return;
+            if (notify)
+                QMessageBox::critical(this, "Connection Failed",
+                                      "Could not connect to lockdown service.\n"
+                                      "Error code: " +
+                                          QString::number(ldret));
+            return false;
         }
 
         lockdownd_error_t lerr = lockdownd_start_service(
@@ -151,14 +157,17 @@ void RealtimeScreenWidget::initializeScreenshotService()
 
         if (lerr != LOCKDOWN_E_SUCCESS) {
             m_statusLabel->setText("Failed to start screenshot service");
-            QMessageBox::critical(
-                this, "Service Failed",
-                "Could not start screenshot service on device.\n"
-                "Please ensure the developer disk image is properly mounted.");
+            qDebug() << lerr << "lockdownd_start_service";
+            if (notify)
+                QMessageBox::critical(
+                    this, "Service Failed",
+                    "Could not start screenshot service on device.\n"
+                    "Please ensure the developer disk image is properly "
+                    "mounted.");
             if (service) {
                 lockdownd_service_descriptor_free(service);
             }
-            return;
+            return false;
         }
 
         screenshotr_error_t screrr =
@@ -169,22 +178,25 @@ void RealtimeScreenWidget::initializeScreenshotService()
         qDebug() << screrr << "screenshotr_client_new";
         if (screrr != SCREENSHOTR_E_SUCCESS) {
             m_statusLabel->setText("Failed to create screenshot client");
-            QMessageBox::critical(this, "Client Failed",
-                                  "Could not create screenshot client.\n"
-                                  "Error code: " +
-                                      QString::number(screrr));
-            return;
+            if (notify)
+                QMessageBox::critical(this, "Client Failed",
+                                      "Could not create screenshot client.\n"
+                                      "Error code: " +
+                                          QString::number(screrr));
+            return false;
         }
 
         // Successfully initialized, start capturing
         m_statusLabel->setText("Capturing at " + QString::number(m_fps) +
                                " FPS");
         startCapturing();
-
+        return true;
     } catch (const std::exception &e) {
         m_statusLabel->setText("Exception occurred");
-        QMessageBox::critical(this, "Exception",
-                              QString("Exception occurred: %1").arg(e.what()));
+        if (notify)
+            QMessageBox::critical(
+                this, "Exception",
+                QString("Exception occurred: %1").arg(e.what()));
 
         if (lockdownClient) {
             lockdownd_client_free(lockdownClient);

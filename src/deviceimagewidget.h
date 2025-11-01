@@ -19,6 +19,7 @@ private slots:
     void updateTime();
 
 private:
+    QString m_mockupName;
     void setupDeviceImage();
     QString getDeviceMockupPath() const;
     QString getWallpaperPath() const;

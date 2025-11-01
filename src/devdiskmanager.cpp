@@ -23,29 +23,55 @@ DevDiskManager *DevDiskManager::sharedInstance()
 DevDiskManager::DevDiskManager(QObject *parent) : QObject{parent}
 {
     m_networkManager = new QNetworkAccessManager(this);
-    m_isImageListReady = false; // Explicitly set initial state
-    fetchImageList();
+    populateImageList();
 }
 
-QNetworkReply *DevDiskManager::fetchImageList()
+/*
+ * if we have DeveloperDiskImages.json in docs read from there if not populate
+ * with the file in resources and then try to update it
+ */
+void DevDiskManager::populateImageList()
 {
+    QString localPath = QDir(SettingsManager::sharedInstance()->homePath())
+                            .filePath("DeveloperDiskImages.json");
+    qDebug() << "Looking for DeveloperDiskImages.json at" << localPath;
+    QFile localFile(localPath);
+
+    if (localFile.exists() && localFile.open(QIODevice::ReadOnly)) {
+        m_imageListJsonData = localFile.readAll();
+        localFile.close();
+        qDebug() << "Loaded DeveloperDiskImages.json from local cache.";
+    } else {
+        QFile qrcFile(":/resources/DeveloperDiskImages.json");
+        if (qrcFile.open(QIODevice::ReadOnly)) {
+            m_imageListJsonData = qrcFile.readAll();
+            qrcFile.close();
+            qDebug() << "Loaded DeveloperDiskImages.json from QRC resources.";
+        } else {
+            qWarning()
+                << "Could not open DeveloperDiskImages.json from QRC. "
+                   "Image list will be empty until network fetch succeeds.";
+        }
+    }
+    // TODO:change url
     QUrl url("https://raw.githubusercontent.com/uncor3/resources/refs/heads/"
              "main/DeveloperDiskImages.json");
     QNetworkRequest request(url);
     auto *reply = m_networkManager->get(request);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        if (reply->error() != QNetworkReply::NoError) {
-            emit imageListFetched(false, reply->errorString());
-        } else {
+    connect(reply, &QNetworkReply::finished, this, [this, localPath, reply]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            // FIXME: better have this settings
+            QDir().mkdir(QDir::homePath() + "/.idescriptor");
             m_imageListJsonData = reply->readAll();
-            m_isImageListReady = true; // Set the flag on success
-            emit imageListFetched(true);
+            QFile file(localPath);
+            if (file.open(QIODevice::WriteOnly)) {
+                file.write(m_imageListJsonData);
+                file.close();
+            }
         }
         reply->deleteLater();
     });
-
-    return reply;
 }
 
 QMap<QString, QMap<QString, QString>> DevDiskManager::parseDiskDir()
@@ -291,9 +317,8 @@ bool DevDiskManager::isImageDownloaded(const QString &version,
     return QFile::exists(dmgPath) && QFile::exists(sigPath);
 }
 
-bool DevDiskManager::downloadCompatibleImageInternal(iDescriptorDevice *device)
+bool DevDiskManager::downloadCompatibleImage(iDescriptorDevice *device)
 {
-
     unsigned int device_version = get_device_version(device->device);
     unsigned int deviceMajorVersion = (device_version >> 16) & 0xFF;
     unsigned int deviceMinorVersion = (device_version >> 8) & 0xFF;
@@ -353,33 +378,8 @@ bool DevDiskManager::downloadCompatibleImageInternal(iDescriptorDevice *device)
     return false;
 }
 
-bool DevDiskManager::downloadCompatibleImage(iDescriptorDevice *device)
-{
-    if (m_isImageListReady) {
-        // If the list is already fetched, run the logic immediately.
-        return downloadCompatibleImageInternal(device);
-    } else {
-        // Otherwise, connect to the signal and wait.
-        qDebug() << "Image list not ready, waiting for it to be fetched...";
-        connect(
-            this, &DevDiskManager::imageListFetched, this,
-            [this, device](bool success) {
-                if (success) {
-                    qDebug() << "Image list is now ready. Retrying download...";
-                    downloadCompatibleImageInternal(device);
-                } else {
-                    qDebug() << "Failed to fetch image list. Cannot download.";
-                }
-            },
-            Qt::SingleShotConnection);
-
-        // The operation is now asynchronous, the immediate return value
-        // indicates that the process has started.
-        return true;
-    }
-}
-
-bool DevDiskManager::mountCompatibleImageInternal(iDescriptorDevice *device)
+// FIXME:DOES NOT CHECK IF THERE IS ALREADY AN IMAGE MOUNTED
+bool DevDiskManager::mountCompatibleImage(iDescriptorDevice *device)
 {
     unsigned int device_version = get_device_version(device->device);
     unsigned int deviceMajorVersion = (device_version >> 16) & 0xFF;
@@ -400,7 +400,7 @@ bool DevDiskManager::mountCompatibleImageInternal(iDescriptorDevice *device)
             qDebug() << "Attempting to mount image version" << info.version
                      << "on device:" << device->udid.c_str();
             if (MOBILE_IMAGE_MOUNTER_E_SUCCESS ==
-                mountImage(info.version, device->udid.c_str())) {
+                mountImage(info.version, device)) {
                 qDebug() << "Mounted existing image version" << info.version
                          << "on device:" << device->udid.c_str();
                 return true;
@@ -434,7 +434,7 @@ bool DevDiskManager::mountCompatibleImageInternal(iDescriptorDevice *device)
                     if (success && finishedVersion == versionToDownload) {
                         qDebug() << "Download finished for" << finishedVersion
                                  << ". Now attempting to mount.";
-                        mountImage(finishedVersion, device->udid.c_str());
+                        mountImage(finishedVersion, device);
                         // TODO: You might want to emit another signal here to
                         // notify the UI of the final mount result.
                     } else if (!success) {
@@ -473,33 +473,9 @@ bool DevDiskManager::mountCompatibleImageInternal(iDescriptorDevice *device)
 
     return false;
 }
-// FIXME:DOES NOT CHECK IF THERE IS ALREADY AN IMAGE MOUNTED
-bool DevDiskManager::mountCompatibleImage(iDescriptorDevice *device)
-{
-    if (m_isImageListReady) {
-        // If the list is already fetched, run the logic immediately.
-        return mountCompatibleImageInternal(device);
-    } else {
-        // Otherwise, connect to the signal and wait.
-        qDebug() << "Image list not ready, waiting for it to be fetched...";
-        connect(
-            this, &DevDiskManager::imageListFetched, this,
-            [this, device](bool success) {
-                if (success) {
-                    qDebug() << "Image list is now ready. Retrying mount...";
-                    mountCompatibleImageInternal(device);
-                } else {
-                    qDebug() << "Failed to fetch image list. Cannot mount.";
-                }
-            },
-            Qt::SingleShotConnection);
 
-        return true;
-    }
-}
-
-mobile_image_mounter_error_t DevDiskManager::mountImage(const QString &version,
-                                                        const QString &udid)
+mobile_image_mounter_error_t
+DevDiskManager::mountImage(const QString &version, iDescriptorDevice *device)
 {
     const QString downloadPath =
         SettingsManager::sharedInstance()->devdiskimgpath();
@@ -508,7 +484,8 @@ mobile_image_mounter_error_t DevDiskManager::mountImage(const QString &version,
     }
 
     QString versionPath = QDir(downloadPath).filePath(version);
-    return mount_dev_image(udid.toUtf8().constData(),
+    return mount_dev_image(device->device,
+                           device->deviceInfo.parsedDeviceVersion,
                            versionPath.toUtf8().constData());
 }
 
@@ -632,6 +609,14 @@ bool DevDiskManager::compareSignatures(const char *signature_file_path,
     return matches;
 }
 
+/*
+    older devices return something like this:
+    {
+    "ImagePresent": true,
+    "ImageSignature": <7b16200b 2ead1830 a59809d1 51e9060b ... 8a 9844eb07
+   e0b8e0>, "Status": "Complete"
+    }
+*/
 GetMountedImageResult DevDiskManager::getMountedImage(const char *udid)
 {
     /*
@@ -640,6 +625,7 @@ GetMountedImageResult DevDiskManager::getMountedImage(const char *udid)
         dictionary
     */
     plist_t result = _get_mounted_image(udid);
+    plist_print(result);
     const char *lockedErr = "DeviceLocked";
 
     PlistNavigator r = PlistNavigator(result);
@@ -653,6 +639,22 @@ GetMountedImageResult DevDiskManager::getMountedImage(const char *udid)
                 false, "", "Device is locked, please unlock it and try again."};
         } else
             return GetMountedImageResult{false, "", "Unknown error"};
+    }
+
+    // for older devices
+    bool image_present = r["ImagePresent"].getBool();
+
+    /* FIXME: returning a madeup sig because iDescriptorTool::MountDevImage
+     * depends on it in toolboxwidget.cpp we can read the actual signature from
+     * the device but it’s not really necessary since we
+     * just need to know if there is an image mounted or
+     *  not also we would need to check the ios version
+     * to know whether to treat ImageSignature as plist array or data
+     */
+    if (image_present) {
+        plist_free(result);
+        return GetMountedImageResult{true, "FIXME",
+                                     "There is already an image mounted."};
     }
 
     plist_t sig_array_node = r["ImageSignature"].getNode();
@@ -681,5 +683,3 @@ GetMountedImageResult DevDiskManager::getMountedImage(const char *udid)
     }
     return GetMountedImageResult{true, mounted_sig_str, "Success"};
 }
-
-bool DevDiskManager::isImageListReady() const { return m_isImageListReady; }

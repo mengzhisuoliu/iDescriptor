@@ -17,7 +17,7 @@ public:
     ~RealtimeScreenWidget();
 
 private:
-    void initializeScreenshotService();
+    bool initializeScreenshotService(bool notify);
     void updateScreenshot();
     void startCapturing();
 

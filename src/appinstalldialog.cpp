@@ -8,6 +8,8 @@
 #include <QFutureWatcher>
 #include <QLabel>
 #include <QMessageBox>
+#include <QPainter>
+#include <QPainterPath>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QVBoxLayout>
@@ -27,6 +29,28 @@ AppInstallDialog::AppInstallDialog(const QString &appName,
     // App info section
     QHBoxLayout *appInfoLayout = new QHBoxLayout();
     QLabel *iconLabel = new QLabel();
+    fetchAppIconFromApple(
+        bundleId,
+        [iconLabel](const QPixmap &pixmap) {
+            if (!pixmap.isNull()) {
+                QPixmap scaled =
+                    pixmap.scaled(64, 64, Qt::KeepAspectRatioByExpanding,
+                                  Qt::SmoothTransformation);
+                QPixmap rounded(64, 64);
+                rounded.fill(Qt::transparent);
+
+                QPainter painter(&rounded);
+                painter.setRenderHint(QPainter::Antialiasing);
+                QPainterPath path;
+                path.addRoundedRect(QRectF(0, 0, 64, 64), 16, 16);
+                painter.setClipPath(path);
+                painter.drawPixmap(0, 0, scaled);
+                painter.end();
+
+                iconLabel->setPixmap(rounded);
+            }
+        },
+        this);
     QPixmap icon = QApplication::style()
                        ->standardIcon(QStyle::SP_ComputerIcon)
                        .pixmap(64, 64);

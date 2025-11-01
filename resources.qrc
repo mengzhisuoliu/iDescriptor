@@ -17,6 +17,7 @@
         <file>resources/icons/MdiLightMagnify.png</file>
         <file>resources/icons/IcBaselineInsertDriveFile.png</file>
         <file>resources/icons/MaterialSymbolsLightHome.png</file>
+        <file>resources/icons/MdiGithub.png</file>
         <file>resources/icons/app-icon/icon.ico</file> 
         <file>qml/MapView.qml</file>
         <!-- TODO: -->
@@ -48,5 +49,6 @@
         <file>resources/connect.png</file>
         <file>resources/airplayer-tutorial.mp4</file>
         <file>resources/ipad-mockups/ipad.png</file>
+        <file>resources/DeveloperDiskImages.json</file>
     </qresource>
 </RCC>

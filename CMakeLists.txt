@@ -187,7 +187,7 @@ endif()
 
 add_subdirectory(lib/airplay)
 add_subdirectory(lib/ipatool-go)
-
+add_subdirectory(lib/zupdater)
 
 if (WIN32)
     set(app_icon_resource_windows "${CMAKE_CURRENT_SOURCE_DIR}/idescriptor.rc")
@@ -243,8 +243,13 @@ target_link_libraries(iDescriptor PRIVATE
     PkgConfig::ZIP
     airplay
     ipatool-go
+    ZUpdater
 )
-    
+
+target_include_directories(iDescriptor PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/zupdater/src
+)
+
 if(APPLE)
     find_library(CORE_SERVICES_FRAMEWORK CoreServices REQUIRED)
     target_link_libraries(iDescriptor PRIVATE

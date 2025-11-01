@@ -164,8 +164,10 @@ void FileExplorerWidget::onSidebarItemClicked(QTreeWidgetItem *item, int column)
     Q_UNUSED(column);
 
     if (item == m_defaultAfcItem) {
+        static_cast<AfcExplorerWidget *>(m_stackedWidget->widget(0))->goHome();
         m_stackedWidget->setCurrentIndex(0);
     } else if (item == m_jailbrokenAfcItem) {
+        static_cast<AfcExplorerWidget *>(m_stackedWidget->widget(1))->goHome();
         m_stackedWidget->setCurrentIndex(1);
     }
 

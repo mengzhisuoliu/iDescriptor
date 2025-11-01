@@ -1,4 +1,5 @@
 #pragma once
+#include <QAbstractButton>
 #include <QApplication>
 #include <QGraphicsView>
 #include <QLabel>
@@ -104,16 +105,18 @@ public:
         }
     }
 };
-class ZIconWidget : public QWidget
+
+class ZIconWidget : public QAbstractButton
 {
     Q_OBJECT
 public:
     ZIconWidget(const QIcon &icon, const QString &tooltip,
                 QWidget *parent = nullptr)
-        : QWidget(parent), m_icon(icon), m_iconSize(24, 24), m_pressed(false)
+        : QAbstractButton(parent), m_icon(icon)
     {
         setToolTip(tooltip);
         setFixedSize(32, 32);
+        setIconSize(QSize(24, 24));
         setCursor(Qt::PointingHandCursor);
         connect(qApp, &QApplication::paletteChanged, this,
                 [this]() { update(); });
@@ -124,14 +127,6 @@ public:
         m_icon = ZIcon(icon);
         update();
     }
-    void setIconSize(const QSize &size)
-    {
-        m_iconSize = size;
-        update();
-    }
-
-signals:
-    void clicked();
 
 protected:
     void paintEvent(QPaintEvent *event) override
@@ -141,59 +136,23 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing);
 
         // Draw background circle when hovered or pressed
-        if (underMouse() || m_pressed) {
+        if (underMouse() || isDown()) {
             QColor bgColor = palette().color(QPalette::Highlight);
-            bgColor.setAlpha(m_pressed ? 60 : 30);
+            bgColor.setAlpha(isDown() ? 60 : 30);
             painter.setBrush(bgColor);
             painter.setPen(Qt::NoPen);
             painter.drawEllipse(rect().adjusted(2, 2, -2, -2));
         }
 
         QRect iconRect = rect();
-        iconRect.setSize(m_iconSize);
+        iconRect.setSize(iconSize()); // Use iconSize() from QAbstractButton
         iconRect.moveCenter(rect().center());
 
         m_icon.paint(&painter, iconRect, palette());
     }
 
-    void mousePressEvent(QMouseEvent *event) override
-    {
-        if (event->button() == Qt::LeftButton) {
-            m_pressed = true;
-            update();
-        }
-        QWidget::mousePressEvent(event);
-    }
-
-    void mouseReleaseEvent(QMouseEvent *event) override
-    {
-        if (event->button() == Qt::LeftButton && m_pressed) {
-            m_pressed = false;
-            update();
-            if (rect().contains(event->pos())) {
-                emit clicked();
-            }
-        }
-        QWidget::mouseReleaseEvent(event);
-    }
-
-    void enterEvent(QEnterEvent *event) override
-    {
-        Q_UNUSED(event)
-        update();
-    }
-
-    void leaveEvent(QEvent *event) override
-    {
-        Q_UNUSED(event)
-        m_pressed = false;
-        update();
-    }
-
 private:
     ZIcon m_icon;
-    QSize m_iconSize;
-    bool m_pressed;
 };
 
 enum class iDescriptorTool {

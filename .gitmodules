@@ -10,3 +10,6 @@
 [submodule "lib/ipatool-go"]
 	path = lib/ipatool-go
 	url = https://github.com/uncor3/libipatool-go.git
+[submodule "lib/zupdater"]
+	path = lib/zupdater
+	url = https://github.com/uncor3/ZUpdater

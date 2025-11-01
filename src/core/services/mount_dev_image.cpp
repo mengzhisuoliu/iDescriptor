@@ -59,17 +59,14 @@ static const char *imagetype = NULL;
 static const char PKG_PATH[] = "PublicStaging";
 static const char PATH_PREFIX[] = "/private/var/mobile/Media";
 
-#ifndef SOURCE_DIR
-#define SOURCE_DIR "."
-#endif
-
 static ssize_t mim_upload_cb(void *buf, size_t size, void *userdata)
 {
     return fread(buf, 1, size, (FILE *)userdata);
 }
 // extend the mobile_image_mounter_error_t type and return sucess if there is
 // already a disk image
-mobile_image_mounter_error_t mount_dev_image(const char *udid,
+mobile_image_mounter_error_t mount_dev_image(idevice_t device,
+                                             unsigned int device_version,
                                              const char *image_dir_path)
 {
     mobile_image_mounter_client_t mim = NULL;
@@ -79,7 +76,6 @@ mobile_image_mounter_error_t mount_dev_image(const char *udid,
     lockdownd_error_t ldret = LOCKDOWN_E_UNKNOWN_ERROR;
     afc_client_t afc = NULL;
     lockdownd_service_descriptor_t service = NULL;
-    idevice_t device = NULL;
     char *image_path = NULL;
     char *image_sig_path = NULL;
     FILE *f = NULL;
@@ -87,7 +83,6 @@ mobile_image_mounter_error_t mount_dev_image(const char *udid,
     plist_t mount_options = NULL;
     char *targetname = NULL;
     char *mountname = NULL;
-    unsigned int device_version = 0;
     disk_image_upload_type_t disk_image_upload_type =
         DISK_IMAGE_UPLOAD_TYPE_AFC;
 
@@ -95,14 +90,6 @@ mobile_image_mounter_error_t mount_dev_image(const char *udid,
     plist_t result = NULL;
     size_t sig_length = 0;
 
-    if (IDEVICE_E_SUCCESS !=
-        idevice_new_with_options(&device, udid, IDEVICE_LOOKUP_USBMUX)) {
-        qDebug() << "ERROR: Could not create idevice!";
-        res = -1;
-        goto leave;
-    }
-
-    device_version = get_device_version(device);
     if (LOCKDOWN_E_SUCCESS != (ldret = lockdownd_client_new_with_handshake(
                                    device, &lckd, TOOL_NAME))) {
         qDebug() << "ERROR: Could not connect to lockdownd service!";
@@ -110,7 +97,7 @@ mobile_image_mounter_error_t mount_dev_image(const char *udid,
         goto leave;
     }
 
-    if (device_version >= IDEVICE_DEVICE_VERSION(7, 0, 0)) {
+    if (device_version >= IDESCRIPTOR_DEVICE_VERSION(7, 0, 0)) {
         disk_image_upload_type = DISK_IMAGE_UPLOAD_TYPE_UPLOAD_IMAGE;
     }
 
@@ -152,7 +139,7 @@ mobile_image_mounter_error_t mount_dev_image(const char *udid,
     qDebug() << "Using image:" << image_path;
     qDebug() << "Using signature:" << image_sig_path;
 
-    if (device_version >= IDEVICE_DEVICE_VERSION(16, 0, 0)) {
+    if (device_version >= IDESCRIPTOR_DEVICE_VERSION(16, 0, 0)) {
         uint8_t dev_mode_status = 0;
         plist_t val = NULL;
         ldret = lockdownd_get_value(lckd, "com.apple.security.mac.amfi",
@@ -195,14 +182,14 @@ mobile_image_mounter_error_t mount_dev_image(const char *udid,
         goto leave;
     }
     image_size = fst.st_size;
-    if (device_version < IDEVICE_DEVICE_VERSION(17, 0, 0) &&
+    if (device_version < IDESCRIPTOR_DEVICE_VERSION(17, 0, 0) &&
         stat(image_sig_path, &fst) != 0) {
         qDebug() << "ERROR: stat:" << image_sig_path << ":" << strerror(errno);
         res = -1;
         goto leave;
     }
 
-    if (device_version < IDEVICE_DEVICE_VERSION(17, 0, 0)) {
+    if (device_version < IDESCRIPTOR_DEVICE_VERSION(17, 0, 0)) {
         f = fopen(image_sig_path, "rb");
         if (!f) {
             qDebug() << "Error opening signature file" << image_sig_path << ":"
@@ -603,9 +590,6 @@ leave:
     }
     if (lckd) {
         lockdownd_client_free(lckd);
-    }
-    if (device) {
-        idevice_free(device);
     }
     if (image_path) {
         free(image_path);

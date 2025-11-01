@@ -70,20 +70,23 @@ void DevDiskImageHelper::setupUI()
 
 void DevDiskImageHelper::start()
 {
-    // if (m_mode == Mode::AutoMount) {
-    //     hide();
-    // } else {
-    //     show();
-    // }
-
     m_loadingIndicator->start();
     showStatus("Please wait...");
 
-    // Start download check in background
-    DevDiskManager::sharedInstance()->downloadCompatibleImage(m_device);
+    unsigned int device_version = get_device_version(m_device->device);
+    unsigned int deviceMajorVersion = (device_version >> 16) & 0xFF;
+    unsigned int deviceMinorVersion = (device_version >> 8) & 0xFF;
 
-    // Check mounted image status
-    QTimer::singleShot(500, this, &DevDiskImageHelper::checkAndMount);
+    // we dont have developer disk images for ios 6 and below
+    if (deviceMajorVersion > 5) {
+        // TODO: maybe check isMountAvailable and finishWithFailure if false
+        const bool isMountAvailable =
+            DevDiskManager::sharedInstance()->downloadCompatibleImage(m_device);
+        QTimer::singleShot(500, this, &DevDiskImageHelper::checkAndMount);
+    } else {
+        finishWithSuccess();
+        return;
+    }
 }
 
 void DevDiskImageHelper::checkAndMount()
@@ -91,7 +94,8 @@ void DevDiskImageHelper::checkAndMount()
     GetMountedImageResult result =
         DevDiskManager::sharedInstance()->getMountedImage(
             m_device->udid.c_str());
-
+    qDebug() << "checkAndMount result:" << result.success
+             << result.message.c_str() << QString::fromStdString(result.sig);
     if (!result.success) {
         showRetryUI(QString::fromStdString(result.message));
         return;
@@ -103,6 +107,8 @@ void DevDiskImageHelper::checkAndMount()
         finishWithSuccess();
         return;
     }
+
+    onMountButtonClicked();
 }
 
 void DevDiskImageHelper::onMountButtonClicked()
@@ -139,8 +145,8 @@ void DevDiskImageHelper::onMountButtonClicked()
         showStatus("Mounting developer disk image...");
 
         mobile_image_mounter_error_t err =
-            DevDiskManager::sharedInstance()->mountImage(
-                versionToMount, QString::fromStdString(m_device->udid));
+            DevDiskManager::sharedInstance()->mountImage(versionToMount,
+                                                         m_device);
 
         m_isMounting = false;
         if (err == MOBILE_IMAGE_MOUNTER_E_SUCCESS) {
@@ -199,8 +205,7 @@ void DevDiskImageHelper::onImageDownloadFinished(const QString &version,
     showStatus("Download complete. Mounting...");
 
     mobile_image_mounter_error_t err =
-        DevDiskManager::sharedInstance()->mountImage(
-            version, QString::fromStdString(m_device->udid));
+        DevDiskManager::sharedInstance()->mountImage(version, m_device);
 
     if (err == MOBILE_IMAGE_MOUNTER_E_SUCCESS) {
         showStatus("Developer disk image mounted successfully");

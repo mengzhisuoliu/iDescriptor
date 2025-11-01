@@ -246,9 +246,14 @@ AppContext::~AppContext()
 
 void AppContext::setCurrentDeviceSelection(const DeviceSelection &selection)
 {
+    qDebug() << "New selection -"
+             << " Type:" << selection.type
+             << " UUID:" << QString::fromStdString(selection.uuid)
+             << " ECID:" << selection.ecid << " Section:" << selection.section;
     if (m_currentSelection.uuid == selection.uuid &&
         m_currentSelection.ecid == selection.ecid &&
         m_currentSelection.section == selection.section) {
+        qDebug() << "setCurrentDeviceSelection: No change in selection";
         return; // No change
     }
     m_currentSelection = selection;

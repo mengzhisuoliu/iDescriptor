@@ -32,6 +32,7 @@ public:
                                afc_client_t afcClient = nullptr,
                                QString root = "/", QWidget *parent = nullptr);
     void navigateToPath(const QString &path);
+    void goHome();
 signals:
     void favoritePlaceAdded(const QString &alias, const QString &path);
 
@@ -96,7 +97,6 @@ private:
                            const char *local_path);
     void updateNavStyles();
     void updateButtonStates();
-    void goHome();
     void goUp();
 };
 

@@ -41,7 +41,7 @@ plist_t _get_mounted_image(const char *udid)
     mobile_image_mounter_error_t err = MOBILE_IMAGE_MOUNTER_E_UNKNOWN_ERROR;
     plist_t result = NULL;
     size_t sig_length = 0;
-    char *imagetype = "Developer";
+    const char *imagetype = "Developer";
 
     if (IDEVICE_E_SUCCESS != idevice_new_with_options(&device, udid,
 

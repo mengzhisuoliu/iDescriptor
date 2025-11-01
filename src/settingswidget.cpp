@@ -253,8 +253,7 @@ void SettingsWidget::saveSettings()
 
 void SettingsWidget::resetToDefaults()
 {
-    SettingsManager *sm = SettingsManager::sharedInstance();
-    sm->resetToDefaults();
+    SettingsManager::sharedInstance()->resetToDefaults();
 
     // Reload UI with default values
     loadSettings();

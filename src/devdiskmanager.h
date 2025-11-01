@@ -17,9 +17,6 @@ public:
     explicit DevDiskManager(QObject *parent = nullptr);
     static DevDiskManager *sharedInstance();
 
-    // TODO:public or private?
-    // Image list management
-    QNetworkReply *fetchImageList();
     QList<ImageInfo> parseImageList(int deviceMajorVersion,
                                     int deviceMinorVersion,
                                     const char *mounted_sig,
@@ -35,7 +32,7 @@ public:
     // Mount operations
 
     mobile_image_mounter_error_t mountImage(const QString &version,
-                                            const QString &udid);
+                                            iDescriptorDevice *device);
     bool unmountImage();
 
     // Signature comparison
@@ -46,7 +43,6 @@ public:
     GetMountedImageResult getMountedImage(const char *udid);
     bool mountCompatibleImage(iDescriptorDevice *device);
     bool downloadCompatibleImage(iDescriptorDevice *device);
-    bool isImageListReady() const;
 
 signals:
     void imageListFetched(bool success,
@@ -76,14 +72,11 @@ private:
     QMap<QNetworkReply *, DownloadItem *> m_activeDownloads;
 
     QMap<QString, QMap<QString, QString>> parseDiskDir();
-    // TODO:move this to header
-    bool m_isImageListReady = false;
     QList<ImageInfo>
     getImagesSorted(QMap<QString, QMap<QString, QString>> imageFiles,
                     int deviceMajorVersion, int deviceMinorVersion,
                     const char *mounted_sig, uint64_t mounted_sig_len);
-    bool mountCompatibleImageInternal(iDescriptorDevice *device);
-    bool downloadCompatibleImageInternal(iDescriptorDevice *device);
+    void populateImageList();
 };
 
 #endif // DEVDISKMANAGER_H

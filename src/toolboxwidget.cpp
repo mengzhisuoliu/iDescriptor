@@ -116,10 +116,7 @@ void ToolboxWidget::setupUI()
 
     QList<iDescriptorToolWidget> mainToolWidgets;
     mainToolWidgets.append(
-        {iDescriptorTool::Airplayer,
-         "Start an airplayer service to cast your device screen "
-         "(does not require a device to be connected)",
-         false, ""});
+        {iDescriptorTool::Airplayer, "Cast your device screen ", false, ""});
     mainToolWidgets.append({iDescriptorTool::VirtualLocation,
                             "Simulate GPS location on your device", true, ""});
     mainToolWidgets.append(
@@ -284,6 +281,7 @@ ClickableWidget *ToolboxWidget::createToolbox(iDescriptorTool tool,
 
 void ToolboxWidget::updateDeviceList()
 {
+    m_deviceCombo->blockSignals(true);
     m_deviceCombo->clear();
 
     QList<iDescriptorDevice *> devices =
@@ -292,21 +290,24 @@ void ToolboxWidget::updateDeviceList()
     if (devices.isEmpty()) {
         m_deviceCombo->addItem("No device connected");
         m_deviceCombo->setEnabled(false);
-        m_uuid.clear(); // No device, clear uuid
     } else {
         m_deviceCombo->setEnabled(true);
-        QString shortUdid =
-            QString::fromStdString(devices.first()->udid).left(8) + "...";
         for (iDescriptorDevice *device : devices) {
+            QString shortUdid =
+                QString::fromStdString(device->udid).left(8) + "...";
             m_deviceCombo->addItem(
                 QString::fromStdString(device->deviceInfo.productType) + " / " +
                     shortUdid,
                 QString::fromStdString(device->udid));
         }
-        // TODO:
-        m_uuid = devices.first()->udid;
-        m_currentDevice = devices.first(); // Set current device to first one
     }
+
+    // After rebuilding the list, explicitly sync the UI to match the
+    // state from AppContext. This avoids creating a feedback loop.
+    onCurrentDeviceChanged(
+        AppContext::sharedInstance()->getCurrentDeviceSelection());
+
+    m_deviceCombo->blockSignals(false);
 }
 
 void ToolboxWidget::updateToolboxStates()
@@ -339,25 +340,14 @@ void ToolboxWidget::updateUI()
 
 void ToolboxWidget::onDeviceSelectionChanged()
 {
-    // Handle device selection change
     QString selectedUdid = m_deviceCombo->currentData().toString();
-    qDebug() << "Selected device UDID:" << selectedUdid;
-
-    // Update m_uuid and m_currentDevice if a valid device is selected
-    QList<iDescriptorDevice *> devices =
-        AppContext::sharedInstance()->getAllDevices();
-    for (iDescriptorDevice *device : devices) {
-        if (QString::fromStdString(device->udid) == selectedUdid) {
-            m_uuid = device->udid;
-            m_currentDevice = device;
-            // Also update the AppContext to keep everything in sync
-            AppContext::sharedInstance()->setCurrentDeviceSelection(
-                DeviceSelection(m_uuid));
-            return;
-        }
+    if (selectedUdid.isEmpty()) {
+        return;
     }
-    m_uuid.clear();
-    m_currentDevice = nullptr;
+
+    // Update the selected device in main menu
+    AppContext::sharedInstance()->setCurrentDeviceSelection(
+        DeviceSelection(selectedUdid.toStdString()));
 }
 
 void ToolboxWidget::onCurrentDeviceChanged(const DeviceSelection &selection)
@@ -366,24 +356,19 @@ void ToolboxWidget::onCurrentDeviceChanged(const DeviceSelection &selection)
         int index =
             m_deviceCombo->findData(QString::fromStdString(selection.uuid));
         if (index != -1) {
-            // Block signals to prevent recursive calls
+            // Block signals to prevent recursive calls when we update the UI
             m_deviceCombo->blockSignals(true);
             m_deviceCombo->setCurrentIndex(index);
             m_deviceCombo->blockSignals(false);
 
-            // Update internal state
             m_uuid = selection.uuid;
-            QList<iDescriptorDevice *> devices =
-                AppContext::sharedInstance()->getAllDevices();
-            for (iDescriptorDevice *device : devices) {
-                if (device->udid == selection.uuid) {
-                    m_currentDevice = device;
-                    break;
-                }
-            }
+            m_currentDevice =
+                AppContext::sharedInstance()->getDevice(selection.uuid);
         }
     } else {
-        // TODO: recovery and no device selection
+        // Handle recovery, pending, or no device selection
+        m_uuid.clear();
+        m_currentDevice = nullptr;
     }
 }
 
@@ -434,7 +419,7 @@ void ToolboxWidget::onToolboxClicked(iDescriptorTool tool)
             return;
         }
 
-        if (result.success || result.sig.empty()) {
+        if (result.success && result.sig.empty()) {
             bool devImgSuccess =
                 DevDiskManager::sharedInstance()->mountCompatibleImage(
                     m_currentDevice);
@@ -449,6 +434,12 @@ void ToolboxWidget::onToolboxClicked(iDescriptorTool tool)
                 return;
             }
         }
+
+        QMessageBox::information(
+            this, "Success",
+            QString("There is already a developer image mounted on device %1.")
+                .arg(QString::fromStdString(
+                    m_currentDevice->deviceInfo.productType)));
 
     } break;
     case iDescriptorTool::VirtualLocation: {
@@ -506,6 +497,8 @@ void ToolboxWidget::onToolboxClicked(iDescriptorTool tool)
     case iDescriptorTool::iFuse: {
         if (!m_ifuseWidget) {
             m_ifuseWidget = new iFuseWidget(m_currentDevice);
+            qDebug() << "Created iFuseWidget"
+                     << m_currentDevice->deviceInfo.productType.c_str();
             m_ifuseWidget->setAttribute(Qt::WA_DeleteOnClose);
             connect(m_ifuseWidget, &QObject::destroyed, this,
                     [this]() { m_ifuseWidget = nullptr; });

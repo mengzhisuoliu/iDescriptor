@@ -51,7 +51,6 @@ DevDiskImagesWidget::DevDiskImagesWidget(iDescriptorDevice *device,
             [this](QListWidgetItem *item) {
                 m_mountButton->setEnabled(item != nullptr);
             });
-    // connect
 }
 
 void DevDiskImagesWidget::setupUi()
@@ -75,25 +74,6 @@ void DevDiskImagesWidget::setupUi()
     mountLayout->addWidget(m_mountButton);
     mountLayout->addWidget(m_check_mountedButton);
     layout->addLayout(mountLayout);
-
-    auto *pathLayout = new QHBoxLayout();
-    // main path/info row (no shadow)
-    auto *pathWidget = new QWidget();
-    pathWidget->setLayout(pathLayout);
-    QLabel *tipLabel =
-        new QLabel("You can change the download path from settings :");
-    tipLabel->setStyleSheet("font-size: 9px;");
-    pathLayout->addWidget(tipLabel);
-    QPushButton *openSettingsButton = new QPushButton("Open Settings");
-    openSettingsButton->setSizePolicy(QSizePolicy::Preferred,
-                                      QSizePolicy::Preferred);
-    pathLayout->addWidget(openSettingsButton);
-    pathLayout->addStretch();
-    connect(openSettingsButton, &QPushButton::clicked, this, [this]() {
-        SettingsManager::sharedInstance()->showSettingsDialog();
-    });
-    pathLayout->setContentsMargins(10, 10, 10, 10);
-    layout->addWidget(pathWidget);
 
     m_stackedWidget = new QStackedWidget(this);
     layout->addWidget(m_stackedWidget);
@@ -128,13 +108,13 @@ void DevDiskImagesWidget::setupUi()
 
     m_stackedWidget->addWidget(m_imageListWidget);
 
-    if (DevDiskManager::sharedInstance()->isImageListReady()) {
+    m_processIndicator->start();
+    m_stackedWidget->setCurrentIndex(0); // Show loading page
+    // TODO: we may force to refetch most up to date image list
+    QTimer::singleShot(500, this, [this]() {
         displayImages();
         m_stackedWidget->setCurrentWidget(m_imageListWidget);
-    } else {
-        m_processIndicator->start();
-        m_stackedWidget->setCurrentIndex(0); // Show loading page
-    }
+    });
 }
 
 void DevDiskImagesWidget::fetchImages()
@@ -258,6 +238,7 @@ void DevDiskImagesWidget::displayImages()
 
         auto *downloadButton =
             new QPushButton(info.isDownloaded ? "Re-download" : "Download");
+        downloadButton->setDefault(true);
         downloadButton->setProperty("version", info.version);
         connect(downloadButton, &QPushButton::clicked, this,
                 &DevDiskImagesWidget::onDownloadButtonClicked);
@@ -584,7 +565,7 @@ void DevDiskImagesWidget::mountImage(const QString &version)
     m_mountButton->setText("Mounting...");
 
     mobile_image_mounter_error_t err =
-        DevDiskManager::sharedInstance()->mountImage(version, udid);
+        DevDiskManager::sharedInstance()->mountImage(version, m_currentDevice);
 
     auto updateUI = [&]() {
         m_mountButton->setEnabled(true);

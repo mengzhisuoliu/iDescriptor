@@ -1,4 +1,5 @@
 #pragma once
+#include <QDebug>
 #include <QImage>
 #include <QtCore/QObject>
 #include <libimobiledevice/afc.h>
@@ -16,8 +17,8 @@
 
 #define TOOL_NAME "iDescriptor"
 #define APP_LABEL "iDescriptor"
-#define APP_VERSION "0.0.1"
-#define APP_COPYRIGHT "© 2023 Uncore. All rights reserved."
+#define APP_VERSION "0.1.0"
+#define APP_COPYRIGHT "© 2025 Uncore. All rights reserved."
 #define AFC2_SERVICE_NAME "com.apple.afc2"
 #define RECOVERY_CLIENT_CONNECTION_TRIES 3
 #define APPLE_VENDOR_ID 0x05ac
@@ -138,6 +139,7 @@ struct DeviceInfo {
     std::string marketingName;
     std::string regionRaw;
     std::string region;
+    unsigned int parsedDeviceVersion;
 };
 
 struct iDescriptorDevice {
@@ -292,9 +294,9 @@ bool shutdown(idevice_t device);
 
 TakeScreenshotResult take_screenshot(screenshotr_client_t shotr);
 
-mobile_image_mounter_error_t mount_dev_image(const char *udid,
+mobile_image_mounter_error_t mount_dev_image(idevice_t device,
+                                             unsigned int device_version,
                                              const char *image_dir_path);
-
 struct GetMountedImageResult {
     bool success;
     std::string sig;
@@ -404,14 +406,8 @@ bool isDarkMode();
 instproxy_error_t install_IPA(idevice_t device, afc_client_t afc,
                               const char *filePath);
 
-typedef struct _idevice_private {
-    char *udid;
-    uint32_t mux_id;
-    enum idevice_connection_type conn_type;
-    void *conn_data;
-    int version;
-    int device_class;
-};
+#define IDESCRIPTOR_DEVICE_VERSION(maj, min, patch)                            \
+    ((((maj) & 0xFF) << 16) | (((min) & 0xFF) << 8) | ((patch) & 0xFF))
 
 /*
     we need this because idevice_get_device_version
@@ -420,9 +416,45 @@ typedef struct _idevice_private {
 */
 inline unsigned int get_device_version(idevice_t _device)
 {
-    _idevice_private *idevice = reinterpret_cast<_idevice_private *>(_device);
-    if (!idevice) {
+    if (!_device) {
         return 0;
     }
-    return static_cast<unsigned int>(idevice->version);
+
+    lockdownd_client_t lockdown = NULL;
+    if (lockdownd_client_new_with_handshake(
+            _device, &lockdown, "iDescriptor") != LOCKDOWN_E_SUCCESS) {
+        return 0;
+    }
+
+    plist_t node = NULL;
+    if (lockdownd_get_value(lockdown, NULL, "ProductVersion", &node) !=
+        LOCKDOWN_E_SUCCESS) {
+        lockdownd_client_free(lockdown);
+        return 0;
+    }
+
+    unsigned int version_number = 0;
+    if (node && plist_get_node_type(node) == PLIST_STRING) {
+        char *version_string = NULL;
+        plist_get_string_val(node, &version_string);
+        if (version_string) {
+            QString q_version = QString(version_string);
+            QStringList parts = q_version.split('.');
+
+            int major = (parts.length() > 0) ? parts[0].toInt() : 0;
+            int minor = (parts.length() > 1) ? parts[1].toInt() : 0;
+            int patch = (parts.length() > 2) ? parts[2].toInt() : 0;
+
+            version_number = IDESCRIPTOR_DEVICE_VERSION(major, minor, patch);
+
+            free(version_string);
+        }
+    }
+
+    if (node) {
+        plist_free(node);
+    }
+    lockdownd_client_free(lockdown);
+
+    return version_number;
 }

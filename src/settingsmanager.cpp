@@ -4,8 +4,6 @@
 #include <QSettings>
 #include <QStandardPaths>
 
-#define DEFAULT_DEVDISKIMGPATH "./devdiskimages"
-
 SettingsManager *SettingsManager::sharedInstance()
 {
     static SettingsManager instance;
@@ -46,13 +44,13 @@ QString SettingsManager::devdiskimgpath() const
 QString SettingsManager::downloadPath() const
 {
     return m_settings
-        ->value("downloadPath", SettingsManager::docsPath() + "/devdiskimages")
+        ->value("downloadPath", SettingsManager::homePath() + "/devdiskimages")
         .toString();
 }
 
-QString SettingsManager::docsPath()
+QString SettingsManager::homePath()
 {
-    return QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) +
+    return QStandardPaths::writableLocation(QStandardPaths::HomeLocation) +
            "/.idescriptor";
 }
 
@@ -154,6 +152,7 @@ void SettingsManager::doIfEnabled(Setting setting, std::function<void()> action)
         return;
     }
 
+    qDebug() << "enabled" << switchToNewDevice();
     if (shouldExecute && action) {
         action();
     }
@@ -161,12 +160,12 @@ void SettingsManager::doIfEnabled(Setting setting, std::function<void()> action)
 
 void SettingsManager::resetToDefaults()
 {
-    setDownloadPath(DEFAULT_DEVDISKIMGPATH);
+    setDownloadPath(SettingsManager::homePath() + "/devdiskimages");
     setAutoCheckUpdates(true);
     setAutoRaiseWindow(true);
     setSwitchToNewDevice(true);
 #ifndef __APPLE__
-    setUnmountiFuseOnExit(true);
+    setUnmountiFuseOnExit(false);
 #endif
     setTheme("System Default");
     setConnectionTimeout(30);

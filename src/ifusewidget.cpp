@@ -112,6 +112,7 @@ void iFuseWidget::updateDeviceComboBox()
     QList<iDescriptorDevice *> devices =
         AppContext::sharedInstance()->getAllDevices();
 
+    m_deviceComboBox->blockSignals(true);
     m_deviceComboBox->clear();
     m_deviceComboBox->setEnabled(true);
     m_mountButton->setEnabled(true);
@@ -123,6 +124,7 @@ void iFuseWidget::updateDeviceComboBox()
         m_deviceComboBox->addItem(displayText,
                                   QString::fromStdString(device->udid));
     }
+    m_deviceComboBox->blockSignals(false);
 
     // Try to find and select the device passed to the widget
     int deviceIndex = -1;
@@ -404,7 +406,12 @@ void iFuseWidget::updateUI()
         AppContext::sharedInstance()->getAllDevices();
 
     if (devices.isEmpty()) {
-        close();
+        m_device = nullptr;
+        m_deviceComboBox->clear();
+        m_deviceComboBox->setEnabled(false);
+        m_mountButton->setEnabled(false);
+        m_mountPathLabel->setText("No device connected.");
+        deleteLater();
         return;
     }
     updateDeviceComboBox();
