@@ -26,6 +26,20 @@ jobs:
           submodules: "recursive"
           token: ${{ secrets.PAT }}
 
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+
+      - name: Install WiX Toolset
+        run: |
+          dotnet tool install --global wix --version 4.0.5
+
+      - name: Install WiX UI Extension
+        run: |
+          wix extension add --global WixToolset.UI.wixext/4.0.5
+          wix extension list
+
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
         with:
@@ -80,26 +94,6 @@ jobs:
         shell: pwsh
         run: |
           choco install winfsp -y
-
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.x"
-
-      - name: Install WiX Toolset
-        shell: pwsh
-        run: |
-          dotnet tool install --global wix --version 4.0.5
-
-      - name: Add .NET tools to PATH
-        shell: pwsh
-        run: echo "$($env:USERPROFILE)\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Install WiX UI Extension
-        shell: pwsh
-        run: |
-          wix extension add --global WixToolset.UI.wixext/4.0.5
-          wix extension list
 
       - name: Download and Extract Bonjour SDK
         run: |
