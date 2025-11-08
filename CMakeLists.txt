@@ -349,9 +349,10 @@ endif()
 
 include(GNUInstallDirs)
 
+if (WIN32)
 # Set the installation directory to be within the build folder
 set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/dist")
-
+endif()
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(iDescriptor)
 endif()
