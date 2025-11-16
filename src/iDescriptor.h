@@ -20,7 +20,9 @@
 #pragma once
 #include <QDebug>
 #include <QImage>
+#include <QJsonObject>
 #include <QNetworkAccessManager>
+#include <QRegularExpression>
 #include <QtCore/QObject>
 #include <libimobiledevice/afc.h>
 #include <libimobiledevice/installation_proxy.h>
@@ -41,7 +43,11 @@
 #define AFC2_SERVICE_NAME "com.apple.afc2"
 #define RECOVERY_CLIENT_CONNECTION_TRIES 3
 #define APPLE_VENDOR_ID 0x05ac
-#define REPO_URL "https://github.com/uncor3/iDescriptor"
+#define REPO_URL "https://github.com/iDescriptor/iDescriptor"
+#define SPONSORS_JSON_URL                                                      \
+    "https://raw.githubusercontent.com/iDescriptor/iDescriptor/refs/heads/"    \
+    "main/sponsors.json"
+
 // This is because afc_read_directory accepts  "/var/mobile/Media" as "/"
 #define POSSIBLE_ROOT "../../../../"
 
@@ -425,3 +431,82 @@ bool isDarkMode();
 
 instproxy_error_t install_IPA(idevice_t device, afc_client_t afc,
                               const char *filePath);
+
+// Helper struct for semantic version comparison
+struct AppVersion {
+    int major = 0;
+    int minor = 0;
+    int patch = 0;
+
+    static AppVersion fromString(QString versionString)
+    {
+        // Keep only digits and dots for comparison
+        versionString.remove(QRegularExpression("[^\\d.]"));
+        AppVersion v;
+        QStringList parts = versionString.split('.');
+        if (parts.size() > 0)
+            v.major = parts[0].toInt();
+        if (parts.size() > 1)
+            v.minor = parts[1].toInt();
+        if (parts.size() > 2)
+            v.patch = parts[2].toInt();
+        return v;
+    }
+
+    bool operator<(const AppVersion &other) const
+    {
+        if (major != other.major)
+            return major < other.major;
+        if (minor != other.minor)
+            return minor < other.minor;
+        return patch < other.patch;
+    }
+
+    bool operator==(const AppVersion &other) const
+    {
+        return major == other.major && minor == other.minor &&
+               patch == other.patch;
+    }
+
+    bool operator>(const AppVersion &other) const
+    {
+        return !(*this < other || *this == other);
+    }
+    bool operator<=(const AppVersion &other) const
+    {
+        return (*this < other || *this == other);
+    }
+    bool operator>=(const AppVersion &other) const { return !(*this < other); }
+};
+
+// Checks if the current app version matches a given version condition
+inline bool versionMatches(const QString &currentVersionStr,
+                           const QString &conditionStr)
+{
+    AppVersion currentVersion = AppVersion::fromString(currentVersionStr);
+    AppVersion conditionVersion = AppVersion::fromString(conditionStr);
+
+    if (conditionStr.startsWith("<="))
+        return currentVersion <= conditionVersion;
+    if (conditionStr.startsWith(">="))
+        return currentVersion >= conditionVersion;
+    if (conditionStr.startsWith("<"))
+        return currentVersion < conditionVersion;
+    if (conditionStr.startsWith(">"))
+        return currentVersion > conditionVersion;
+
+    // Exact match
+    return currentVersion == conditionVersion;
+}
+
+inline QJsonObject getVersionedConfig(const QJsonObject &rootObj)
+{
+    QStringList keys = rootObj.keys();
+    for (const QString &key : keys) {
+        if (versionMatches(APP_VERSION, key)) {
+            qDebug() << "getVersionedConfig picked version:" << key;
+            return rootObj[key].toObject();
+        }
+    }
+    return QJsonObject();
+}

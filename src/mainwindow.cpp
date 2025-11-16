@@ -246,7 +246,7 @@ MainWindow::MainWindow(QWidget *parent)
     UpdateProcedure updateProcedure;
     bool packageManagerManaged = false;
     bool isPortable = false;
-
+    bool skipPrerelease = true;
 #ifdef WIN32
     // dynamic portable detection read .portable file in app dir on Windows
     QString appDir = QApplication::applicationDirPath();
@@ -309,9 +309,9 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     // FIXME: fix repo name
-    m_updater =
-        new ZUpdater("uncor3/libtest", APP_VERSION, "iDescriptor",
-                     updateProcedure, isPortable, packageManagerManaged, this);
+    m_updater = new ZUpdater("uncor3/libtest", APP_VERSION, "iDescriptor",
+                             updateProcedure, isPortable, packageManagerManaged,
+                             skipPrerelease, this);
 #if defined(PACKAGE_MANAGER_MANAGED) && defined(__linux__)
     m_updater->setPackageManagerManagedMessage(
         QString(

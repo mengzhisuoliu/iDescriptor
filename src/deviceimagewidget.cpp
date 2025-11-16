@@ -128,8 +128,8 @@ QString DeviceImageWidget::getWallpaperPath() const
 QString DeviceImageWidget::getMockupNameFromDisplayName(
     const QString &displayName) const
 {
-    // Map device names to mockup files
-    if (displayName.contains("iPhone 16", Qt::CaseInsensitive)) {
+    if (displayName.contains("iPhone 16", Qt::CaseInsensitive) ||
+        displayName.contains("iPhone 17", Qt::CaseInsensitive)) {
         return "16";
     } else if (displayName.contains("iPhone 15", Qt::CaseInsensitive) ||
                displayName.contains("iPhone 14", Qt::CaseInsensitive)) {

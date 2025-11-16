@@ -62,7 +62,7 @@
         <file>resources/connect.png</file>
         <file>resources/airplayer-tutorial.mp4</file>
         <file>resources/ipad-mockups/ipad.png</file>
-        <file>resources/DeveloperDiskImages.json</file>
+        <file>DeveloperDiskImages.json</file>
         <file>resources/keychain.mp4</file>
         <file>resources/wireless-gallery-import.mp4</file>
     </qresource>

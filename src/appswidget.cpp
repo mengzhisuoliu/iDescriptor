@@ -25,6 +25,7 @@
 #include "appstoremanager.h"
 #include "creddialog.h"
 #include "iDescriptor-ui.h"
+#include "iDescriptor.h"
 #include "keychaindialog.h"
 #include "logindialog.h"
 #include "mainwindow.h"
@@ -56,7 +57,6 @@
 #include <QPixmap>
 #include <QProgressBar>
 #include <QPushButton>
-#include <QRegularExpression>
 #include <QScrollArea>
 #include <QStyle>
 #include <QTimer>
@@ -64,84 +64,7 @@
 #include <QWidget>
 #include <QtConcurrent/QtConcurrent>
 
-// Helper struct for semantic version comparison
-struct AppVersion {
-    int major = 0;
-    int minor = 0;
-    int patch = 0;
-
-    static AppVersion fromString(QString versionString)
-    {
-        // Keep only digits and dots for comparison
-        versionString.remove(QRegularExpression("[^\\d.]"));
-        AppVersion v;
-        QStringList parts = versionString.split('.');
-        if (parts.size() > 0)
-            v.major = parts[0].toInt();
-        if (parts.size() > 1)
-            v.minor = parts[1].toInt();
-        if (parts.size() > 2)
-            v.patch = parts[2].toInt();
-        return v;
-    }
-
-    bool operator<(const AppVersion &other) const
-    {
-        if (major != other.major)
-            return major < other.major;
-        if (minor != other.minor)
-            return minor < other.minor;
-        return patch < other.patch;
-    }
-
-    bool operator==(const AppVersion &other) const
-    {
-        return major == other.major && minor == other.minor &&
-               patch == other.patch;
-    }
-
-    bool operator>(const AppVersion &other) const
-    {
-        return !(*this < other || *this == other);
-    }
-    bool operator<=(const AppVersion &other) const
-    {
-        return (*this < other || *this == other);
-    }
-    bool operator>=(const AppVersion &other) const { return !(*this < other); }
-};
-
-// Checks if the current app version matches a given version condition
-bool versionMatches(const QString &currentVersionStr,
-                    const QString &conditionStr)
-{
-    AppVersion currentVersion = AppVersion::fromString(currentVersionStr);
-    AppVersion conditionVersion = AppVersion::fromString(conditionStr);
-
-    if (conditionStr.startsWith("<="))
-        return currentVersion <= conditionVersion;
-    if (conditionStr.startsWith(">="))
-        return currentVersion >= conditionVersion;
-    if (conditionStr.startsWith("<"))
-        return currentVersion < conditionVersion;
-    if (conditionStr.startsWith(">"))
-        return currentVersion > conditionVersion;
-
-    // Exact match
-    return currentVersion == conditionVersion;
-}
-
-QJsonObject getVersionedConfig(const QJsonObject &rootObj)
-{
-    QStringList keys = rootObj.keys();
-    for (const QString &key : keys) {
-        if (versionMatches(APP_VERSION, key)) {
-            return rootObj[key].toObject();
-        }
-    }
-}
-
-// TODO: watch for login and logout events
+// FIXME: we dont watch for login and logout events because there is no such api
 AppsWidget *AppsWidget::sharedInstance()
 {
     static AppsWidget *instance = new AppsWidget();
@@ -229,8 +152,7 @@ void AppsWidget::setupUI()
 
 void AppsWidget::init()
 {
-    // FIXME:update url
-    QUrl sponsorsUrl("http://localhost:5173/sponsors.json");
+    QUrl sponsorsUrl(SPONSORS_JSON_URL);
     QNetworkRequest request(sponsorsUrl);
     QNetworkReply *reply = m_networkManager->get(request);
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
@@ -489,6 +411,38 @@ void AppsWidget::populateDefaultApps()
         advanceGridPos();
     }
 
+    for (const QJsonValue &sponsorValue : m_silverSponsors) {
+        QJsonObject sponsorObj = sponsorValue.toObject();
+        QString name = sponsorObj.value("name").toString();
+        QString bundleId = sponsorObj.value("bundleId").toString();
+        QString description = sponsorObj.value("description").toString();
+        QString url = sponsorObj.value("url").toString();
+        QString logoUrl = sponsorObj.value("logo").toString();
+        bool useBundleIdForIcon =
+            sponsorObj.value("useBundleIdForIcon").toBool(true);
+
+        createAppCard(name, bundleId, description, logoUrl, url, gridLayout,
+                      row, col, useBundleIdForIcon,
+                      SponsorType(SponsorType::Silver));
+        advanceGridPos();
+    }
+
+    for (const QJsonValue &sponsorValue : m_bronzeSponsors) {
+        QJsonObject sponsorObj = sponsorValue.toObject();
+        QString name = sponsorObj.value("name").toString();
+        QString bundleId = sponsorObj.value("bundleId").toString();
+        QString description = sponsorObj.value("description").toString();
+        QString url = sponsorObj.value("url").toString();
+        QString logoUrl = sponsorObj.value("logo").toString();
+
+        bool useBundleIdForIcon =
+            sponsorObj.value("useBundleIdForIcon").toBool(true);
+        createAppCard(name, bundleId, description, logoUrl, url, gridLayout,
+                      row, col, useBundleIdForIcon,
+                      SponsorType(SponsorType::Bronze));
+        advanceGridPos();
+    }
+
     if (m_platinumSponsors.empty() && m_goldSponsors.empty()) {
         createSponsorCard(gridLayout, row, col);
         advanceGridPos();
@@ -525,37 +479,6 @@ void AppsWidget::populateDefaultApps()
                   col);
     advanceGridPos();
 
-    for (const QJsonValue &sponsorValue : m_silverSponsors) {
-        QJsonObject sponsorObj = sponsorValue.toObject();
-        QString name = sponsorObj.value("name").toString();
-        QString bundleId = sponsorObj.value("bundleId").toString();
-        QString description = sponsorObj.value("description").toString();
-        QString url = sponsorObj.value("url").toString();
-        QString logoUrl = sponsorObj.value("logo").toString();
-        bool useBundleIdForIcon =
-            sponsorObj.value("useBundleIdForIcon").toBool(true);
-
-        createAppCard(name, bundleId, description, logoUrl, url, gridLayout,
-                      row, col, useBundleIdForIcon,
-                      SponsorType(SponsorType::Silver));
-        advanceGridPos();
-    }
-
-    for (const QJsonValue &sponsorValue : m_bronzeSponsors) {
-        QJsonObject sponsorObj = sponsorValue.toObject();
-        QString name = sponsorObj.value("name").toString();
-        QString bundleId = sponsorObj.value("bundleId").toString();
-        QString description = sponsorObj.value("description").toString();
-        QString url = sponsorObj.value("url").toString();
-        QString logoUrl = sponsorObj.value("logo").toString();
-
-        bool useBundleIdForIcon =
-            sponsorObj.value("useBundleIdForIcon").toBool(true);
-        createAppCard(name, bundleId, description, logoUrl, url, gridLayout,
-                      row, col, useBundleIdForIcon,
-                      SponsorType(SponsorType::Bronze));
-        advanceGridPos();
-    }
     gridLayout->setRowStretch(gridLayout->rowCount(), 1);
 }
 
@@ -688,18 +611,15 @@ void AppsWidget::createAppCard(
     // Add sponsor type indicator
     if (!sponsorType.isEmpty()) {
         QLabel *sponsorLabel = new QLabel(sponsorType.name);
-        QString textColor = (sponsorType.level == SponsorType::Platinum ||
-                             sponsorType.level == SponsorType::Silver)
-                                ? "#333"
-                                : "white";
         sponsorLabel->setStyleSheet(QString("font-size: 10px; "
                                             "font-weight: bold; "
-                                            "color: %1; "
+                                            "color: #333; "
                                             "background-color: %2; "
                                             "border-radius: 4px; "
                                             "padding: 2px 6px; "
                                             "margin-left: 8px;")
-                                        .arg(textColor, sponsorType.color));
+                                        .arg(sponsorType.color));
+        sponsorLabel->setFixedHeight(16);
         sponsorLabel->setAlignment(Qt::AlignCenter);
         nameLayout->addWidget(sponsorLabel);
     }

@@ -1,0 +1,78 @@
+{
+  ">0.0.0": {
+    "sponsors": {
+      "platinum": {
+        "members": [
+          {
+            "name": "Spotify",
+            "url": "https://www.spotify.com",
+            "logo": "sponsors/spotify.png",
+            "description": "Leading music streaming service.",
+            "bundleId": "com.spotify.client"
+          },
+          {
+            "name": "Shopify",
+            "url": "https://www.shopify.com",
+            "logo": "sponsors/shopify.png",
+            "description": "Create an online store within minutes and start selling.",
+            "bundleId": "com.jadedpixel.shopify"
+          }
+        ]
+      },
+      "gold": {
+        "members": [
+          {
+            "name": "Spotify",
+            "url": "https://www.spotify.com",
+            "logo": "sponsors/spotify.png",
+            "description": "Leading music streaming service.",
+            "bundleId": "com.spotify.client"
+          },
+          {
+            "name": "Shopify",
+            "url": "https://www.shopify.com",
+            "logo": "sponsors/shopify.png",
+            "description": "Create an online store within minutes and start selling.",
+            "bundleId": "com.jadedpixel.shopify"
+          }
+        ]
+      },
+      "silver": {
+        "members": [
+          {
+            "name": "Spotify",
+            "url": "https://www.spotify.com",
+            "logo": "sponsors/spotify.png",
+            "description": "Leading music streaming service.",
+            "bundleId": "com.spotify.client"
+          },
+          {
+            "name": "Shopify",
+            "url": "https://www.shopify.com",
+            "logo": "sponsors/shopify.png",
+            "description": "Create an online store within minutes and start selling.",
+            "bundleId": "com.jadedpixel.shopify"
+          }
+        ]
+      },
+      "bronze": {
+        "members": [
+          {
+            "name": "Spotify",
+            "url": "https://www.spotify.com",
+            "logo": "sponsors/spotify.png",
+            "description": "Leading music streaming service.",
+            "bundleId": "com.spotify.client"
+          },
+          {
+            "name": "Shopify",
+            "url": "https://www.shopify.com",
+            "logo": "sponsors/shopify.png",
+            "description": "Create an online store within minutes and start selling.",
+            "bundleId": "com.jadedpixel.shopify"
+          }
+        ]
+      }
+    }
+  }
+}

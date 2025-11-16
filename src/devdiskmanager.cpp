@@ -80,7 +80,7 @@ void DevDiskManager::populateImageList()
 
     connect(reply, &QNetworkReply::finished, this, [this, localPath, reply]() {
         if (reply->error() == QNetworkReply::NoError) {
-            // FIXME: better have this settings
+            // FIXME: better have this in settings
             QDir().mkdir(QDir::homePath() + "/.idescriptor");
             m_imageListJsonData = reply->readAll();
             QFile file(localPath);
@@ -97,14 +97,19 @@ QMap<QString, QMap<QString, QString>> DevDiskManager::parseDiskDir()
 {
     QJsonDocument doc = QJsonDocument::fromJson(m_imageListJsonData);
     if (!doc.isObject()) {
-        qWarning() << "Invalid JSON response from image list API";
+        qWarning() << "parseDiskDir: Invalid JSON response from image list API";
         return {};
     }
 
     QMap<QString, QMap<QString, QString>>
         imageFiles; // version -> {type -> url}
 
-    QJsonObject root = doc.object();
+    QJsonObject root = getVersionedConfig(doc.object());
+    if (root.isEmpty()) {
+        qWarning() << "parseDiskDir: No valid versioned config found in image "
+                      "list JSON";
+        return {};
+    }
     for (auto it = root.constBegin(); it != root.constEnd(); ++it) {
         const QString version = it.key();
         const QJsonObject versionData = it.value().toObject();
@@ -166,7 +171,7 @@ QList<ImageInfo> DevDiskManager::getImagesSorted(
     uint64_t mounted_sig_len)
 {
     QList<ImageInfo> allImages;
-    // TODO: what is this ?
+    // FIXME: i guess we could do better here but works for now
     bool hasConnectedDevice = (deviceMajorVersion > 0);
 
     for (auto it = imageFiles.constBegin(); it != imageFiles.constEnd(); ++it) {
