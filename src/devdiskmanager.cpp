@@ -61,7 +61,7 @@ void DevDiskManager::populateImageList()
         localFile.close();
         qDebug() << "Loaded DeveloperDiskImages.json from local cache.";
     } else {
-        QFile qrcFile(":/resources/DeveloperDiskImages.json");
+        QFile qrcFile(":/DeveloperDiskImages.json");
         if (qrcFile.open(QIODevice::ReadOnly)) {
             m_imageListJsonData = qrcFile.readAll();
             qrcFile.close();
@@ -72,9 +72,8 @@ void DevDiskManager::populateImageList()
                    "Image list will be empty until network fetch succeeds.";
         }
     }
-    // TODO:change url
-    QUrl url("https://raw.githubusercontent.com/uncor3/resources/refs/heads/"
-             "main/DeveloperDiskImages.json");
+    QUrl url("https://raw.githubusercontent.com/iDescriptor/iDescriptor/refs/"
+             "heads/main/DeveloperDiskImages.json");
     QNetworkRequest request(url);
     auto *reply = m_networkManager->get(request);
 
