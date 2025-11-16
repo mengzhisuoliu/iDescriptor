@@ -67,14 +67,11 @@ int main(int argc, char *argv[])
     qputenv("GST_PLUGIN_SYSTEM_PATH_1_0", gstPluginPath.toUtf8());
 #endif
     QCoreApplication::setOrganizationName("iDescriptor");
-    // QCoreApplication::setOrganizationDomain("iDescriptor.com");
     QCoreApplication::setApplicationName("iDescriptor");
-    // QCoreApplication::setApplicationVersion(IDESCRIPTOR_VERSION);
-    // QApplication::setStyle(QStyleFactory::create("Windows"));
+    QCoreApplication::setApplicationVersion(APP_VERSION);
 #ifndef __APPLE__
     QApplication::setStyle(QStyleFactory::create("Fusion"));
 #endif
-
     MainWindow *w = MainWindow::sharedInstance();
     w->show();
     return a.exec();

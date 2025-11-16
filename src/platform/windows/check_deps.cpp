@@ -87,3 +87,19 @@ bool IsWinFspInstalled()
     }
     return false;
 }
+
+bool is_iDescriptorInstalled()
+{
+    if (CheckRegistry(HKEY_LOCAL_MACHINE,
+                      "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+                      "iDescriptor")) {
+        return true;
+    }
+    if (CheckRegistry(HKEY_LOCAL_MACHINE,
+                      "SOFTWARE\\WOW6432Node\\Microsoft\\Wi"
+                      "ndows\\CurrentVersion\\Uninstall",
+                      "iDescriptor")) {
+        return true;
+    }
+    return false;
+}

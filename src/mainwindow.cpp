@@ -49,6 +49,10 @@
 #include <QMenuBar>
 #include <QMessageBox>
 
+#ifdef WIN32
+#include "platform/windows/check_deps.h"
+#endif
+
 void handleCallback(const idevice_event_t *event, void *userData)
 {
     printf("Device event received: ");
@@ -248,12 +252,7 @@ MainWindow::MainWindow(QWidget *parent)
     bool isPortable = false;
     bool skipPrerelease = true;
 #ifdef WIN32
-    // dynamic portable detection read .portable file in app dir on Windows
-    QString appDir = QApplication::applicationDirPath();
-    QFile portableFile(appDir + "/.portable");
-    if (portableFile.exists()) {
-        isPortable = true;
-    }
+    isPortable = is_iDescriptorInstalled();
 #endif
 
     /*
@@ -282,11 +281,13 @@ MainWindow::MainWindow(QWidget *parent)
         // todo: adjust for pkg managers
     case Platform::MacOS:
         updateProcedure = UpdateProcedure{
-            false,
+            true,
             false,
             true,
-            "The application will now quit to install the update.",
-            "Do you want to install the downloaded update now?",
+            "The application will now quit and open .dmg file downloaded to "
+            "\"Downloads\" from there you can drag it to Applications to "
+            "install.",
+            "Update downloaded would you like to quit and install the update?",
         };
         break;
     case Platform::Linux:
@@ -295,11 +296,14 @@ MainWindow::MainWindow(QWidget *parent)
         packageManagerManaged = true;
 #endif
         updateProcedure = UpdateProcedure{
-            false,
             true,
             false,
-            "There is new update available",
-            "Would you like to download it now?",
+            true,
+            "AppImage is not updateable.New version is downloaded to "
+            "\"Downloads\".You can start using the new version by launching it "
+            "from there. You can delete this AppImage version if you like.",
+            "Update downloaded would you like to quit and open the new "
+            "version?",
         };
         break;
     default:
