@@ -90,11 +90,21 @@ void DependencyItem::setInstalled(bool installed)
     setChecking(false);
 
     if (installed) {
-        m_statusLabel->setText("✓ Installed");
+        if (m_name == "Avahi Daemon") {
+            m_statusLabel->setText("✓ Activated");
+        } else {
+            m_statusLabel->setText("✓ Installed");
+        }
         m_statusLabel->setStyleSheet("color: green; font-weight: bold;");
         m_installButton->setVisible(false);
     } else {
-        m_statusLabel->setText("✗ Not Installed");
+        if (m_name == "Avahi Daemon") {
+            m_statusLabel->setText("✗ Not activated");
+            m_installButton->setText("Enable");
+        } else {
+            m_statusLabel->setText("✗ Not Installed");
+            m_installButton->setText("Install");
+        }
         m_statusLabel->setStyleSheet("color: red; font-weight: bold;");
         m_installButton->setVisible(true);
     }
@@ -133,16 +143,18 @@ DiagnoseWidget::DiagnoseWidget(QWidget *parent)
     setupUI();
 
 #ifdef WIN32
-    // Add dependency items
     addDependencyItem("Apple Mobile Device Support",
                       "Required for iOS device communication");
     addDependencyItem("WinFsp", "Required for mounting your device as a drive");
 #endif
 
 #ifdef __linux__
-    // Add Linux-specific dependency items
+#ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
     addDependencyItem("USB Device Permissions",
                       "Required for recovery devices (udev rules)");
+#endif
+    addDependencyItem("Avahi Daemon",
+                      "Required for Airplay, device discovery and more");
 #endif
 
     // Auto-check on startup
@@ -238,6 +250,8 @@ void DiagnoseWidget::checkDependencies(bool autoExpand)
 #ifdef __linux__
             if (itemName == "USB Device Permissions") {
                 installed = checkUdevRulesInstalled();
+            } else if (itemName == "Avahi Daemon") {
+                installed = checkAvahiDaemonRunning();
             }
 #endif
 
@@ -248,7 +262,7 @@ void DiagnoseWidget::checkDependencies(bool autoExpand)
 
         if (installedCount == totalCount) {
             m_summaryLabel->setText(
-                QString("All dependencies are installed (%1/%2)")
+                QString("All dependencies are installed/activated (%1/%2)")
                     .arg(installedCount)
                     .arg(totalCount));
             m_summaryLabel->setStyleSheet("color: green; font-weight: bold;");
@@ -497,6 +511,54 @@ void DiagnoseWidget::onInstallRequested(const QString &name)
         args << scriptPath << userName;
         installProcess->start("pkexec", args);
     }
+
+    if (name == "Avahi Daemon") {
+        DependencyItem *itemToInstall = nullptr;
+        for (DependencyItem *item : m_dependencyItems) {
+            if (item->property("name").toString() == name) {
+                itemToInstall = item;
+                break;
+            }
+        }
+
+        if (!itemToInstall)
+            return;
+
+        itemToInstall->setInstalling(true);
+
+        QProcess *installProcess = new QProcess(this);
+        connect(
+            installProcess, &QProcess::finished, this,
+            [this, installProcess,
+             itemToInstall](int exitCode, QProcess::ExitStatus exitStatus) {
+                if (exitStatus != QProcess::NormalExit || exitCode != 0) {
+                    QString errorOutput =
+                        installProcess->readAllStandardError();
+                    if (errorOutput.isEmpty()) {
+                        errorOutput = installProcess->readAllStandardOutput();
+                    }
+                    QMessageBox::warning(
+                        this, "Error",
+                        "Failed to enable Avahi daemon. "
+                        "This might be because the action was cancelled or an "
+                        "error occurred.\n\nDetails: " +
+                            errorOutput.trimmed());
+                    checkDependencies(false);
+                } else {
+                    checkDependencies(false);
+                }
+                itemToInstall->setInstalling(false);
+                installProcess->deleteLater();
+            });
+
+        QStringList args;
+        args << "systemctl"
+             << "enable"
+             << "--now"
+             << "avahi-daemon.service";
+        installProcess->start("pkexec", args);
+    }
+
 #endif
 }
 
@@ -545,6 +607,22 @@ bool DiagnoseWidget::checkUdevRulesInstalled()
     bool isInIdeviceGroup = groups.contains("idevice");
 
     return isInIdeviceGroup;
+}
+
+bool DiagnoseWidget::checkAvahiDaemonRunning()
+{
+    QProcess checkProcess;
+    checkProcess.start("systemctl", QStringList()
+                                        << "is-active" << "avahi-daemon");
+    checkProcess.waitForFinished(3000);
+
+    if (checkProcess.exitCode() != 0) {
+        return false;
+    }
+
+    QString output =
+        QString::fromUtf8(checkProcess.readAllStandardOutput()).trimmed();
+    return output == "active";
 }
 #endif
 

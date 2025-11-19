@@ -369,5 +369,5 @@ MainWindow::~MainWindow()
 #endif
     delete ui;
     delete m_updater;
-    sleep(2); // Give some time for cleanup to finish
+    sleep(2);
 }

@@ -77,6 +77,7 @@ private:
 
 #ifdef __linux__
     bool checkUdevRulesInstalled();
+    bool checkAvahiDaemonRunning();
 #endif
 
     QVBoxLayout *m_mainLayout;

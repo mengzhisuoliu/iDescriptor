@@ -90,11 +90,8 @@ void WelcomeWidget::setupUI()
 
     m_mainLayout->addWidget(m_githubLabel, 0, Qt::AlignCenter);
 
-    // FIXME: we need to disable specific deps in diagnosewidget
-    // not the whole widget when EnableRecoveryDeviceSupport is off
     // no additional deps needed on macOS
-#if !defined(__APPLE__) && defined(ENABLE_RECOVERY_DEVICE_SUPPORT)
-
+#ifndef __APPLE__
     DiagnoseWidget *diagnoseWidget = new DiagnoseWidget();
     m_mainLayout->addWidget(diagnoseWidget);
 #endif
