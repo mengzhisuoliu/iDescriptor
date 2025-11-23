@@ -56,9 +56,31 @@ void AppContext::addDevice(QString udid, idevice_connection_type conn_type,
                     m_pendingDevices.append(udid);
                     emit devicePasswordProtected(udid);
                     emit deviceChange();
-                    // After 30 seconds, if the device is still pending,
-                    // consider the pairing expired
-                    QTimer::singleShot(30000, this, [this, udid]() {
+                    QTimer::singleShot(
+                        SettingsManager::sharedInstance()->connectionTimeout() *
+                            1000,
+                        this, [this, udid]() {
+                            if (m_pendingDevices.contains(udid)) {
+                                qDebug() << "Pairing expired for device UDID: "
+                                         << udid;
+                                m_pendingDevices.removeAll(udid);
+                                emit devicePairingExpired(udid);
+                                emit deviceChange();
+                            }
+                        });
+                }
+            } else if (initResult.error ==
+                           LOCKDOWN_E_PAIRING_DIALOG_RESPONSE_PENDING ||
+                       initResult.error == LOCKDOWN_E_INVALID_HOST_ID) {
+                m_pendingDevices.append(udid);
+                emit devicePairPending(udid);
+                emit deviceChange();
+                QTimer::singleShot(
+                    SettingsManager::sharedInstance()->connectionTimeout() *
+                        1000,
+                    this, [this, udid]() {
+                        qDebug()
+                            << "Pairing timer fired for device UDID: " << udid;
                         if (m_pendingDevices.contains(udid)) {
                             qDebug()
                                 << "Pairing expired for device UDID: " << udid;
@@ -67,24 +89,6 @@ void AppContext::addDevice(QString udid, idevice_connection_type conn_type,
                             emit deviceChange();
                         }
                     });
-                }
-            } else if (initResult.error ==
-                           LOCKDOWN_E_PAIRING_DIALOG_RESPONSE_PENDING ||
-                       initResult.error == LOCKDOWN_E_INVALID_HOST_ID) {
-                m_pendingDevices.append(udid);
-                emit devicePairPending(udid);
-                emit deviceChange();
-                // After 30 seconds, if the device is still pending,
-                // consider the pairing expired
-                QTimer::singleShot(30000, this, [this, udid]() {
-                    qDebug() << "Pairing timer fired for device UDID: " << udid;
-                    if (m_pendingDevices.contains(udid)) {
-                        qDebug() << "Pairing expired for device UDID: " << udid;
-                        m_pendingDevices.removeAll(udid);
-                        emit devicePairingExpired(udid);
-                        emit deviceChange();
-                    }
-                });
             } else {
                 qDebug() << "Unhandled error for device UDID: " << udid
                          << " Error code: " << initResult.error;
@@ -104,7 +108,6 @@ void AppContext::addDevice(QString udid, idevice_connection_type conn_type,
         };
         m_devices[device->udid] = device;
         if (addType == AddType::Regular) {
-            // Apply settings-based behaviors
             SettingsManager::sharedInstance()->doIfEnabled(
                 SettingsManager::Setting::AutoRaiseWindow, []() {
                     if (MainWindow *mainWindow = MainWindow::sharedInstance()) {
@@ -173,6 +176,8 @@ void AppContext::removeDevice(QString _udid)
 
     if (device->afcClient)
         afc_client_free(device->afcClient);
+    if (device->afc2Client)
+        afc_client_free(device->afc2Client);
     idevice_free(device->device);
     delete device->mutex;
     delete device;
@@ -285,7 +290,8 @@ void AppContext::setCurrentDeviceSelection(const DeviceSelection &selection)
              << " Type:" << selection.type
              << " UDID:" << QString::fromStdString(selection.udid)
              << " ECID:" << selection.ecid << " Section:" << selection.section;
-    if (m_currentSelection.udid == selection.udid &&
+    if (m_currentSelection.type == selection.type &&
+        m_currentSelection.udid == selection.udid &&
         m_currentSelection.ecid == selection.ecid &&
         m_currentSelection.section == selection.section) {
         qDebug() << "setCurrentDeviceSelection: No change in selection";

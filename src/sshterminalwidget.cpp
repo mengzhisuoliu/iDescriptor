@@ -19,6 +19,7 @@
 
 #include "sshterminalwidget.h"
 #include "qprocessindicator.h"
+#include "settingsmanager.h"
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -384,8 +385,11 @@ void SSHTerminalWidget::startSSH(const QString &host, uint16_t port)
 
     qDebug() << "SSH connected successfully, attempting authentication...";
 
-    // Authenticate with password
-    rc = ssh_userauth_password(m_sshSession, nullptr, "alpine");
+    QString defaultPassword =
+        SettingsManager::sharedInstance()->defaultJailbrokenRootPassword();
+    QByteArray passwordBytes = defaultPassword.toUtf8();
+    rc =
+        ssh_userauth_password(m_sshSession, nullptr, passwordBytes.constData());
     if (rc != SSH_AUTH_SUCCESS) {
         showError(QString("SSH authentication failed: %1")
                       .arg(ssh_get_error(m_sshSession)));

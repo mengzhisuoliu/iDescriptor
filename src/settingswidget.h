@@ -63,6 +63,9 @@ private:
     // Device Connection
     QSpinBox *m_connectionTimeout;
 
+    // Jailbroken
+    QLineEdit *m_defaultJailbrokenRootPassword;
+
     // Buttons
     QPushButton *m_checkUpdatesButton;
     QPushButton *m_resetButton;

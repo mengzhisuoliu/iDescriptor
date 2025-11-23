@@ -82,9 +82,20 @@ class DevicePendingSidebarItem : public QFrame
 {
     Q_OBJECT
 public:
-    explicit DevicePendingSidebarItem(const QString &deviceName,
+    explicit DevicePendingSidebarItem(const QString &udid,
                                       QWidget *parent = nullptr);
+    void setSelected(bool selected);
+    bool isSelected() const { return m_selected; }
+
 signals:
+    void clicked();
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+
+private:
+    QString m_udid;
+    bool m_selected = false;
 };
 #endif // DEVICEPENDINGSIDEBARITEM_H
 

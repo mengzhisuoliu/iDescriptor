@@ -254,3 +254,13 @@ void AppStoreManager::downloadApp(
         });
     watcher->setFuture(future);
 }
+
+void AppStoreManager::cancelDownload(const QString &bundleId)
+{
+    if (!m_initialized) {
+        return;
+    }
+    qDebug() << "[AppStoreManager::cancelDownload] : Cancelling download for"
+             << bundleId;
+    IpaToolCancelDownload(bundleId.toUtf8().data());
+}

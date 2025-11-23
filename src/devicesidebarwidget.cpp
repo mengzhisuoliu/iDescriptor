@@ -141,15 +141,11 @@ void DeviceSidebarItem::setupUI()
     updateToggleButton();
     toggleCollapse();
 
-    setStyleSheet("DeviceSidebarItem { border: "
-                  "1px solid #e0e0e0; border-radius: 5px; }");
+    setSelected(false);
 }
 
 void DeviceSidebarItem::setSelected(bool selected)
 {
-    if (m_selected == selected)
-        return;
-
     m_selected = selected;
     // todo : bug the first device selected style is not applied
     if (selected) {
@@ -233,8 +229,6 @@ void RecoveryDeviceSidebarItem::setupUI()
 
     mainLayout->addWidget(headerWidget);
 
-    // Set initial style
-    // Set initial style
     setStyleSheet("RecoveryDeviceSidebarItem { border: "
                   "1px solid #e0e0e0; border-radius: 5px; }");
 }
@@ -322,6 +316,9 @@ DevicePendingSidebarItem *
 DeviceSidebarWidget::addPendingDevice(const QString &uuid)
 {
     DevicePendingSidebarItem *item = new DevicePendingSidebarItem(uuid, this);
+    connect(item, &DevicePendingSidebarItem::clicked, this, [this, uuid]() {
+        onItemSelected(DeviceSelection::pending(uuid.toStdString()));
+    });
     m_pendingItems[uuid.toStdString()] = item;
     m_contentLayout->insertWidget(m_contentLayout->count() - 1, item);
     return item;
@@ -390,6 +387,9 @@ void DeviceSidebarWidget::updateSelection()
     for (auto item : m_recoveryItems) {
         item->setSelected(false);
     }
+    for (auto item : m_pendingItems) {
+        item->setSelected(false);
+    }
 
     // Set selection based on current selection
     if (m_currentSelection.type == DeviceSelection::Normal &&
@@ -398,15 +398,18 @@ void DeviceSidebarWidget::updateSelection()
     } else if (m_currentSelection.type == DeviceSelection::Recovery &&
                m_recoveryItems.contains(m_currentSelection.ecid)) {
         m_recoveryItems[m_currentSelection.ecid]->setSelected(true);
+    } else if (m_currentSelection.type == DeviceSelection::Pending &&
+               m_pendingItems.contains(m_currentSelection.udid)) {
+        m_pendingItems[m_currentSelection.udid]->setSelected(true);
     }
 }
 
 DevicePendingSidebarItem::DevicePendingSidebarItem(const QString &udid,
                                                    QWidget *parent)
-    : QFrame(parent)
+    : QFrame(parent), m_udid(udid)
 {
     QHBoxLayout *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setContentsMargins(10, 10, 10, 10);
     layout->setSpacing(1);
 
     QProcessIndicator *spinner = new QProcessIndicator(this);
@@ -420,4 +423,25 @@ DevicePendingSidebarItem::DevicePendingSidebarItem(const QString &udid,
     layout->addWidget(spinner);
 
     setLayout(layout);
+    setSelected(false);
+}
+
+void DevicePendingSidebarItem::setSelected(bool selected)
+{
+    m_selected = selected;
+
+    if (selected) {
+        setStyleSheet(QString("DevicePendingSidebarItem { border: "
+                              "2px solid %1; border-radius: 5px; }")
+                          .arg(COLOR_BLUE.name()));
+    } else {
+        setStyleSheet("DevicePendingSidebarItem { border: "
+                      "1px solid #e0e0e0; border-radius: 5px; }");
+    }
+}
+
+void DevicePendingSidebarItem::mousePressEvent(QMouseEvent *event)
+{
+    emit clicked();
+    QFrame::mousePressEvent(event);
 }

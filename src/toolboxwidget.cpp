@@ -398,10 +398,6 @@ void ToolboxWidget::onCurrentDeviceChanged(const DeviceSelection &selection)
             m_currentDevice =
                 AppContext::sharedInstance()->getDevice(selection.udid);
         }
-    } else {
-        // Handle recovery, pending, or no device selection
-        m_uuid.clear();
-        m_currentDevice = nullptr;
     }
 }
 

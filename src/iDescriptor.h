@@ -41,7 +41,8 @@
 
 #define TOOL_NAME "iDescriptor"
 #define APP_LABEL "iDescriptor"
-#define APP_COPYRIGHT "© 2025 Uncore. All rights reserved."
+#define APP_COPYRIGHT                                                          \
+    "© 2025 The iDescriptor Project contributors. See AUTHORS for details."
 #define AFC2_SERVICE_NAME "com.apple.afc2"
 #define RECOVERY_CLIENT_CONNECTION_TRIES 3
 #define APPLE_VENDOR_ID 0x05ac
@@ -49,6 +50,9 @@
 #define SPONSORS_JSON_URL                                                      \
     "https://raw.githubusercontent.com/iDescriptor/iDescriptor/refs/heads/"    \
     "main/sponsors.json"
+#define DEVELOPER_DISK_IMAGE_JSON_URL                                          \
+    "https://raw.githubusercontent.com/iDescriptor/iDescriptor/refs/heads/"    \
+    "main/DeveloperDiskImages.json"
 
 // This is because afc_read_directory accepts  "/var/mobile/Media" as "/"
 #define POSSIBLE_ROOT "../../../../"

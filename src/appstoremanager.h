@@ -43,11 +43,12 @@ public:
     void searchApps(
         const QString &searchTerm, int limit,
         std::function<void(bool success, const QString &results)> callback);
-    void downloadApp(const QString &bundleId, const QString &outputDir,
-                     const QString &externalVersionId, bool acquireLicense,
-                     std::function<void(int result)> callback,
-                     std::function<void(long long current, long long total)>
-                         progressCallback = nullptr);
+    void
+    downloadApp(const QString &bundleId, const QString &outputPath,
+                const QString &externalVersionId, bool acquireLicense,
+                std::function<void(int)> completionCallback,
+                std::function<void(long long, long long)> progressCallback);
+    void cancelDownload(const QString &bundleId);
 
 signals:
     void loginSuccessful(const QJsonObject &accountInfo);

@@ -89,6 +89,9 @@ public:
     bool showKeychainDialog() const;
     void setShowKeychainDialog(bool show);
 
+    QString defaultJailbrokenRootPassword() const;
+    void setDefaultJailbrokenRootPassword(const QString &password);
+
     // Utility method for conditional execution
     void doIfEnabled(Setting setting, std::function<void()> action);
 

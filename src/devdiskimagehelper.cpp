@@ -35,6 +35,11 @@ DevDiskImageHelper::DevDiskImageHelper(iDescriptorDevice *device,
     setAttribute(Qt::WA_DeleteOnClose);
     setWindowTitle("Developer Disk Image - iDescriptor");
     setupUI();
+
+    connect(this, &QDialog::accepted, this,
+            [this]() { emit mountingCompleted(true); });
+    connect(this, &QDialog::rejected, this,
+            [this]() { emit mountingCompleted(false); });
 }
 
 void DevDiskImageHelper::setupUI()
@@ -55,8 +60,8 @@ void DevDiskImageHelper::setupUI()
 
     // Status label
     m_statusLabel = new QLabel("Checking developer disk image...");
-    m_statusLabel->setAlignment(Qt::AlignCenter);
     m_statusLabel->setWordWrap(true);
+    m_statusLabel->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(m_statusLabel);
 
     // Button layout
@@ -107,6 +112,7 @@ void DevDiskImageHelper::start()
                         finishWithError("Failed to download compatible image.");
                     }
                 });
+        qDebug() << "isMountAvailable:" << isMountAvailable;
         if (!isMountAvailable) {
             finishWithError("Failed to download compatible image.");
         }
@@ -273,14 +279,11 @@ void DevDiskImageHelper::showStatus(const QString &message, bool isError)
 void DevDiskImageHelper::finishWithSuccess()
 {
     m_loadingIndicator->stop();
-    emit mountingCompleted(true);
-
-    QTimer::singleShot(0, this, [this]() { accept(); });
+    accept();
 }
 
 void DevDiskImageHelper::finishWithError(const QString &errorMessage)
 {
     m_loadingIndicator->stop();
     showStatus(errorMessage, true);
-    emit mountingCompleted(false);
 }

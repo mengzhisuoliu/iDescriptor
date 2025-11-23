@@ -72,8 +72,7 @@ void DevDiskManager::populateImageList()
                    "Image list will be empty until network fetch succeeds.";
         }
     }
-    QUrl url("https://raw.githubusercontent.com/iDescriptor/iDescriptor/refs/"
-             "heads/main/DeveloperDiskImages.json");
+    QUrl url(DEVELOPER_DISK_IMAGE_JSON_URL);
     QNetworkRequest request(url);
     auto *reply = m_networkManager->get(request);
 
@@ -334,6 +333,13 @@ bool DevDiskManager::downloadCompatibleImage(iDescriptorDevice *device,
              << deviceMinorVersion;
     QList<ImageInfo> images =
         parseImageList(path, deviceMajorVersion, deviceMinorVersion, "", 0);
+
+    if (images.isEmpty()) {
+        qDebug() << "No images found for device version:" << deviceMajorVersion
+                 << "." << deviceMinorVersion;
+        callback(false);
+        return false;
+    }
 
     for (const ImageInfo &info : images) {
         if (info.compatibility != ImageCompatibility::Compatible &&

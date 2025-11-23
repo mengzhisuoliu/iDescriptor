@@ -134,6 +134,38 @@ void SettingsWidget::setupUI()
     securityLayout->addWidget(m_useUnsecureBackend);
     scrollLayout->addWidget(securityGroup);
 
+    // === JAILBROKEN SETTINGS ===
+    auto *jailbrokenGroup = new QGroupBox("Jailbroken");
+    auto *jailbrokenLayout = new QVBoxLayout(jailbrokenGroup);
+
+    // Default jailbroken root password
+    auto *passwordLayout = new QHBoxLayout();
+    passwordLayout->addWidget(new QLabel("Default Jailbroken Root Password:"));
+    m_defaultJailbrokenRootPassword = new QLineEdit();
+    m_defaultJailbrokenRootPassword->setEchoMode(QLineEdit::PasswordEchoOnEdit);
+    m_defaultJailbrokenRootPassword->setMaximumWidth(200);
+    m_defaultJailbrokenRootPassword->setToolTip(
+        "Default password used for SSH root authentication on jailbroken "
+        "devices: Default is 'alpine'.");
+    passwordLayout->addWidget(m_defaultJailbrokenRootPassword);
+    passwordLayout->addStretch();
+    jailbrokenLayout->addLayout(passwordLayout);
+
+    scrollLayout->addWidget(jailbrokenGroup);
+
+    scrollLayout->addSpacing(30);
+
+    // Add a footer Author & Version & app info & app description
+    auto *footerLabel = new QLabel(
+        QString(
+            "iDescriptor v%1\n"
+            "A free, open-source, and cross-platform iDevice management tool.\n"
+            "© 2025 See AUTHORS for details. Licensed under AGPLv3.")
+            .arg(APP_VERSION));
+    footerLabel->setAlignment(Qt::AlignCenter);
+    footerLabel->setStyleSheet("color: gray; font-size: 10pt;");
+    scrollLayout->addWidget(footerLabel);
+
     // Add stretch to push everything to the top
     scrollLayout->addStretch();
 
@@ -188,6 +220,9 @@ void SettingsWidget::loadSettings()
 
     m_connectionTimeout->setValue(sm->connectionTimeout());
     m_useUnsecureBackend->setChecked(sm->useUnsecureBackend());
+    m_defaultJailbrokenRootPassword->setText(
+        sm->defaultJailbrokenRootPassword());
+
     // Disable apply button initially
     m_applyButton->setEnabled(false);
 }
@@ -230,6 +265,9 @@ void SettingsWidget::connectSignals()
             onSettingChanged();
         }
     });
+
+    connect(m_defaultJailbrokenRootPassword, &QLineEdit::textChanged, this,
+            &SettingsWidget::onSettingChanged);
 }
 
 void SettingsWidget::onBrowseButtonClicked()
@@ -304,6 +342,8 @@ void SettingsWidget::saveSettings()
 
     sm->setTheme(m_themeCombo->currentText());
     sm->setConnectionTimeout(m_connectionTimeout->value());
+    sm->setDefaultJailbrokenRootPassword(
+        m_defaultJailbrokenRootPassword->text());
 
     m_applyButton->setEnabled(false);
 }

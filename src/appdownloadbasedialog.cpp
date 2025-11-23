@@ -24,6 +24,7 @@
 #include <QFutureWatcher>
 #include <QLabel>
 #include <QMessageBox>
+#include <QPointer>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -54,7 +55,7 @@ AppDownloadBaseDialog::AppDownloadBaseDialog(const QString &appName,
                                              const QString &bundleId,
                                              QWidget *parent)
     : QDialog(parent), m_appName(appName), m_downloadProcess(nullptr),
-      m_progressTimer(nullptr)
+      m_progressTimer(nullptr), m_bundleId(bundleId)
 {
     // Common UI: progress bar and action button
     m_layout = new QVBoxLayout(this);
@@ -73,7 +74,6 @@ void AppDownloadBaseDialog::startDownloadProcess(const QString &bundleId,
                                                  int index,
                                                  bool promptToOpenDir)
 {
-    bool acquireLicense = true;
 
     if (bundleId.isEmpty()) {
         QMessageBox::critical(this, "Error", "Bundle ID not provided.");
@@ -86,7 +86,13 @@ void AppDownloadBaseDialog::startDownloadProcess(const QString &bundleId,
         m_actionButton->setEnabled(false);
 
     m_operationInProgress = true;
+    tryToDownload(bundleId, outputDir, promptToOpenDir);
+}
 
+void AppDownloadBaseDialog::tryToDownload(const QString &bundleId,
+                                          const QString &outputDir,
+                                          bool promptToOpenDir)
+{
     AppStoreManager *manager = AppStoreManager::sharedInstance();
     if (!manager) {
         QMessageBox::critical(this, "Error",
@@ -94,34 +100,44 @@ void AppDownloadBaseDialog::startDownloadProcess(const QString &bundleId,
         reject();
         return;
     }
+    bool acquireLicense = true;
+    m_operationInProgress = true;
+    QPointer<AppDownloadBaseDialog> safeThis = this;
 
-    auto progressCallback = [this](long long current, long long total) {
+    auto progressCallback = [safeThis](long long current, long long total) {
+        if (!safeThis) {
+            return;
+        }
         int percentage = 0;
         if (total > 0) {
             percentage = static_cast<int>((current * 100) / total);
         }
-        updateProgressBar(percentage);
+        safeThis->updateProgressBar(percentage);
     };
 
     manager->downloadApp(
         bundleId, outputDir, "", acquireLicense,
-        [this, promptToOpenDir, outputDir](int result) {
-            m_operationInProgress = false;
+        [safeThis, promptToOpenDir, outputDir](int result) {
+            if (!safeThis) {
+                return;
+            }
+            safeThis->m_operationInProgress = false;
             if (result == 0) { // Success
-                emit downloadFinished(true, "Success");
-                m_progressBar->setValue(100);
+                emit safeThis->downloadFinished(true, "Success");
+                if (safeThis->m_progressBar)
+                    safeThis->m_progressBar->setValue(100);
                 if (promptToOpenDir) {
 
                     if (QMessageBox::Yes ==
                         QMessageBox::question(
-                            this, "Download Successful",
+                            safeThis, "Download Successful",
                             QString("Successfully downloaded. Would you like "
                                     "to open the output directory: %1?")
                                 .arg(outputDir))) {
                         QDir dir(outputDir);
                         if (!dir.exists()) {
                             QMessageBox::warning(
-                                this, "Directory Not Found",
+                                safeThis, "Directory Not Found",
                                 QString("The directory %1 does not exist.")
                                     .arg(outputDir));
                         } else {
@@ -129,18 +145,28 @@ void AppDownloadBaseDialog::startDownloadProcess(const QString &bundleId,
                                 QUrl::fromLocalFile(outputDir));
                         }
                     }
-                    accept();
                 }
+                safeThis->accept();
             } else { // Failure
-                emit downloadFinished(false, "Failed");
+                // 3 attempts
+                if (safeThis->m_tries < 3) {
+                    safeThis->m_tries++;
+                    qDebug()
+                        << "Retrying download for" + safeThis->m_bundleId +
+                               "Attempt:" + QString::number(safeThis->m_tries);
+                    safeThis->tryToDownload(safeThis->m_bundleId, outputDir,
+                                            promptToOpenDir);
+                    return;
+                }
+                emit safeThis->downloadFinished(false, "Failed");
                 // if (promptToOpenDir)
                 QMessageBox::critical(
-                    this, "Download Failed",
+                    safeThis, "Download Failed",
                     QString("Failed to download %1. Try signing out and back "
                             "in. Error code: %2")
-                        .arg(m_appName)
+                        .arg(safeThis->m_appName)
                         .arg(result));
-                reject();
+                safeThis->reject();
             }
         },
         progressCallback);
@@ -148,11 +174,13 @@ void AppDownloadBaseDialog::startDownloadProcess(const QString &bundleId,
 
 void AppDownloadBaseDialog::reject()
 {
-    // FIXME: we need to cancel download if it gets closed
-    // if (m_operationInProgress) {
-    //     AppStoreManager *manager = AppStoreManager::sharedInstance();
-    //     m_operationInProgress = false;
-    // }
+    if (m_operationInProgress) {
+        AppStoreManager *manager = AppStoreManager::sharedInstance();
+        if (manager) {
+            manager->cancelDownload(m_bundleId);
+        }
+        m_operationInProgress = false;
+    }
 
     cleanup();
     QDialog::reject();

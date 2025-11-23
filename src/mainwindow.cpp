@@ -299,8 +299,10 @@ MainWindow::MainWindow(QWidget *parent)
             true,
             false,
             true,
-            "AppImage is not updateable.New version is downloaded to "
-            "\"Downloads\".You can start using the new version by launching it "
+            "AppImages we ship are not updateable. New version is downloaded "
+            "to "
+            "\"Downloads\". You can start using the new version by launching "
+            "it "
             "from there. You can delete this AppImage version if you like.",
             "Update downloaded would you like to quit and open the new "
             "version?",
@@ -337,8 +339,9 @@ void MainWindow::createMenus()
 
     QAction *aboutAct = new QAction("&About iDescriptor", this);
     connect(aboutAct, &QAction::triggered, this, [this]() {
-        QMessageBox::about(this, "iDescriptor",
-                           "A free and open-source idevice management tool.");
+        QMessageBox::about(
+            this, "iDescriptor",
+            "A free, open-source, and cross-platform iDevice management tool.");
     });
     actionsMenu->addAction(aboutAct);
 #endif

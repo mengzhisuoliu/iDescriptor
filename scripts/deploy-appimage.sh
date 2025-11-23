@@ -1,6 +1,14 @@
 #!/bin/bash
 # if you get errors try
-# QMAKE=/usr/lib/qt6/bin/qmake  NO_STRIP=1 ./scripts/deploy-appimage.sh 1.0.0
+# QMAKE=/usr/lib/qt6/bin/qmake  NO_STRIP=1 ./scripts/deploy-appimage.sh v1.0.0
+# or even more explicit
+#export QT_HOME=~/Qt/$YOUR_QT_VERSION/gcc_64
+#export PATH="$QT_HOME/bin:$PATH"
+#export LD_LIBRARY_PATH="$QT_HOME/lib"
+#export QML2_IMPORT_PATH="$QT_HOME/qml"
+#export QT_PLUGIN_PATH="$QT_HOME/plugins"
+#QMAKE="$QT_HOME/bin/qmake6" ./scripts/deploy-appimage.sh v0.1.0
+
 set -e
 VERSION=$1
 if [ -z "$VERSION" ]; then
@@ -135,9 +143,29 @@ chmod +x "$APPDIR/apprun-hooks/linuxdeploy-plugin-env.sh"
 # .desktop file
 cp iDescriptor.desktop "$APPDIR/usr/share/applications/"
 
+# Manually deploy geoservices plugins (workaround for linuxdeploy-plugin-qt not finding them)
+if [ -n "$Qt6_DIR" ] && [ -d "$Qt6_DIR/plugins/geoservices" ]; then
+    echo "Manually deploying geoservices plugins from $Qt6_DIR/plugins/geoservices"
+    mkdir -p "$APPDIR/usr/plugins/geoservices"
+    cp -v "$Qt6_DIR/plugins/geoservices"/*.so "$APPDIR/usr/plugins/geoservices/" || echo "Warning: Could not copy geoservices plugins"
+
+    echo "Setting RPATH for geoservices plugins"
+    for plugin in "$APPDIR/usr/plugins/geoservices"/*.so; do
+        if [ -f "$plugin" ]; then
+            echo "Setting rpath for $plugin"
+            patchelf --set-rpath '$ORIGIN/../../lib' "$plugin"
+        fi
+    done
+else
+    echo "Warning: Could not find geoservices plugins directory"
+    echo "Qt6_DIR=$Qt6_DIR"
+    echo "QT_HOME=$QT_HOME"
+fi
+
 export LD_LIBRARY_PATH="$APPDIR/usr/local/lib:$LD_LIBRARY_PATH"
 export LINUXDEPLOY_EXCLUDED_LIBRARIES="*sql*"
 export QML_SOURCES_PATHS="./qml"
+export EXTRA_QT_MODULES="geoservices;position"
 
 
  ./linuxdeploy-x86_64.AppImage \
@@ -154,7 +182,8 @@ APPIMAGE_FILE=$(find . -maxdepth 1 -name "iDescriptor*.AppImage")
 if [ -n "$APPIMAGE_FILE" ]; then
     mv "$APPIMAGE_FILE" "iDescriptor-${VERSION}-Linux_x86_64.AppImage"
     chmod +x "iDescriptor-${VERSION}-Linux_x86_64.AppImage"
-    echo "Renamed AppImage to iDescriptor-${VERSION}-Linux_x86_64.AppImage"
+    zip -r "iDescriptor-${VERSION}-Linux_x86_64.AppImage.zip" "iDescriptor-${VERSION}-Linux_x86_64.AppImage"
+    echo "AppImage created and zipped: iDescriptor-${VERSION}-Linux_x86_64.AppImage.zip"
 else
     echo "Error: Could not find generated AppImage file."
     exit 1

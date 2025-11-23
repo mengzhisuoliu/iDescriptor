@@ -179,6 +179,18 @@ void SettingsManager::setShowKeychainDialog(bool show)
     m_settings->sync();
 }
 
+QString SettingsManager::defaultJailbrokenRootPassword() const
+{
+    return m_settings->value("defaultJailbrokenRootPassword", "alpine")
+        .toString();
+}
+
+void SettingsManager::setDefaultJailbrokenRootPassword(const QString &password)
+{
+    m_settings->setValue("defaultJailbrokenRootPassword", password);
+    m_settings->sync();
+}
+
 void SettingsManager::doIfEnabled(Setting setting, std::function<void()> action)
 {
     bool shouldExecute = false;
@@ -222,6 +234,7 @@ void SettingsManager::resetToDefaults()
     setTheme("System Default");
     setConnectionTimeout(30);
     setShowKeychainDialog(true);
+    setDefaultJailbrokenRootPassword("alpine");
 }
 
 void SettingsManager::saveFavoritePlace(const QString &path,

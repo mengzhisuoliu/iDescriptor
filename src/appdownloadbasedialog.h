@@ -49,6 +49,8 @@ protected:
                                const QString &appName,
                                const QString &outputDir);
     void addProgressBar(int index);
+    void tryToDownload(const QString &bundleId, const QString &outputDir,
+                       bool promptToOpenDir);
     QProgressBar *m_progressBar;
     QTimer *m_progressTimer;
     QProcess *m_downloadProcess;
@@ -56,7 +58,8 @@ protected:
     QPushButton *m_actionButton;
     QVBoxLayout *m_layout;
     bool m_operationInProgress = false;
-
+    QString m_bundleId;
+    uint m_tries = 0;
 private slots:
     void cleanup();
 };
