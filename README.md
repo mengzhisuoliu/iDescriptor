@@ -70,7 +70,7 @@
   Open the `.dmg` and drag iDescriptor to Applications.
   <br/>
 
-Then run the code below after moving the app to Applications
+ After moving the app to Applications, run the code below
 <br/>
 
 ```shell
