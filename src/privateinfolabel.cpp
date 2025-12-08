@@ -32,7 +32,7 @@ PrivateInfoLabel::PrivateInfoLabel(const QString &fullText, QWidget *parent)
     layout->addWidget(m_textLabel);
 
     m_toggleButton = new ZIconWidget(
-        QIcon(":/resources/icons/ClarityEyeHideLine.png"), "Show", this);
+        QIcon(":/resources/icons/ClarityEyeHideLine.png"), "Show", 1.0, this);
     m_toggleButton->setIconSize(QSize(20, 20));
     connect(m_toggleButton, &ZIconWidget::clicked, this,
             &PrivateInfoLabel::toggleVisibility);

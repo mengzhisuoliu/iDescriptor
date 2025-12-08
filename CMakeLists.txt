@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(iDescriptor VERSION 0.1.0 LANGUAGES CXX)
+project(iDescriptor VERSION 0.1.2 LANGUAGES CXX)
 
 # Feature options
 option(ENABLE_RECOVERY_DEVICE_SUPPORT "Enable recovery device support (requires libirecovery)" ON)
@@ -55,7 +55,7 @@ endforeach()
 list(APPEND _qt_pkg_dirs ${CUSTOM_PKGCONFIG_PATH})
  
 find_package(PkgConfig REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Network QuickControls2 SerialPort Positioning Location QuickWidgets) 
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Network QuickControls2 SerialPort Positioning Location QuickWidgets)
 
 # Add QTermWidget
 # Prefer CMake-native qtermwidget6, fallback to pkg-config if needed

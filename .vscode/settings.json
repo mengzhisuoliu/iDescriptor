@@ -202,6 +202,8 @@
     "qimage": "cpp",
     "qabstractbutton": "cpp",
     "qtnetwork": "cpp",
-    "qtcore": "cpp"
+    "qtcore": "cpp",
+    "qbluetoothdevicediscoveryagent": "cpp",
+    "qbluetoothuuid": "cpp"
   }
 }

@@ -369,3 +369,25 @@ void SettingsManager::clearRecentLocations()
     m_settings->remove("recentLocations");
     m_settings->sync();
 }
+
+QString SettingsManager::appVersion()
+{
+    return m_settings->value("__APP_VERSION__", "").toString();
+}
+
+void SettingsManager::setAppVersion(const QString &version)
+{
+    m_settings->setValue("__APP_VERSION__", version);
+    m_settings->sync();
+}
+
+double SettingsManager::iconSizeBaseMultiplier() const
+{
+    return m_settings->value("iconSizeBaseMultiplier", 1.0).toDouble();
+}
+
+void SettingsManager::setIconSizeBaseMultiplier(double multiplier)
+{
+    m_settings->setValue("iconSizeBaseMultiplier", multiplier);
+    m_settings->sync();
+}

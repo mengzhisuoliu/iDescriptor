@@ -18,6 +18,7 @@
  */
 
 #pragma once
+#include "settingsmanager.h"
 #include <QAbstractButton>
 #include <QApplication>
 #include <QGraphicsView>
@@ -141,16 +142,33 @@ class ZIconWidget : public QAbstractButton
 {
     Q_OBJECT
 public:
-    ZIconWidget(const QIcon &icon, const QString &tooltip,
-                QWidget *parent = nullptr)
-        : QAbstractButton(parent), m_icon(icon)
+    ZIconWidget(const QIcon &icon, const QString &tooltip = "",
+                qreal iconSizeMultiplier = 1.0, QWidget *parent = nullptr)
+        : QAbstractButton(parent), m_icon(icon),
+          m_iconSizeMultiplier(iconSizeMultiplier)
     {
-        setToolTip(tooltip);
-        setFixedSize(32, 32);
-        setIconSize(QSize(24, 24));
+        if (tooltip != "") {
+            setToolTip(tooltip);
+        }
+
+        QFontMetrics fm(font());
+        double baseSize =
+            fm.height() * m_iconSizeMultiplier *
+            SettingsManager::sharedInstance()->iconSizeBaseMultiplier();
+        int intBaseSize = qRound(baseSize);
+        m_iconSize = QSize(intBaseSize, intBaseSize);
+        setFixedSize(intBaseSize + 10, intBaseSize + 10);
+
+        update();
         setCursor(Qt::PointingHandCursor);
         connect(qApp, &QApplication::paletteChanged, this,
                 [this]() { update(); });
+    }
+
+    void setIconSizeMultiplier(qreal multiplier)
+    {
+        m_iconSizeMultiplier = multiplier;
+        updateIconSize();
     }
 
     void setIcon(const QIcon &icon)
@@ -176,14 +194,31 @@ protected:
         }
 
         QRect iconRect = rect();
-        iconRect.setSize(iconSize()); // Use iconSize() from QAbstractButton
+        iconRect.setSize(m_iconSize);
         iconRect.moveCenter(rect().center());
 
         m_icon.paint(&painter, iconRect, palette());
     }
 
 private:
+    void updateIconSize()
+    {
+        QFontMetrics fm(font());
+        double baseSize =
+            fm.height() * m_iconSizeMultiplier *
+            SettingsManager::sharedInstance()->iconSizeBaseMultiplier();
+        int intBaseSize = qRound(baseSize);
+
+        setFixedSize(intBaseSize + 10, intBaseSize + 10);
+
+        m_iconSize = QSize(intBaseSize, intBaseSize);
+        update();
+    }
+
+private:
     ZIcon m_icon;
+    QSize m_iconSize;
+    qreal m_iconSizeMultiplier;
 };
 
 // Add this new class for display-only icons
@@ -192,15 +227,16 @@ class ZIconLabel : public QLabel
     Q_OBJECT
 public:
     ZIconLabel(const QIcon &icon, const QString &tooltip,
-               QWidget *parent = nullptr)
-        : QLabel(parent), m_icon(icon), m_iconSize(24, 24)
+               qreal iconSizeMultiplier = 1.0, QWidget *parent = nullptr)
+        : QLabel(parent), m_icon(icon), m_iconSizeMultiplier(iconSizeMultiplier)
     {
         setToolTip(tooltip);
-        // setFixedSize(32, 32);
+        updateIconSize();
         connect(qApp, &QApplication::paletteChanged, this,
                 [this]() { update(); });
+        connect(qApp, &QApplication::fontChanged, this,
+                [this]() { updateIconSize(); });
     }
-
     void setIcon(const QIcon &icon)
     {
         m_icon = ZIcon(icon);
@@ -213,10 +249,10 @@ public:
         update();
     }
 
-    void setIconSize(const QSize &size)
+    void setIconSizeMultiplier(qreal multiplier)
     {
-        m_iconSize = size;
-        update();
+        m_iconSizeMultiplier = multiplier;
+        updateIconSize();
     }
 
 protected:
@@ -234,8 +270,23 @@ protected:
     }
 
 private:
+    void updateIconSize()
+    {
+        QFontMetrics fm(font());
+        double baseSize =
+            fm.height() * m_iconSizeMultiplier *
+            SettingsManager::sharedInstance()->iconSizeBaseMultiplier();
+        int intBaseSize = qRound(baseSize);
+
+        setFixedSize(intBaseSize + 10, intBaseSize + 10);
+
+        m_iconSize = QSize(intBaseSize, intBaseSize);
+        update();
+    }
+
     ZIcon m_icon;
     QSize m_iconSize;
+    qreal m_iconSizeMultiplier;
 };
 
 enum class iDescriptorTool {

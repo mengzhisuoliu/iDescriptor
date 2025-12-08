@@ -12,7 +12,8 @@
                 "/usr/include/qt6/**",
                 "/usr/include/qt6/QtBluetooth/**",
                 "${workspaceFolder}/lib/zupdater/src",
-                "/usr/include/qt6/QtConcurrent"
+                "/usr/include/qt6/QtConcurrent",
+                "/usr/include/qt6"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

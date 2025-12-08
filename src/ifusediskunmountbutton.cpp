@@ -25,7 +25,7 @@
 iFuseDiskUnmountButton::iFuseDiskUnmountButton(const QString &path,
                                                QWidget *parent)
     : ZIconWidget{QIcon(":/resources/icons/ClarityHardDiskSolidAlerted.png"),
-                  "Unmount iFuse at " + path, parent}
+                  "Unmount iFuse at " + path, 1.0, parent}
 {
     setCursor(Qt::PointingHandCursor);
     setFixedSize(24, 24);

@@ -19,16 +19,15 @@
 
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
-#include "detailwindow.h"
-#include "ifusediskunmountbutton.h"
-#include "ifusemanager.h"
-#include "settingswidget.h"
-
 #include "appswidget.h"
 #include "devicemanagerwidget.h"
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
+#include "ifusediskunmountbutton.h"
+#include "ifusemanager.h"
 #include "jailbrokenwidget.h"
+#include "releasechangelogdialog.h"
+#include "settingswidget.h"
 #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
 #include "libirecovery.h"
 #endif
@@ -55,7 +54,7 @@
 
 void handleCallback(const idevice_event_t *event, void *userData)
 {
-    printf("Device event received: ");
+    qDebug() << "Device event received";
 
     switch (event->event) {
     case IDEVICE_DEVICE_ADD: {
@@ -140,7 +139,6 @@ MainWindow::MainWindow(QWidget *parent)
     const QSize minSize(900, 600);
     setMinimumSize(minSize);
     resize(minSize);
-
     m_ZTabWidget = new ZTabWidget(this);
     m_ZTabWidget->setAttribute(Qt::WA_ContentsMarginsRespectsSafeArea, false);
 
@@ -179,7 +177,6 @@ MainWindow::MainWindow(QWidget *parent)
     ZIconWidget *settingsButton = new ZIconWidget(
         QIcon(":/resources/icons/MingcuteSettings7Line.png"), "Settings");
     settingsButton->setCursor(Qt::PointingHandCursor);
-    settingsButton->setFixedSize(24, 24);
     connect(settingsButton, &ZIconWidget::clicked, this, [this]() {
         SettingsManager::sharedInstance()->showSettingsDialog();
     });
@@ -187,7 +184,6 @@ MainWindow::MainWindow(QWidget *parent)
     ZIconWidget *githubButton = new ZIconWidget(
         QIcon(":/resources/icons/MdiGithub.png"), "iDescriptor on GitHub");
     githubButton->setCursor(Qt::PointingHandCursor);
-    githubButton->setFixedSize(24, 24);
     connect(githubButton, &ZIconWidget::clicked, this,
             []() { QDesktopServices::openUrl(QUrl(REPO_URL)); });
 
@@ -324,6 +320,22 @@ MainWindow::MainWindow(QWidget *parent)
             "Please use %1 to update it.")
             .arg(PACKAGE_MANAGER_HINT));
 #endif
+
+    QString lastAppVersion = SettingsManager::sharedInstance()->appVersion();
+    bool shouldShowReleaseChangelog = lastAppVersion != APP_VERSION;
+    SettingsManager::sharedInstance()->setAppVersion(APP_VERSION);
+
+    if (shouldShowReleaseChangelog) {
+        connect(
+            m_updater, &ZUpdater::dataAvailable, this,
+            [this](const QJsonDocument data, bool isUpdateAvailable) {
+                if (!isUpdateAvailable) {
+                    ReleaseChangelogDialog dialog(data, this);
+                    dialog.exec();
+                }
+            },
+            Qt::SingleShotConnection);
+    }
 
     SettingsManager::sharedInstance()->doIfEnabled(
         SettingsManager::Setting::AutoCheckUpdates, [this]() {
