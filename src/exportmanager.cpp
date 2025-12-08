@@ -333,21 +333,24 @@ ExportResult ExportManager::exportSingleItem(iDescriptorDevice *device,
         }
     }
 
-    // Clean up
     outputFile.close();
+    ServiceManager::safeAfcFileClose(device, handle, altAfc);
 
-    // Set file times after closing the file.
-    if (!outputFile.setFileTime(modificationTime,
+    // reopen is required for timestamps
+    QFile reopen(outputPath);
+    reopen.open(QIODevice::ReadOnly);
+    if (modificationTime.isValid()) {
+        if (!reopen.setFileTime(modificationTime,
                                 QFileDevice::FileModificationTime)) {
-        qWarning() << "Could not set modification time for" << outputPath;
+            qWarning() << "Could not set modification time for" << outputPath;
+        }
     }
     if (birthTime.isValid()) {
-        if (!outputFile.setFileTime(birthTime, QFileDevice::FileBirthTime)) {
+        // fails on linux
+        if (!reopen.setFileTime(birthTime, QFileDevice::FileBirthTime)) {
             qWarning() << "Could not set birth time for" << outputPath;
         }
     }
-
-    ServiceManager::safeAfcFileClose(device, handle, altAfc);
 
     if (totalBytes == 0) {
         result.errorMessage = "No data read from device file";
