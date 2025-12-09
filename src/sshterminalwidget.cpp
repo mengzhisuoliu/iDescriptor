@@ -25,6 +25,7 @@
 #include <QFile>
 #include <QHBoxLayout>
 #include <QHostAddress>
+#include <QInputDialog>
 #include <QLabel>
 #include <QMenu>
 #include <QProcess>
@@ -339,6 +340,22 @@ void SSHTerminalWidget::startSSH(const QString &host, uint16_t port)
 {
     qDebug() << "Starting SSH to" << host << "on port" << port;
 
+    QString defaultPassword =
+        SettingsManager::sharedInstance()->defaultJailbrokenRootPassword();
+    QByteArray passwordBytes = defaultPassword.toUtf8();
+
+    bool ok;
+    QString code =
+        QInputDialog::getText(nullptr, "SSH Root Password",
+                              "Enter the root password: \n(leave empty if you "
+                              "want to use the default)",
+                              QLineEdit::Normal, QString(), &ok);
+
+    if (!ok) {
+        showError("Root password input canceled");
+        return;
+    }
+
     if (m_sshConnected)
         return;
 
@@ -385,9 +402,6 @@ void SSHTerminalWidget::startSSH(const QString &host, uint16_t port)
 
     qDebug() << "SSH connected successfully, attempting authentication...";
 
-    QString defaultPassword =
-        SettingsManager::sharedInstance()->defaultJailbrokenRootPassword();
-    QByteArray passwordBytes = defaultPassword.toUtf8();
     rc =
         ssh_userauth_password(m_sshSession, nullptr, passwordBytes.constData());
     if (rc != SSH_AUTH_SUCCESS) {

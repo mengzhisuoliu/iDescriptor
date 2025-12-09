@@ -4,9 +4,9 @@
 [submodule "lib/ipatool-go"]
 	path = lib/ipatool-go
 	url = https://github.com/uncor3/libipatool-go.git
-[submodule "lib/zupdater"]
-	path = lib/zupdater
-	url = https://github.com/uncor3/ZUpdater
 [submodule "lib/win-ifuse"]
 	path = lib/win-ifuse
 	url = https://github.com/uncor3/win-ifuse.git
+[submodule "lib/zupdater"]
+	path = lib/zupdater
+	url = https://github.com/libZQT/ZUpdater

@@ -66,6 +66,8 @@ private:
     // Jailbroken
     QLineEdit *m_defaultJailbrokenRootPassword;
 
+    QDoubleSpinBox *m_iconSizeBaseMultiplier;
+
     // Buttons
     QPushButton *m_checkUpdatesButton;
     QPushButton *m_resetButton;

@@ -54,6 +54,8 @@
     "https://raw.githubusercontent.com/iDescriptor/iDescriptor/refs/heads/"    \
     "main/DeveloperDiskImages.json"
 
+#define DONATE_URL "https://opencollective.com/idescriptor"
+
 // This is because afc_read_directory accepts  "/var/mobile/Media" as "/"
 #define POSSIBLE_ROOT "../../../../"
 

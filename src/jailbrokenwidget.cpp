@@ -89,7 +89,7 @@ JailbrokenWidget::createJailbreakTool(const JailbreakToolInfo &info)
 
     // Icon (using the theme-aware ZIcon pattern)
     // ZIconLabel *iconLabel = new ZIconLabel();
-    ZIconLabel *iconLabel = new ZIconLabel(QIcon(), nullptr, this);
+    ZIconLabel *iconLabel = new ZIconLabel(QIcon(), nullptr, 1.5, this);
 
     // iconLabel->setAlignment(Qt::AlignCenter);
     // ZIcon toolIcon(QIcon(info.iconPath));
@@ -140,8 +140,7 @@ JailbrokenWidget::createJailbreakTool(const JailbreakToolInfo &info)
         iconLabel->setIcon(
             QIcon(":/resources/icons/IconParkTwotoneMoreTwo.png"));
     }
-    iconLabel->setFixedSize(60, 60);
-    iconLabel->setIconSize(QSize(45, 45));
+    iconLabel->setIconSizeMultiplier(2);
     return b;
 }
 

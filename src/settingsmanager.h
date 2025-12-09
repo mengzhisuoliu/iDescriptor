@@ -99,6 +99,12 @@ public:
     void resetToDefaults();
 
     void clear();
+
+    QString appVersion();
+    void setAppVersion(const QString &version);
+
+    double iconSizeBaseMultiplier() const;
+    void setIconSizeBaseMultiplier(double multiplier);
 signals:
     void favoritePlacesChanged();
     void recentLocationsChanged();

@@ -153,6 +153,29 @@ void SettingsWidget::setupUI()
 
     scrollLayout->addWidget(jailbrokenGroup);
 
+    // === MISCELLANEOUS SETTINGS ===
+    auto *miscGroup = new QGroupBox("Miscellaneous");
+    auto *miscLayout = new QVBoxLayout(miscGroup);
+
+    auto *iconSizeBaseMultiplierLayout = new QHBoxLayout();
+    m_iconSizeBaseMultiplier = new QDoubleSpinBox();
+    m_iconSizeBaseMultiplier->setRange(1.0, 5.0);
+    m_iconSizeBaseMultiplier->setSingleStep(0.1);
+    m_iconSizeBaseMultiplier->setDecimals(1);
+    m_iconSizeBaseMultiplier->setSuffix("x");
+    m_iconSizeBaseMultiplier->setToolTip(
+        "Adjust the base multiplier for icon sizes. This affects how large "
+        "icons appear throughout the application. Requires restart to take "
+        "effect.");
+
+    iconSizeBaseMultiplierLayout->addWidget(
+        new QLabel("Icon Size Base Multiplier:"));
+    iconSizeBaseMultiplierLayout->addWidget(m_iconSizeBaseMultiplier);
+    iconSizeBaseMultiplierLayout->addStretch();
+    miscLayout->addLayout(iconSizeBaseMultiplierLayout);
+
+    scrollLayout->addWidget(miscGroup);
+
     scrollLayout->addSpacing(30);
 
     // Add a footer Author & Version & app info & app description
@@ -163,7 +186,7 @@ void SettingsWidget::setupUI()
             "© 2025 See AUTHORS for details. Licensed under AGPLv3.")
             .arg(APP_VERSION));
     footerLabel->setAlignment(Qt::AlignCenter);
-    footerLabel->setStyleSheet("color: gray; font-size: 10pt;");
+    footerLabel->setStyleSheet("color: gray; font-size: 8pt;");
     scrollLayout->addWidget(footerLabel);
 
     // Add stretch to push everything to the top
@@ -225,6 +248,8 @@ void SettingsWidget::loadSettings()
 
     // Disable apply button initially
     m_applyButton->setEnabled(false);
+
+    m_iconSizeBaseMultiplier->setValue(sm->iconSizeBaseMultiplier());
 }
 
 void SettingsWidget::connectSignals()
@@ -245,12 +270,20 @@ void SettingsWidget::connectSignals()
     connect(m_connectionTimeout, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &SettingsWidget::onSettingChanged);
 
+    connect(m_iconSizeBaseMultiplier,
+            QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
+            [this]() {
+                m_restartRequired = true;
+                onSettingChanged();
+            });
+
     connect(m_useUnsecureBackend, &QCheckBox::toggled, this, [this]() {
         // since this is unsafe if its being enabled, show a warning
         if (m_useUnsecureBackend->isChecked()) {
             auto reply = QMessageBox::warning(
                 this, "Warning",
-                "Enabling this will not encrypt your Apple account which is a "
+                "Enabling this will not encrypt your Apple account which "
+                "is a "
                 "security risk. Are you sure you want to enable this?",
                 QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
 
@@ -344,6 +377,8 @@ void SettingsWidget::saveSettings()
     sm->setConnectionTimeout(m_connectionTimeout->value());
     sm->setDefaultJailbrokenRootPassword(
         m_defaultJailbrokenRootPassword->text());
+
+    sm->setIconSizeBaseMultiplier(m_iconSizeBaseMultiplier->value());
 
     m_applyButton->setEnabled(false);
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(iDescriptor VERSION 0.1.0 LANGUAGES CXX)
+project(iDescriptor VERSION 0.1.2 LANGUAGES CXX)
 
 # Feature options
 option(ENABLE_RECOVERY_DEVICE_SUPPORT "Enable recovery device support (requires libirecovery)" ON)
@@ -14,8 +14,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (APPLE) 
-    # Target at least macOS 14.0
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0")
+    # Target at least macOS 13.0
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
 endif()
 
 # Platform-specific paths for libraries built from source
@@ -55,7 +55,7 @@ endforeach()
 list(APPEND _qt_pkg_dirs ${CUSTOM_PKGCONFIG_PATH})
  
 find_package(PkgConfig REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Network QuickControls2 SerialPort Positioning Location QuickWidgets) 
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Network QuickControls2 SerialPort Positioning Location QuickWidgets)
 
 # Add QTermWidget
 # Prefer CMake-native qtermwidget6, fallback to pkg-config if needed

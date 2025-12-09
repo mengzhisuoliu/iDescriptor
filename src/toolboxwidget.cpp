@@ -220,7 +220,7 @@ ClickableWidget *ToolboxWidget::createToolbox(iDescriptorTool tool,
 
     QVBoxLayout *layout = new QVBoxLayout(b);
 
-    ZIconLabel *icon = new ZIconLabel(QIcon(), nullptr, this);
+    ZIconLabel *icon = new ZIconLabel(QIcon(), nullptr, 1.5, this);
     QString title;
     switch (tool) {
     case iDescriptorTool::Airplayer:
@@ -298,8 +298,7 @@ ClickableWidget *ToolboxWidget::createToolbox(iDescriptorTool tool,
     descLabel->setWordWrap(true);
     descLabel->setAlignment(Qt::AlignCenter);
     descLabel->setStyleSheet("color: #666; font-size: 12px;");
-    icon->setFixedSize(60, 60);
-    icon->setIconSize(QSize(45, 45));
+    icon->setIconSizeMultiplier(1.90);
 
     layout->addWidget(icon, 0, Qt::AlignCenter);
     layout->addWidget(titleLabel);
