@@ -129,8 +129,7 @@ pkg_check_modules(SWSCALE REQUIRED IMPORTED_TARGET libswscale)
 if(ENABLE_RECOVERY_DEVICE_SUPPORT)
     find_library(IRECOVERY_LIBRARY 
         NAMES irecovery-1.0
-        PATHS ${CUSTOM_LIB_PATH}
-        NO_DEFAULT_PATH
+    	${CUSTOM_FIND_LIB_ARGS}
     )
     if(IRECOVERY_LIBRARY)
         message(STATUS "Building with recovery device support enabled")
