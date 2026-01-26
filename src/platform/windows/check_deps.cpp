@@ -56,6 +56,17 @@ bool CheckRegistry(HKEY hKeyRoot, LPCSTR subKey, LPCSTR displayNameToFind)
     return false;
 }
 
+bool CheckRegistryKeyExists(HKEY hKeyRoot, LPCSTR subKey)
+{
+    HKEY hKey;
+    LONG result = RegOpenKeyExA(hKeyRoot, subKey, 0, KEY_READ, &hKey);
+    if (result == ERROR_SUCCESS) {
+        RegCloseKey(hKey);
+        return true;
+    }
+    return false;
+}
+
 bool IsAppleMobileDeviceSupportInstalled()
 {
     if (CheckRegistry(HKEY_LOCAL_MACHINE,
@@ -101,5 +112,15 @@ bool is_iDescriptorInstalled()
                       "iDescriptor")) {
         return true;
     }
+    return false;
+}
+
+bool IsBonjourServiceInstalled()
+{
+    if (CheckRegistryKeyExists(HKEY_LOCAL_MACHINE,
+                               "SOFTWARE\\Apple Inc.\\Bonjour")) {
+        return true;
+    }
+
     return false;
 }

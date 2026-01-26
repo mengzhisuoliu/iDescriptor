@@ -23,5 +23,6 @@
 bool IsAppleMobileDeviceSupportInstalled();
 bool IsWinFspInstalled();
 bool is_iDescriptorInstalled();
+bool IsBonjourServiceInstalled();
 
 #endif // CHECK_DEPS_H

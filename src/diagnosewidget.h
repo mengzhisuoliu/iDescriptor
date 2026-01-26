@@ -41,6 +41,7 @@ public:
     void setInstalled(bool installed);
     void setChecking(bool checking);
     void setInstalling(bool installing);
+    void setProgress(const QString &message);
 
 signals:
     void installRequested(const QString &name);
@@ -74,6 +75,10 @@ private slots:
 private:
     void setupUI();
     void addDependencyItem(const QString &name, const QString &description);
+
+#ifdef WIN32
+    void installBonjourRuntime();
+#endif
 
 #ifdef __linux__
     bool checkUdevRulesInstalled();

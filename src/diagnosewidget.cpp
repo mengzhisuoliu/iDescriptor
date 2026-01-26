@@ -20,16 +20,23 @@
 #include "diagnosewidget.h"
 #ifdef WIN32
 #include "platform/windows/check_deps.h"
+#include <archive.h>
+#include <archive_entry.h>
 #endif
 #include <QApplication>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFrame>
 #include <QMessageBox>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QTextStream>
 #include <QTimer>
 #include <QUrl>
@@ -41,8 +48,7 @@ DependencyItem::DependencyItem(const QString &name, const QString &description,
     QHBoxLayout *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
 
-    // Left side - info
-    QVBoxLayout *infoLayout = new QVBoxLayout();
+    QHBoxLayout *infoLayout = new QHBoxLayout();
 
     m_nameLabel = new QLabel(name);
     QFont nameFont = m_nameLabel->font();
@@ -50,8 +56,8 @@ DependencyItem::DependencyItem(const QString &name, const QString &description,
     nameFont.setPointSize(nameFont.pointSize() + 1);
     m_nameLabel->setFont(nameFont);
 
-    m_descriptionLabel = new QLabel(description);
-    m_descriptionLabel->setWordWrap(true);
+    m_descriptionLabel = new QLabel(QString("(%1)").arg(description));
+    m_descriptionLabel->setWordWrap(false);
 
     infoLayout->addWidget(m_nameLabel);
     infoLayout->addWidget(m_descriptionLabel);
@@ -78,9 +84,9 @@ DependencyItem::DependencyItem(const QString &name, const QString &description,
 
     actionLayout->addWidget(m_processIndicator);
     actionLayout->addWidget(m_installButton);
-    actionLayout->addStretch();
 
-    layout->addLayout(infoLayout, 1);
+    layout->addLayout(infoLayout);
+    layout->addStretch();
     layout->addWidget(m_statusLabel);
     layout->addLayout(actionLayout);
 }
@@ -135,6 +141,12 @@ void DependencyItem::setInstalling(bool installing)
     }
 }
 
+void DependencyItem::setProgress(const QString &message)
+{
+    m_statusLabel->setText(message);
+    m_statusLabel->setStyleSheet("color: gray;");
+}
+
 void DependencyItem::onInstallClicked() { emit installRequested(m_name); }
 
 DiagnoseWidget::DiagnoseWidget(QWidget *parent)
@@ -143,6 +155,8 @@ DiagnoseWidget::DiagnoseWidget(QWidget *parent)
     setupUI();
 
 #ifdef WIN32
+    addDependencyItem("Bonjour Service",
+                      "Required for AirPlay and network service discovery");
     addDependencyItem("Apple Mobile Device Support",
                       "Required for iOS device communication");
     addDependencyItem("WinFsp", "Required for mounting your device as a drive");
@@ -240,7 +254,9 @@ void DiagnoseWidget::checkDependencies(bool autoExpand)
             QString itemName = item->property("name").toString();
 
 #ifdef WIN32
-            if (itemName == "Apple Mobile Device Support") {
+            if (itemName == "Bonjour Service") {
+                installed = IsBonjourServiceInstalled();
+            } else if (itemName == "Apple Mobile Device Support") {
                 installed = IsAppleMobileDeviceSupportInstalled();
             } else if (itemName == "WinFsp") {
                 installed = IsWinFspInstalled();
@@ -287,6 +303,11 @@ void DiagnoseWidget::checkDependencies(bool autoExpand)
 void DiagnoseWidget::onInstallRequested(const QString &name)
 {
 #ifdef WIN32
+    if (name == "Bonjour Service") {
+        installBonjourRuntime();
+        return;
+    }
+
     if (name == "Apple Mobile Device Support") {
         DependencyItem *itemToInstall = nullptr;
         for (DependencyItem *item : m_dependencyItems) {
@@ -634,3 +655,178 @@ void DiagnoseWidget::onToggleExpand()
     m_itemsWidget->updateGeometry();
     adjustSize();
 }
+
+#ifdef WIN32
+void DiagnoseWidget::installBonjourRuntime()
+{
+    DependencyItem *itemToInstall = nullptr;
+    for (DependencyItem *item : m_dependencyItems) {
+        if (item->property("name").toString() == "Bonjour Service") {
+            itemToInstall = item;
+            break;
+        }
+    }
+
+    if (!itemToInstall)
+        return;
+
+    itemToInstall->setInstalling(true);
+    itemToInstall->setProgress("Downloading...");
+
+    // Download Bonjour SDK
+    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+    QNetworkRequest request(
+        QUrl("https://github.com/tempx-x/bonjour-sdk/raw/refs/heads/main/"
+             "bonjoursdksetup.exe"));
+
+    QNetworkReply *reply = manager->get(request);
+
+    connect(reply, &QNetworkReply::downloadProgress, this,
+            [itemToInstall](qint64 bytesReceived, qint64 bytesTotal) {
+                if (bytesTotal > 0) {
+                    int percent = (bytesReceived * 100) / bytesTotal;
+                    itemToInstall->setProgress(
+                        QString("Downloading... %1%").arg(percent));
+                }
+            });
+
+    connect(
+        reply, &QNetworkReply::finished, this,
+        [this, reply, manager, itemToInstall]() {
+            reply->deleteLater();
+            manager->deleteLater();
+
+            if (reply->error() != QNetworkReply::NoError) {
+                QMessageBox::critical(this, "Download Failed",
+                                      "Failed to download Bonjour SDK: " +
+                                          reply->errorString());
+                checkDependencies(false);
+                return;
+            }
+
+            itemToInstall->setProgress("Verifying...");
+
+            // Verify MD5 checksum
+            QByteArray data = reply->readAll();
+            QByteArray hash =
+                QCryptographicHash::hash(data, QCryptographicHash::Md5);
+            QString actualHash = hash.toHex();
+            QString expectedHash = "4ff2aae8205aec31b06743782cfcadce";
+
+            if (actualHash != expectedHash) {
+                QMessageBox::critical(
+                    this, "Checksum Mismatch",
+                    QString("Downloaded file checksum does not match!\n"
+                            "Expected: %1\n"
+                            "Got: %2")
+                        .arg(expectedHash, actualHash));
+                checkDependencies(false);
+                return;
+            }
+
+            itemToInstall->setProgress("Extracting...");
+
+            // Create temp directory
+            QString tempDir =
+                QStandardPaths::writableLocation(QStandardPaths::TempLocation) +
+                "/bonjour_install";
+            QDir().mkpath(tempDir);
+
+            // Save the downloaded file
+            QString exePath = tempDir + "/bonjoursdksetup.exe";
+            QFile file(exePath);
+            if (!file.open(QIODevice::WriteOnly)) {
+                QMessageBox::critical(this, "Error",
+                                      "Failed to save downloaded file");
+                checkDependencies(false);
+                return;
+            }
+            file.write(data);
+            file.close();
+
+            // Extract using libarchive
+            struct archive *a = archive_read_new();
+            archive_read_support_format_all(a);
+            archive_read_support_filter_all(a);
+
+            struct archive *ext = archive_write_disk_new();
+            archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME);
+
+            if (archive_read_open_filename(a, exePath.toUtf8().constData(),
+                                           10240) != ARCHIVE_OK) {
+                QMessageBox::critical(this, "Extraction Failed",
+                                      QString("Failed to open archive: %1")
+                                          .arg(archive_error_string(a)));
+                archive_read_free(a);
+                archive_write_free(ext);
+                checkDependencies(false);
+                return;
+            }
+
+            struct archive_entry *entry;
+            QString msiPath;
+
+            while (archive_read_next_header(a, &entry) == ARCHIVE_OK) {
+                QString entryName =
+                    QString::fromUtf8(archive_entry_pathname(entry));
+
+                if (entryName.endsWith("Bonjour64.msi", Qt::CaseInsensitive)) {
+                    QString fullPath = tempDir + "/" + entryName;
+                    archive_entry_set_pathname(entry,
+                                               fullPath.toUtf8().constData());
+
+                    if (archive_write_header(ext, entry) != ARCHIVE_OK) {
+                        qWarning() << "Failed to write header for" << entryName;
+                    } else {
+                        const void *buff;
+                        size_t size;
+                        la_int64_t offset;
+
+                        while (archive_read_data_block(a, &buff, &size,
+                                                       &offset) == ARCHIVE_OK) {
+                            archive_write_data_block(ext, buff, size, offset);
+                        }
+                    }
+                    archive_write_finish_entry(ext);
+                    msiPath = fullPath;
+                    break; // Only need Bonjour64.msi
+                } else {
+                    archive_read_data_skip(a);
+                }
+            }
+
+            archive_read_free(a);
+            archive_write_free(ext);
+
+            if (msiPath.isEmpty()) {
+                QMessageBox::critical(this, "Extraction Failed",
+                                      "Could not find Bonjour64.msi in the "
+                                      "archive");
+                QDir(tempDir).removeRecursively();
+                checkDependencies(false);
+                return;
+            }
+
+            itemToInstall->setProgress("Installing...");
+
+            // Launch the MSI via the shell (same behavior as double-click)
+            itemToInstall->setInstalling(false); // we can't track MSI process
+
+            if (!QDesktopServices::openUrl(QUrl::fromLocalFile(msiPath))) {
+                QMessageBox::warning(this, "Installation Failed",
+                                     "Failed to launch Bonjour installer.\n\n"
+                                     "You can also run it manually from:\n" +
+                                         msiPath);
+                checkDependencies(false);
+                return;
+            }
+
+            QMessageBox::information(
+                this, "Installation Started",
+                "The Bonjour installer has been launched.\n"
+                "Please complete the setup, then re-run the dependency check.");
+
+            itemToInstall->setProgress("Refresh to verify installation.");
+        });
+}
+#endif
