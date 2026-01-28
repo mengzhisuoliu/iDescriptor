@@ -1,5 +1,3 @@
-# Windows deployment script for Qt applications with MinGW/MSYS2
-# This script handles Qt deployment, runtime DLL copying, and GStreamer plugins
 
 # Strip quotes from all path variables if they exist
 string(REPLACE "\"" "" EXECUTABLE_PATH "${EXECUTABLE_PATH}")
@@ -169,14 +167,14 @@ endforeach()
 
 message("Successfully copied ${COPIED_PLUGIN_COUNT} requested GStreamer plugins")
 
-# Step 4: Manually copy the correct MSYS2 MinGW runtime DLLs.
-# This ensures the versions required by GStreamer/FFmpeg are used.
 set(ADDITIONAL_DLLS
     "libgcc_s_seh-1.dll"
     "libstdc++-6.dll"
     "libwinpthread-1.dll"
     "libgstreamer-1.0-0.dll"
     "libgstbase-1.0-0.dll"
+    "libgstcodecparsers-1.0-0.dll"
+    "libgstcodecs-1.0-0.dll"
     "libgobject-2.0-0.dll"
     "libglib-2.0-0.dll"
     "libintl-8.dll"
@@ -223,6 +221,57 @@ set(ADDITIONAL_DLLS
     "libpcre2-8-0.dll"
     "libffi-8.dll"
     "libgmodule-2.0-0.dll"
+    "libhwy.dll"
+    "libmp3lame-0.dll"
+    "librsvg-2-2.dll"
+    "libwebp-7.dll"
+    "libthai-0.dll"
+    "libjxl.dll"
+    "libdatrie-1.dll"
+    "libwebpmux-3.dll"
+    "libx264-164.dll"
+    "libtasn1-6.dll"
+    "libgsm.dll"
+    "libcairo-gobject-2.dll"
+    "libvorbis-0.dll"
+    "libgio-2.0-0.dll"
+    "libgmp-10.dll"
+    "libmodplug-1.dll"
+    "libopus-0.dll"
+    "libpangowin32-1.0-0.dll"
+    "libspeex-1.dll"
+    "libogg-0.dll"
+    "libzvbi-0.dll"
+    "libpixman-1-0.dll"
+    "libsrt.dll"
+    "libjxl_threads.dll"
+    "libgnutls-30.dll"
+    "libp11-kit-0.dll"
+    "libopencore-amrwb-0.dll"
+    "libtheoradec-2.dll"
+    "libvpx-1.dll"
+    "libgme.dll"
+    "libhogweed-6.dll"
+    "liblc3-1.dll"
+    "libpango-1.0-0.dll"
+    "xvidcore.dll"
+    "libopencore-amrnb-0.dll"
+    "libtiff-6.dll"
+    "libxml2-2.dll"
+    "libjbig-0.dll"
+    "libLerc.dll"
+    "libjxl_cms.dll"
+    "libgdk_pixbuf-2.0-0.dll"
+    "libvorbisenc-2.dll"
+    "libsoxr.dll"
+    "librtmp-1.dll"
+    "libcairo-2.dll"
+    "libdeflate.dll"
+    "libpangocairo-1.0-0.dll"
+    "libpangoft2-1.0-0.dll"
+    "libtheoraenc-2.dll"
+    "libbluray-2.dll"
+    "libnettle-8.dll"
 )
 
 message("Copying additional MinGW runtime DLLs from MSYS2...")
@@ -231,6 +280,8 @@ foreach(DLL_NAME ${ADDITIONAL_DLLS})
     if(EXISTS ${DLL_PATH})
         message("Copying additional DLL: ${DLL_NAME}")
         file(COPY ${DLL_PATH} DESTINATION ${OUTPUT_DIR})
+    else()
+        message(WARNING "Additional DLL not found: ${DLL_NAME} (searched ${MSYS2_BIN_PATH})")
     endif()
 endforeach()
 
