@@ -356,12 +356,7 @@ void SettingsWidget::onCheckUpdatesClicked()
     connect(
         MainWindow::sharedInstance()->m_updater, &ZUpdater::dataAvailable, this,
         [this](const QJsonDocument data, bool isUpdateAvailable) {
-            if (isUpdateAvailable) {
-                QMessageBox::information(
-                    this, "Update Available",
-                    "A new version of iDescriptor is available. Please "
-                    "update to the latest version.");
-            } else {
+            if (!isUpdateAvailable) {
                 QMessageBox::information(this, "No Updates",
                                          "You are using the latest version of "
                                          "iDescriptor.");
