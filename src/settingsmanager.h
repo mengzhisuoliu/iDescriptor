@@ -86,6 +86,9 @@ public:
     int connectionTimeout() const;
     void setConnectionTimeout(int seconds);
 
+    int wirelessFileServerPort() const;
+    void setWirelessFileServerPort(int port);
+
     bool showKeychainDialog() const;
     void setShowKeychainDialog(bool show);
 

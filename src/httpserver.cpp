@@ -19,6 +19,7 @@
 
 #include "httpserver.h"
 #include "iDescriptor.h"
+#include "settingsmanager.h"
 #include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
@@ -48,8 +49,10 @@ void HttpServer::start(const QStringList &files)
         QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss");
     jsonFileName = QString("%1-idescriptor-import.json").arg(timestamp);
 
-    // Try to bind to port 8080, if fails try other ports
-    for (int tryPort = 8080; tryPort <= 8090; ++tryPort) {
+    // Try to bind to port from settings, if fails try other ports
+    int startPort = SettingsManager::sharedInstance()->wirelessFileServerPort();
+    qDebug() << "Starting HTTP server on port" << startPort;
+    for (int tryPort = startPort; tryPort <= startPort + 10; ++tryPort) {
         if (server->listen(QHostAddress::Any, tryPort)) {
             port = tryPort;
             emit serverStarted();
@@ -57,7 +60,9 @@ void HttpServer::start(const QStringList &files)
         }
     }
 
-    emit serverError("Could not bind to any port between 8080-8090");
+    emit serverError(QString("Could not bind to any port between %1-%2")
+                         .arg(startPort)
+                         .arg(startPort + 10));
 }
 
 void HttpServer::stop()

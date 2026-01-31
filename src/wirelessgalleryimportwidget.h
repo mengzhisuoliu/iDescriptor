@@ -38,7 +38,6 @@ class WirelessGalleryImportWidget : public QWidget
 
 public:
     explicit WirelessGalleryImportWidget(QWidget *parent = nullptr);
-    ~WirelessGalleryImportWidget();
 
     QStringList getSelectedFiles() const;
 
@@ -46,25 +45,14 @@ private slots:
     void onBrowseFiles();
     void onImportPhotos();
     void onRemoveFile(int index);
-    void setupTutorialVideo();
 
 private:
-    // Left panel - file selection
-    QWidget *m_leftPanel;
     QScrollArea *m_scrollArea;
     QWidget *m_scrollContent;
     QVBoxLayout *m_fileListLayout;
     QPushButton *m_browseButton;
     QPushButton *m_importButton;
     QLabel *m_statusLabel;
-
-    // Right panel - tutorial video
-    QWidget *m_rightPanel;
-    QMediaPlayer *m_tutorialPlayer;
-    QVideoWidget *m_tutorialVideoWidget;
-    QProcessIndicator *m_loadingIndicator;
-    QLabel *m_loadingLabel;
-    QVBoxLayout *m_tutorialLayout;
 
     QStringList m_selectedFiles;
 

@@ -29,25 +29,13 @@
 #include <QTimer>
 
 WirelessGalleryImportWidget::WirelessGalleryImportWidget(QWidget *parent)
-    : QWidget(parent), m_leftPanel(nullptr), m_scrollArea(nullptr),
-      m_scrollContent(nullptr), m_fileListLayout(nullptr),
-      m_browseButton(nullptr), m_importButton(nullptr), m_statusLabel(nullptr),
-      m_rightPanel(nullptr), m_tutorialPlayer(nullptr),
-      m_tutorialVideoWidget(nullptr), m_loadingIndicator(nullptr),
-      m_loadingLabel(nullptr), m_tutorialLayout(nullptr)
+    : QWidget(parent), m_scrollArea(nullptr), m_scrollContent(nullptr),
+      m_fileListLayout(nullptr), m_browseButton(nullptr),
+      m_importButton(nullptr), m_statusLabel(nullptr)
 {
     setupUI();
-    setMinimumSize(800, 600);
+    setMinimumSize(400, 600);
     setWindowTitle("Wireless Gallery Import - iDescriptor");
-    QTimer::singleShot(100, this,
-                       &WirelessGalleryImportWidget::setupTutorialVideo);
-}
-
-WirelessGalleryImportWidget::~WirelessGalleryImportWidget()
-{
-    if (m_tutorialPlayer) {
-        m_tutorialPlayer->stop();
-    }
 }
 
 void WirelessGalleryImportWidget::setupUI()
@@ -57,21 +45,20 @@ void WirelessGalleryImportWidget::setupUI()
     mainLayout->setSpacing(10);
 
     // Left panel - file selection
-    m_leftPanel = new QWidget();
-    QVBoxLayout *leftLayout = new QVBoxLayout(m_leftPanel);
-    leftLayout->setContentsMargins(0, 0, 0, 0);
-    leftLayout->setSpacing(10);
+    QVBoxLayout *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(10);
 
     // Browse button
     m_browseButton = new QPushButton("Select Files");
     connect(m_browseButton, &QPushButton::clicked, this,
             &WirelessGalleryImportWidget::onBrowseFiles);
-    leftLayout->addWidget(m_browseButton);
+    layout->addWidget(m_browseButton);
 
     // Status label
     m_statusLabel = new QLabel("No files selected");
     m_statusLabel->setWordWrap(true);
-    leftLayout->addWidget(m_statusLabel);
+    layout->addWidget(m_statusLabel);
 
     // Scroll area for file list
     m_scrollArea = new QScrollArea();
@@ -86,87 +73,16 @@ void WirelessGalleryImportWidget::setupUI()
     m_fileListLayout->addStretch();
 
     m_scrollArea->setWidget(m_scrollContent);
-    leftLayout->addWidget(m_scrollArea, 1);
+    layout->addWidget(m_scrollArea, 1);
 
     // Import button
     m_importButton = new QPushButton("Import to Gallery");
     m_importButton->setEnabled(false);
     connect(m_importButton, &QPushButton::clicked, this,
             &WirelessGalleryImportWidget::onImportPhotos);
-    leftLayout->addWidget(m_importButton);
+    layout->addWidget(m_importButton);
 
-    mainLayout->addWidget(m_leftPanel, 1);
-
-    // Right panel - tutorial video
-    m_rightPanel = new QWidget();
-    m_tutorialLayout = new QVBoxLayout(m_rightPanel);
-    m_tutorialLayout->setContentsMargins(0, 0, 0, 0);
-    m_tutorialLayout->setSpacing(10);
-
-    // Loading indicator
-    m_loadingIndicator = new QProcessIndicator();
-    m_loadingIndicator->setType(QProcessIndicator::line_rotate);
-    m_loadingIndicator->setFixedSize(64, 32);
-    m_loadingIndicator->start();
-
-    QHBoxLayout *loadingLayout = new QHBoxLayout();
-    m_loadingLabel = new QLabel("Loading tutorial...");
-    m_loadingLabel->setAlignment(Qt::AlignCenter);
-
-    loadingLayout->addWidget(m_loadingLabel);
-    loadingLayout->addWidget(m_loadingIndicator);
-    loadingLayout->setAlignment(Qt::AlignCenter);
-
-    m_tutorialLayout->addStretch();
-    m_tutorialLayout->addLayout(loadingLayout);
-    m_tutorialLayout->addStretch();
-
-    mainLayout->addWidget(m_rightPanel, 1);
-}
-
-void WirelessGalleryImportWidget::setupTutorialVideo()
-{
-    m_tutorialPlayer = new QMediaPlayer(this);
-    m_tutorialVideoWidget = new QVideoWidget();
-    m_tutorialVideoWidget->setSizePolicy(QSizePolicy::Expanding,
-                                         QSizePolicy::Expanding);
-
-    m_tutorialPlayer->setVideoOutput(m_tutorialVideoWidget);
-    m_tutorialPlayer->setSource(
-        QUrl("qrc:/resources/wireless-gallery-import.mp4"));
-    m_tutorialVideoWidget->setAspectRatioMode(
-        Qt::AspectRatioMode::KeepAspectRatioByExpanding);
-
-    // Loop the tutorial video
-    connect(m_tutorialPlayer, &QMediaPlayer::mediaStatusChanged, this,
-            [this](QMediaPlayer::MediaStatus status) {
-                if (status == QMediaPlayer::EndOfMedia) {
-                    m_tutorialPlayer->setPosition(0);
-                    m_tutorialPlayer->play();
-                }
-            });
-
-    // Auto-play when ready and hide loading indicator
-    connect(m_tutorialPlayer, &QMediaPlayer::mediaStatusChanged, this,
-            [this](QMediaPlayer::MediaStatus status) {
-                if (status == QMediaPlayer::LoadedMedia) {
-                    m_loadingIndicator->stop();
-                    m_loadingIndicator->setVisible(false);
-                    m_loadingLabel->setVisible(false);
-                    m_tutorialPlayer->play();
-                }
-            });
-
-    // Clear the loading layout and add video widget
-    QLayoutItem *child;
-    while ((child = m_tutorialLayout->takeAt(0)) != nullptr) {
-        if (child->widget()) {
-            child->widget()->setParent(nullptr);
-        }
-        delete child;
-    }
-
-    m_tutorialLayout->addWidget(m_tutorialVideoWidget);
+    mainLayout->addLayout(layout);
 }
 
 void WirelessGalleryImportWidget::onBrowseFiles()

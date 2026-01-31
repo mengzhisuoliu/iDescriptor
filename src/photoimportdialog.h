@@ -29,6 +29,9 @@
 #include <QPushButton>
 #include <QStringList>
 #include <QVBoxLayout>
+#include <QStackedWidget>
+#include <QVideoWidget>
+#include <QMediaPlayer>
 
 class PhotoImportDialog : public QDialog
 {
@@ -45,6 +48,7 @@ private slots:
     void onServerError(const QString &error);
     void onDownloadProgress(const QString &fileName, int bytesDownloaded,
                             int totalBytes);
+    void toggleInstructionMode();
 
 private:
     QStringList selectedFiles;
@@ -53,10 +57,14 @@ private:
     QListWidget *fileList;
     QLabel *warningLabel;
     QLabel *qrCodeLabel;
-    QLabel *instructionLabel;
+    QStackedWidget *m_instructionStack;
+    QLabel *m_instructionLabel;
+    QVideoWidget *m_instructionVideo;
+    QMediaPlayer *m_mediaPlayer;
+    QPushButton *m_toggleInstructionButton;
     QPushButton *m_cancelButton;
-    QProgressBar *progressBar;
-    QLabel *progressLabel;
+    QLabel *m_progressLabel;
+    QLabel *m_serverAddress;
 
     HttpServer *m_httpServer;
 

@@ -27,21 +27,28 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QRandomGenerator>
+#include <QTimer>
+#include <QUrl>
 #include <qrencode.h>
 
 PhotoImportDialog::PhotoImportDialog(const QStringList &files,
                                      bool hasDirectories, QWidget *parent)
     : QDialog(parent), selectedFiles(files),
-      containsDirectories(hasDirectories), m_httpServer(nullptr)
+      containsDirectories(hasDirectories), m_httpServer(nullptr),
+      m_mediaPlayer(nullptr)
 {
     setupUI();
     setModal(true);
-    resize(600, 500);
+    resize(600, 700);
     setWindowTitle("Import Photos to iDevice - iDescriptor");
 }
 
 PhotoImportDialog::~PhotoImportDialog()
 {
+    if (m_mediaPlayer) {
+        m_mediaPlayer->stop();
+        delete m_mediaPlayer;
+    }
     if (m_httpServer) {
         m_httpServer->stop();
         delete m_httpServer;
@@ -76,26 +83,73 @@ void PhotoImportDialog::setupUI()
     }
     mainLayout->addWidget(fileList);
 
+    // Horizontal layout for QR code and instructions
+    QHBoxLayout *contentLayout = new QHBoxLayout();
+
     // QR Code area
     qrCodeLabel = new QLabel(this);
     qrCodeLabel->setAlignment(Qt::AlignCenter);
     qrCodeLabel->setMinimumSize(200, 200);
+    qrCodeLabel->setMaximumSize(200, 200);
     qrCodeLabel->setText("QR Code will appear here after starting server");
-    mainLayout->addWidget(qrCodeLabel);
+    contentLayout->addWidget(qrCodeLabel);
 
-    // Instructions
-    instructionLabel = new QLabel("Loading", this);
-    mainLayout->addWidget(instructionLabel);
+    // Instructions container
+    QVBoxLayout *instructionContainer = new QVBoxLayout();
+
+    // Stacked widget for switchable instructions
+    m_instructionStack = new QStackedWidget(this);
+    m_instructionStack->setSizePolicy(QSizePolicy::Expanding,
+                                      QSizePolicy::Expanding);
+
+    // Text instructions
+    m_instructionLabel = new QLabel("Loading", this);
+    m_instructionLabel->setWordWrap(true);
+    m_instructionStack->addWidget(m_instructionLabel);
+
+    // Video instructions
+    m_instructionVideo = new QVideoWidget(this);
+    m_instructionVideo->setMinimumSize(300, 500);
+    m_instructionVideo->setSizePolicy(QSizePolicy::Expanding,
+                                      QSizePolicy::Expanding);
+    m_mediaPlayer = new QMediaPlayer(this);
+    m_mediaPlayer->setVideoOutput(m_instructionVideo);
+    m_instructionStack->addWidget(m_instructionVideo);
+
+    m_instructionVideo->setAspectRatioMode(
+        Qt::AspectRatioMode::KeepAspectRatioByExpanding);
+    m_instructionVideo->setStyleSheet(
+        "QVideoWidget { background-color: transparent; }");
+
+    instructionContainer->addWidget(m_instructionStack);
+
+    // Toggle button
+    m_toggleInstructionButton =
+        new QPushButton("Show Video Instructions", this);
+    connect(m_toggleInstructionButton, &QPushButton::clicked, this,
+            &PhotoImportDialog::toggleInstructionMode);
+
+    instructionContainer->addSpacing(10);
+
+    QHBoxLayout *buttonContainer = new QHBoxLayout();
+    buttonContainer->addStretch();
+    buttonContainer->addWidget(m_toggleInstructionButton);
+    buttonContainer->addStretch();
+    instructionContainer->addLayout(buttonContainer);
+
+    contentLayout->addLayout(instructionContainer);
+    mainLayout->addLayout(contentLayout);
 
     // Progress tracking
-    progressLabel = new QLabel("Download progress will appear here", this);
-    progressLabel->setVisible(false);
-    mainLayout->addWidget(progressLabel);
+    m_progressLabel = new QLabel("Download progress will appear here", this);
+    m_progressLabel->setVisible(false);
+    mainLayout->addWidget(m_progressLabel, Qt::AlignCenter);
 
-    // Progress bar
-    progressBar = new QProgressBar(this);
-    progressBar->setVisible(false);
-    mainLayout->addWidget(progressBar);
+    mainLayout->addSpacing(5);
+
+    m_serverAddress = new QLabel("", this);
+    m_serverAddress->setVisible(false);
+    mainLayout->addWidget(m_serverAddress, Qt::AlignCenter);
 
     // Buttons
     QHBoxLayout *buttonLayout = new QHBoxLayout();
@@ -108,13 +162,22 @@ void PhotoImportDialog::setupUI()
 
     connect(m_cancelButton, &QPushButton::clicked, this, &QDialog::reject);
 
+    // Setup video looping
+    connect(m_mediaPlayer,
+            QOverload<QMediaPlayer::MediaStatus>::of(
+                &QMediaPlayer::mediaStatusChanged),
+            [this](QMediaPlayer::MediaStatus status) {
+                if (status == QMediaPlayer::EndOfMedia) {
+                    m_mediaPlayer->setPosition(0);
+                    m_mediaPlayer->play();
+                }
+            });
+
     QTimer::singleShot(0, this, &PhotoImportDialog::init);
 }
 
 void PhotoImportDialog::init()
 {
-    progressBar->setVisible(true);
-    progressBar->setRange(0, 0); // Indeterminate progress
 
     // Create and start HTTP server
     m_httpServer = new HttpServer(this);
@@ -130,7 +193,6 @@ void PhotoImportDialog::init()
 
 void PhotoImportDialog::onServerStarted()
 {
-    progressBar->setVisible(false);
 
     QString localIP = getLocalIP();
     int port = m_httpServer->getPort();
@@ -144,28 +206,37 @@ void PhotoImportDialog::onServerStarted()
 
     generateQRCode(url);
 
-    instructionLabel->setText(
-        QString("Server started at %1:%2\n\n1. Scan the QR code to open the "
-                "web interface\n2. Copy the server address and download the "
-                "shortcut\n3. Run the shortcut on your iOS device")
-            .arg(localIP)
-            .arg(port));
+    m_instructionLabel->setText(
+        "Instructions on How to Import\n\n1.Scan the QR code to open the "
+        "web interface\n2.Click on \"Copy Server Address\"\n3.Click on "
+        "\"Import and Run Shortcut\" if you have not installed the "
+        "shortcut before or \"Run Shortcut\" if you have installed it "
+        "before. \n4.Run the shortcut in the Shortcuts app. Once the "
+        "shortcut imports to your device, it will automatically run "
+        "\"Photos app\" \n\n Switch to video tutorial if you want to see a "
+        "video tutorial.");
 
-    progressLabel->setVisible(true);
-    progressLabel->setText("Waiting for downloads...");
+    m_mediaPlayer->setSource(
+        QUrl("qrc:/resources/wireless-gallery-import.mp4"));
+
+    m_progressLabel->setText("Waiting for downloads...");
+    m_progressLabel->setVisible(true);
+
+    m_serverAddress->setText(
+        QString("Server started at %1:%2").arg(localIP).arg(port));
+    m_serverAddress->setVisible(true);
 }
 
 void PhotoImportDialog::onDownloadProgress(const QString &fileName,
                                            int bytesDownloaded, int totalBytes)
 {
-    progressLabel->setText(QString("Downloaded: %1 (%2 KB)")
-                               .arg(fileName)
-                               .arg(bytesDownloaded / 1024));
+    m_progressLabel->setText(QString("Downloaded: %1 (%2 KB)")
+                                 .arg(fileName)
+                                 .arg(bytesDownloaded / 1024));
 }
 
 void PhotoImportDialog::onServerError(const QString &error)
 {
-    progressBar->setVisible(false);
     m_cancelButton->setEnabled(true);
 
     QMessageBox::critical(this, "Server Error",
@@ -223,4 +294,19 @@ QString PhotoImportDialog::getLocalIP() const
         }
     }
     return "127.0.0.1";
+}
+
+void PhotoImportDialog::toggleInstructionMode()
+{
+    if (m_instructionStack->currentIndex() == 0) {
+        // Switch to video
+        m_instructionStack->setCurrentIndex(1);
+        m_toggleInstructionButton->setText("Show Text Instructions");
+        m_mediaPlayer->play();
+    } else {
+        // Switch to text
+        m_instructionStack->setCurrentIndex(0);
+        m_toggleInstructionButton->setText("Show Video Instructions");
+        m_mediaPlayer->stop();
+    }
 }

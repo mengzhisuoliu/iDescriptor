@@ -52,6 +52,7 @@ private:
     // UI Elements
     // General
     QLineEdit *m_downloadPathEdit;
+    QSpinBox *m_wirelessFileServerPort;
     QCheckBox *m_autoUpdateCheck;
     QComboBox *m_themeCombo;
     QCheckBox *m_autoRaiseWindow;

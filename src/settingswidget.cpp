@@ -75,6 +75,18 @@ void SettingsWidget::setupUI()
     downloadLayout->addWidget(browseButton);
     generalLayout->addLayout(downloadLayout);
 
+    // Wireless file server port
+    auto *portLayout = new QHBoxLayout();
+    portLayout->addWidget(new QLabel("Wireless File Server Port:"));
+    m_wirelessFileServerPort = new QSpinBox();
+    m_wirelessFileServerPort->setRange(1024, 65535);
+    m_wirelessFileServerPort->setToolTip(
+        "The starting port for the wireless file server. If this port is "
+        "unavailable, it will try the next 10 ports.");
+    portLayout->addWidget(m_wirelessFileServerPort);
+    portLayout->addStretch();
+    generalLayout->addLayout(portLayout);
+
     // Unmount iFuse drives on exit (not implemented on macOS)
     // TODO: Implement
 #ifndef __APPLE__
@@ -262,6 +274,7 @@ void SettingsWidget::loadSettings()
     m_autoUpdateCheck->setChecked(sm->autoCheckUpdates());
     m_autoRaiseWindow->setChecked(sm->autoRaiseWindow());
     m_switchToNewDevice->setChecked(sm->switchToNewDevice());
+    m_wirelessFileServerPort->setValue(sm->wirelessFileServerPort());
 
 #ifndef __APPLE__
     m_unmount_iFuseDrives->setChecked(sm->unmountiFuseOnExit());
@@ -307,6 +320,9 @@ void SettingsWidget::connectSignals()
             this, &SettingsWidget::onSettingChanged);
     connect(m_connectionTimeout, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &SettingsWidget::onSettingChanged);
+    connect(m_wirelessFileServerPort,
+            QOverload<int>::of(&QSpinBox::valueChanged), this,
+            &SettingsWidget::onSettingChanged);
 
     connect(m_iconSizeBaseMultiplier,
             QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
@@ -420,6 +436,7 @@ void SettingsWidget::saveSettings()
     sm->setAutoCheckUpdates(m_autoUpdateCheck->isChecked());
     sm->setAutoRaiseWindow(m_autoRaiseWindow->isChecked());
     sm->setSwitchToNewDevice(m_switchToNewDevice->isChecked());
+    sm->setWirelessFileServerPort(m_wirelessFileServerPort->value());
 
 #ifndef __APPLE__
     sm->setUnmountiFuseOnExit(m_unmount_iFuseDrives->isChecked());

@@ -168,6 +168,17 @@ void SettingsManager::setConnectionTimeout(int seconds)
     m_settings->sync();
 }
 
+int SettingsManager::wirelessFileServerPort() const
+{
+    return m_settings->value("wirelessFileServerPort", 8080).toInt();
+}
+
+void SettingsManager::setWirelessFileServerPort(int port)
+{
+    m_settings->setValue("wirelessFileServerPort", port);
+    m_settings->sync();
+}
+
 bool SettingsManager::showKeychainDialog() const
 {
     return m_settings->value("showKeychainDialog", true).toBool();
@@ -238,6 +249,7 @@ void SettingsManager::resetToDefaults()
     setIconSizeBaseMultiplier(1.0);
     setAirplayFps(60);
     setAirplayNoHold(true);
+    setWirelessFileServerPort(8080);
 #ifdef __linux__
     setShowV4L2(false);
 #endif
