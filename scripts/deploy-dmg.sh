@@ -126,6 +126,16 @@ for lib_base in "${FFMPEG_LIBS[@]}"; do
   fi
 done
 
+echo "Bundling iproxy..."
+IPROXY_PATH="$(which iproxy)"
+if [ -z "${IPROXY_PATH}" ]; then
+  echo "Error: iproxy not found in PATH"
+  exit 1
+fi
+
+cp "${IPROXY_PATH}" "${APP_PATH}/Contents/MacOS/"
+chmod +x "${APP_PATH}/Contents/MacOS/iproxy"
+
 macdeployqt "${APP_PATH}" -qmldir=qml -verbose=2
 
 codesign --force --deep -s - "${APP_PATH}"

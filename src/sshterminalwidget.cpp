@@ -283,12 +283,15 @@ void SSHTerminalWidget::initWiredDevice()
     qDebug() << "Starting iproxy with args:" << args;
 
     QString iproxyPath;
+    QString appDirPath = QCoreApplication::applicationDirPath();
+    QString bundledIproxyPath = appDirPath + "/iproxy";
 
-    /*
-     Check if running in AppImage
-     this is set by the plugin script
-    */
-    if (qEnvironmentVariableIsSet("IPROXY_BIN_APPIMAGE")) {
+    /* MacOS bundled iproxy */
+    if (QFileInfo(bundledIproxyPath).isExecutable()) {
+        iproxyPath = bundledIproxyPath;
+    }
+    /* AppImage - this is set by the plugin script */
+    else if (qEnvironmentVariableIsSet("IPROXY_BIN_APPIMAGE")) {
         iproxyPath = qgetenv("IPROXY_BIN_APPIMAGE");
         if (iproxyPath.isEmpty()) {
             showError("Error: Running in AppImage mode, but "
