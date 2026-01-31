@@ -48,7 +48,7 @@ jobs:
         shell: pwsh
         run: |
           $date = "2025-06-22"
-          & "scripts/get-msys2-archive.ps1" -Date $date
+          & "./utils/get-msys2-archive.ps1" -Date $date
 
       - name: Install deps using pacman
         run: |
