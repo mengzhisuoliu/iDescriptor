@@ -174,6 +174,7 @@ void DNSSD_API DnssdService::resolveCallback(
     pending.hostname = QString::fromUtf8(hosttarget);
     pending.port = ntohs(port);
     pending.interfaceIndex = interfaceIndex;
+    pending.macAddress = serviceName.split('@').first();
 
     // Parse TXT records
     if (txtLen > 0 && txtRecord) {
@@ -288,6 +289,7 @@ void DNSSD_API DnssdService::addrInfoCallback(
     device.hostname = pending.hostname;
     device.address = QString::fromUtf8(ip);
     device.port = pending.port > 0 ? pending.port : 22; // Default to SSH port
+    device.macAddress = pending.macAddress;
 
     qDebug() << "Resolved IP for Apple device:" << device.name << "at"
              << device.address << ":" << device.port;

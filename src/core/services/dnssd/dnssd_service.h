@@ -88,6 +88,7 @@ private:
         uint16_t port;
         uint32_t interfaceIndex;
         QMap<QString, QString> txt;
+        QString macAddress;
     };
     QMap<QString, PendingDevice> m_pendingDevices;
 };
