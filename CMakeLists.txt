@@ -54,7 +54,7 @@ endif()
  
 find_package(PkgConfig REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Network QuickControls2 SerialPort Positioning Location QuickWidgets) 
-
+find_package(SQLite3 REQUIRED)
 # Add QTermWidget
 # Prefer CMake-native qtermwidget6, fallback to pkg-config if needed
 find_package(qtermwidget6 QUIET)
@@ -413,6 +413,7 @@ target_link_libraries(iDescriptor PRIVATE
     ZUpdater
     ZToast
     ${IDEVICE_IMPLEMENTATION_LIBS}
+    SQLite::SQLite3
 )
 
 # # Conditionally link libirecovery
