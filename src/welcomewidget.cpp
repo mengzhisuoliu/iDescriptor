@@ -56,31 +56,23 @@ void WelcomeWidget::setupUI()
 
     QHBoxLayout *imageAndWirelessDevicesLayout = new QHBoxLayout();
 
-    m_imageLabel = new ResponsiveQLabel();
+    m_imageLabel = new QLabel();
     m_imageLabel->setPixmap(QPixmap(":/resources/connect.png"));
-    m_imageLabel->setScaledContents(true);
     m_imageLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-
+    m_imageLabel->setMinimumSize(QSize(400, 0));
     m_imageLabel->setStyleSheet("background: transparent; border: none;");
-
     m_imageLabel->setAlignment(Qt::AlignCenter);
 
-    imageAndWirelessDevicesLayout->addStretch(1);
-    // m_imageLabel->setMaximumWidth(300);
     imageAndWirelessDevicesLayout->addWidget(m_imageLabel, 0, Qt::AlignHCenter);
-    imageAndWirelessDevicesLayout->addStretch(1);
     NetworkDevicesToConnectWidget *networkDevicesWidget =
         new NetworkDevicesToConnectWidget();
-    // FIMXE: resize original image
-    networkDevicesWidget->setMinimumWidth(350);
     imageAndWirelessDevicesLayout->addWidget(networkDevicesWidget);
-    imageAndWirelessDevicesLayout->addStretch(1);
 
     m_mainLayout->addLayout(imageAndWirelessDevicesLayout);
     m_mainLayout->addSpacing(10);
 
-    m_instructionLabel = createStyledLabel(
-        "Please connect an iDevice to get started", 14, false);
+    m_instructionLabel =
+        createStyledLabel("Connect an iDevice to get started", 14, false);
     m_instructionLabel->setAlignment(Qt::AlignCenter);
     m_mainLayout->addWidget(m_instructionLabel);
     m_mainLayout->addSpacing(10);

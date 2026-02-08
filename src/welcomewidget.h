@@ -21,7 +21,6 @@
 #define WELCOMEWIDGET_H
 
 #include "iDescriptor-ui.h"
-#include "responsiveqlabel.h"
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPixmap>
@@ -43,7 +42,7 @@ private:
     QVBoxLayout *m_mainLayout;
     ZLabel *m_titleLabel;
     ZLabel *m_subtitleLabel;
-    ResponsiveQLabel *m_imageLabel;
+    QLabel *m_imageLabel;
     ZLabel *m_instructionLabel;
     ZLabel *m_githubLabel;
 };
