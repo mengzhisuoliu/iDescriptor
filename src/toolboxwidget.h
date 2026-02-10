@@ -68,7 +68,6 @@ private:
     QWidget *m_contentWidget;
     QGridLayout *m_gridLayout;
     QList<QWidget *> m_toolboxes;
-    QList<bool> m_requiresDevice;
     std::string m_uuid;
     DevDiskImagesWidget *m_devDiskImagesWidget = nullptr;
     NetworkDevicesWidget *m_networkDevicesWidget = nullptr;

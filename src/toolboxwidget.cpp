@@ -50,7 +50,6 @@ ToolboxWidget *ToolboxWidget::sharedInstance()
     return instance;
 }
 
-
 ToolboxWidget::ToolboxWidget(QWidget *parent) : QWidget{parent}
 {
     setupUI();
@@ -402,11 +401,13 @@ void ToolboxWidget::onToolboxClicked(iDescriptorTool tool, bool requiresDevice)
 {
     // final check to make sure device is connected if required
     iDescriptorDevice *device = AppContext::sharedInstance()->getDevice(m_uuid);
-    if (!device && m_requiresDevice[m_toolboxes.indexOf(sender())]) {
-        QMessageBox::warning(this, "Device Disconnected ?",
-                             "Please select a device to use this tool.");
+    if (!device && requiresDevice) {
+        QMessageBox::warning(
+            this, "Device Disconnected ?",
+            "Device just disconnected, please select a device.");
         return;
     }
+
     qDebug() << "idevice exists:" << (device != nullptr) << m_uuid.c_str();
     switch (tool) {
     case iDescriptorTool::Airplayer: {
@@ -645,7 +646,6 @@ void ToolboxWidget::_enterRecoveryMode(iDescriptorDevice *device)
     //     qDebug() << "Entering recovery mode";
     // }
 }
-
 
 void ToolboxWidget::restartAirPlayWindow()
 {
