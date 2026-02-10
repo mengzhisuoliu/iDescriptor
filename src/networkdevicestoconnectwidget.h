@@ -28,9 +28,24 @@
 
 #include <QGroupBox>
 #include <QLabel>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QWidget>
+
+class NetworkDeviceCard : public QWidget
+{
+    Q_OBJECT
+public:
+    explicit NetworkDeviceCard(const NetworkDevice &device,
+                               QWidget *parent = nullptr);
+
+private:
+    QPushButton *m_connectButton = nullptr;
+
+public:
+    void failed();
+};
 
 class NetworkDevicesToConnectWidget : public QWidget
 {
@@ -43,6 +58,8 @@ public:
 private slots:
     void onWirelessDeviceAdded(const NetworkDevice &device);
     void onWirelessDeviceRemoved(const QString &deviceName);
+    void onNoPairingFileForWirelessDevice(const QString &macAddress);
+    void onDeviceInitFailed(const QString &udid);
 
 private:
     void setupUI();
@@ -62,7 +79,7 @@ private:
     DnssdService *m_networkProvider = nullptr;
 #endif
 
-    QList<QWidget *> m_deviceCards;
+    QMap<QString, NetworkDeviceCard *> m_deviceCards;
 };
 
 #endif // NETWORKDEVICESTOCONNECTWIDGET_H

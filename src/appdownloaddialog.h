@@ -35,12 +35,12 @@ public:
                                const QString &description,
                                QWidget *parent = nullptr);
 
-protected:
-    void resizeEvent(QResizeEvent *event) override
-    {
-        QWidget::resizeEvent(event);
-        m_bgLabel->setFixedSize(event->size());
-    }
+    // protected:
+    //     void resizeEvent(QResizeEvent *event) override
+    //     {
+    //         QWidget::resizeEvent(event);
+    //         m_bgLabel->setFixedSize(event->size());
+    //     }
 
 private slots:
     void onDownloadClicked();
@@ -50,7 +50,9 @@ private:
     QPushButton *m_dirButton;
     ZLabel *m_dirLabel;
     QString m_bundleId;
+    // FIXME: remove this if not needed
     QLabel *m_bgLabel;
+    QLabel *m_appIcon;
     ZLoadingWidget *m_loadingWidget;
 };
 

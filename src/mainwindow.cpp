@@ -360,10 +360,7 @@ MainWindow::MainWindow(QWidget *parent)
             // Handle device connection
             switch (event) {
             case DeviceMonitorThread::IDEVICE_DEVICE_ADD: {
-                /* this should never happen iDescriptor does not
-                support network devices but for some reason even
-                though we are only listening for USB devices, we
-                still get network devices on macOS*/
+                /* never gets fired on any platform */
                 if (conn_type == DeviceMonitorThread::CONNECTION_NETWORK) {
                     return;
                 }
@@ -388,11 +385,8 @@ MainWindow::MainWindow(QWidget *parent)
             }
 
             case DeviceMonitorThread::IDEVICE_DEVICE_PAIRED: {
+                /* never gets fired on any platform */
                 if (conn_type == DeviceMonitorThread::CONNECTION_NETWORK) {
-                    qDebug() << "Network devices are not supported but a "
-                                "network device was "
-                                "received in event listener. Please report "
-                                "this issue.";
                     return;
                 }
                 qDebug() << "Device paired: " << udid;
@@ -417,8 +411,14 @@ MainWindow::MainWindow(QWidget *parent)
     QTimer::singleShot(std::chrono::seconds(1), this,
                        [this]() { m_deviceMonitor->start(); });
 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Upgrade to wireless when a "WIRED" device is removed
+    // ═══════════════════════════════════════════════════════════════════════
     connect(AppContext::sharedInstance(), &AppContext::deviceRemoved, this,
-            [](const std::string &udid, const std::string &wifiMacAddress) {
+            [](const std::string &udid, const std::string &wifiMacAddress,
+               const std::string &ipAddress, bool wasWireless) {
+                if (wasWireless)
+                    return;
                 qDebug() << "Upgrading device to wireless connection for UDID"
                          << QString::fromStdString(udid);
                 QMetaObject::invokeMethod(
@@ -428,26 +428,14 @@ MainWindow::MainWindow(QWidget *parent)
                     Q_ARG(DeviceMonitorThread::IdeviceConnectionType,
                           DeviceMonitorThread::CONNECTION_NETWORK),
                     Q_ARG(AddType, AddType::UpgradeToWireless),
-                    Q_ARG(QString, QString::fromStdString(wifiMacAddress)));
+                    Q_ARG(QString, QString::fromStdString(wifiMacAddress)),
+                    Q_ARG(QString, QString::fromStdString(ipAddress)));
             });
 
     connect(NetworkDeviceManager::sharedInstance(),
             &NetworkDeviceManager::deviceAdded, this,
             [this](const NetworkDevice &device) {
                 // return; // FIXME: disable for now
-                const iDescriptorDevice *idevice =
-                    AppContext::sharedInstance()->getDeviceByMacAddress(
-                        device.macAddress);
-                if (idevice) {
-                    qDebug() << "Network device matched to connected device:"
-                             << QString::fromStdString(
-                                    idevice->deviceInfo.deviceName)
-                             << "MAC:" << device.macAddress;
-                    // You can now use 'idevice' as needed
-                }
-                // FIXME: both macAddress and udid can be used to get pairing
-                // file
-
                 if (AppContext::sharedInstance()->getDeviceByMacAddress(
                         device.macAddress)) {
                     qDebug() << "Prefering wired connection on device MAC:"
@@ -463,9 +451,8 @@ MainWindow::MainWindow(QWidget *parent)
                     Q_ARG(DeviceMonitorThread::IdeviceConnectionType,
                           DeviceMonitorThread::CONNECTION_NETWORK),
                     Q_ARG(AddType, AddType::Wireless),
-                    Q_ARG(QString, device.macAddress));
-
-                // Handle network device addition if needed
+                    Q_ARG(QString, device.macAddress),
+                    Q_ARG(QString, device.address));
             });
 
     connect(AppContext::sharedInstance(), &AppContext::deviceHeartbeatFailed,
@@ -482,15 +469,6 @@ MainWindow::MainWindow(QWidget *parent)
                 // toast->setPosition(ToastPosition::BOTTOM_MIDDLE);
                 // toast->show();
             });
-
-    // NetworkDevicesWidget *m_networkDevicesWidget = new
-    // NetworkDevicesWidget();
-    // m_networkDevicesWidget->setAttribute(Qt::WA_DeleteOnClose);
-    // m_networkDevicesWidget->setWindowFlag(Qt::Window);
-    // m_networkDevicesWidget->resize(500, 600);
-    // // connect(m_networkDevicesWidget, &QObject::destroyed, this,
-    // //         [this]() { m_networkDevicesWidget = nullptr; });
-    // m_networkDevicesWidget->show();
 }
 
 void MainWindow::createMenus()
@@ -518,9 +496,9 @@ void MainWindow::updateNoDevicesConnected()
         return m_mainStackedWidget->setCurrentIndex(0); // Show Welcome page
     }
     int deviceCount = AppContext::sharedInstance()->getConnectedDeviceCount();
-    // m_connectedDeviceCountLabel->setText(
-    //     "iDescriptor: " + QString::number(deviceCount) +
-    //     (deviceCount == 1 ? " device" : " devices") + " connected");
+    m_connectedDeviceCountLabel->setText(
+        "iDescriptor: " + QString::number(deviceCount) +
+        (deviceCount == 1 ? " device" : " devices") + " connected");
     m_mainStackedWidget->setCurrentIndex(1); // Show device list page
 }
 

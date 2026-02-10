@@ -33,6 +33,90 @@
 #include <QPalette>
 #include <QPushButton>
 
+NetworkDeviceCard::NetworkDeviceCard(const NetworkDevice &device,
+                                     QWidget *parent)
+    : QWidget(parent)
+{
+    QVBoxLayout *cardLayout = new QVBoxLayout(this);
+    cardLayout->setContentsMargins(12, 10, 12, 10);
+    cardLayout->setSpacing(4);
+
+    // Device name (primary)
+    QLabel *nameLabel = new QLabel(device.name);
+    nameLabel->setWordWrap(true);
+    QFont nameFont = nameLabel->font();
+    nameFont.setPointSize(13);
+    nameFont.setWeight(QFont::Medium);
+    nameLabel->setFont(nameFont);
+    QPalette namePalette = nameLabel->palette();
+    namePalette.setColor(QPalette::WindowText,
+                         palette().color(QPalette::WindowText));
+    nameLabel->setPalette(namePalette);
+
+    // Device info container
+    QWidget *infoContainer = new QWidget();
+    QHBoxLayout *infoLayout = new QHBoxLayout(infoContainer);
+    infoLayout->setContentsMargins(0, 0, 0, 0);
+    infoLayout->setSpacing(12);
+
+    // Address info
+    QLabel *addressLabel = new QLabel(QString("IP: %1").arg(device.address));
+    QFont addressFont = addressLabel->font();
+    addressFont.setPointSize(11);
+    addressLabel->setFont(addressFont);
+    QPalette addressPalette = addressLabel->palette();
+    QColor secondaryColor = palette().color(QPalette::WindowText);
+    secondaryColor.setAlpha(180);
+    addressPalette.setColor(QPalette::WindowText, secondaryColor);
+    addressLabel->setPalette(addressPalette);
+
+    // Port info
+    QLabel *portLabel = new QLabel(QString("Port: %1").arg(device.port));
+    portLabel->setFont(addressFont);
+    portLabel->setPalette(addressPalette);
+
+    infoLayout->addWidget(addressLabel);
+    infoLayout->addWidget(portLabel);
+    infoLayout->addStretch();
+
+    m_connectButton = new QPushButton("Connect");
+    m_connectButton->setDefault(true);
+    connect(m_connectButton, &QPushButton::clicked, this, [this, device]() {
+        m_connectButton->setText("Connecting...");
+        m_connectButton->setEnabled(false);
+        AppContext::sharedInstance()->tryToConnectToNetworkDevice(
+            device.macAddress);
+    });
+    infoLayout->addWidget(m_connectButton);
+    infoLayout->addSpacing(5);
+
+    // Status indicator
+    QLabel *statusIndicator = new QLabel("●");
+    QFont statusFont = statusIndicator->font();
+    statusFont.setPointSize(12);
+    statusIndicator->setFont(statusFont);
+    QPalette statusPalette = statusIndicator->palette();
+    statusPalette.setColor(QPalette::WindowText,
+                           QColor(52, 199, 89)); // iOS green
+    statusIndicator->setPalette(statusPalette);
+
+    infoLayout->addWidget(statusIndicator);
+
+    cardLayout->addWidget(nameLabel);
+    cardLayout->addWidget(infoContainer);
+}
+
+void NetworkDeviceCard::failed()
+{
+    m_connectButton->setText("Failed to connect");
+    m_connectButton->setEnabled(false);
+
+    QTimer::singleShot(2000, this, [this]() {
+        m_connectButton->setText("Connect");
+        m_connectButton->setEnabled(true);
+    });
+}
+
 NetworkDevicesToConnectWidget::NetworkDevicesToConnectWidget(QWidget *parent)
     : QWidget(parent)
 {
@@ -57,6 +141,12 @@ NetworkDevicesToConnectWidget::NetworkDevicesToConnectWidget(QWidget *parent)
 
     // Initial device list update
     updateDeviceList();
+
+    connect(AppContext::sharedInstance(),
+            &AppContext::noPairingFileForWirelessDevice, this,
+            &NetworkDevicesToConnectWidget::onNoPairingFileForWirelessDevice);
+    connect(AppContext::sharedInstance(), &AppContext::initFailed, this,
+            &NetworkDevicesToConnectWidget::onDeviceInitFailed);
 }
 
 NetworkDevicesToConnectWidget::~NetworkDevicesToConnectWidget()
@@ -126,90 +216,18 @@ void NetworkDevicesToConnectWidget::createDeviceCard(
     const NetworkDevice &device)
 {
     // Main card frame
-    QWidget *card = new QWidget();
+    NetworkDeviceCard *card = new NetworkDeviceCard(device);
 
-    QVBoxLayout *cardLayout = new QVBoxLayout(card);
-    cardLayout->setContentsMargins(12, 10, 12, 10);
-    cardLayout->setSpacing(4);
-
-    // Device name (primary)
-    QLabel *nameLabel = new QLabel(device.name);
-    nameLabel->setWordWrap(true);
-    QFont nameFont = nameLabel->font();
-    nameFont.setPointSize(13);
-    nameFont.setWeight(QFont::Medium);
-    nameLabel->setFont(nameFont);
-    QPalette namePalette = nameLabel->palette();
-    namePalette.setColor(QPalette::WindowText,
-                         palette().color(QPalette::WindowText));
-    nameLabel->setPalette(namePalette);
-
-    // Device info container
-    QWidget *infoContainer = new QWidget();
-    QHBoxLayout *infoLayout = new QHBoxLayout(infoContainer);
-    infoLayout->setContentsMargins(0, 0, 0, 0);
-    infoLayout->setSpacing(12);
-
-    // Address info
-    QLabel *addressLabel = new QLabel(QString("IP: %1").arg(device.address));
-    QFont addressFont = addressLabel->font();
-    addressFont.setPointSize(11);
-    addressLabel->setFont(addressFont);
-    QPalette addressPalette = addressLabel->palette();
-    QColor secondaryColor = palette().color(QPalette::WindowText);
-    secondaryColor.setAlpha(180);
-    addressPalette.setColor(QPalette::WindowText, secondaryColor);
-    addressLabel->setPalette(addressPalette);
-
-    // Port info
-    QLabel *portLabel = new QLabel(QString("Port: %1").arg(device.port));
-    portLabel->setFont(addressFont);
-    portLabel->setPalette(addressPalette);
-
-    infoLayout->addWidget(addressLabel);
-    infoLayout->addWidget(portLabel);
-    infoLayout->addStretch();
-
-    QPushButton *connectButton = new QPushButton("Connect");
-    connectButton->setDefault(true);
-    connect(connectButton, &QPushButton::clicked, this,
-            [this, device, connectButton]() {
-                connectButton->setText("Connecting...");
-                connectButton->setEnabled(false);
-                AppContext::sharedInstance()->tryToConnectToNetworkDevice(
-                    device.macAddress);
-            });
-    infoLayout->addWidget(connectButton);
-    infoLayout->addSpacing(5);
-
-    // Status indicator
-    QLabel *statusIndicator = new QLabel("●");
-    QFont statusFont = statusIndicator->font();
-    statusFont.setPointSize(12);
-    statusIndicator->setFont(statusFont);
-    QPalette statusPalette = statusIndicator->palette();
-    statusPalette.setColor(QPalette::WindowText,
-                           QColor(52, 199, 89)); // iOS green
-    statusIndicator->setPalette(statusPalette);
-
-    infoLayout->addWidget(statusIndicator);
-
-    cardLayout->addWidget(nameLabel);
-    cardLayout->addWidget(infoContainer);
-
-    // Store the device info as property for later removal
-    card->setProperty("deviceName", device.name);
-    card->setProperty("deviceAddress", device.address);
-
-    // Insert before the stretch
     m_deviceLayout->insertWidget(m_deviceLayout->count() - 1, card);
-    m_deviceCards.append(card);
+    m_deviceCards[device.macAddress] = card;
 }
 
 void NetworkDevicesToConnectWidget::clearDeviceCards()
 {
     for (QWidget *card : m_deviceCards) {
-        card->deleteLater();
+        if (card) {
+            card->deleteLater();
+        }
     }
     m_deviceCards.clear();
 }
@@ -244,16 +262,13 @@ void NetworkDevicesToConnectWidget::onWirelessDeviceAdded(
 }
 
 void NetworkDevicesToConnectWidget::onWirelessDeviceRemoved(
-    const QString &deviceName)
+    const QString &macAddress)
 {
     // Find and remove the corresponding card
-    for (int i = 0; i < m_deviceCards.count(); ++i) {
-        QWidget *card = m_deviceCards[i];
-        if (card->property("deviceName").toString() == deviceName) {
-            m_deviceCards.removeAt(i);
-            card->deleteLater();
-            break;
-        }
+    NetworkDeviceCard *card = m_deviceCards[macAddress];
+    m_deviceCards.remove(macAddress);
+    if (card) {
+        card->deleteLater();
     }
 
     // Update status
@@ -263,5 +278,21 @@ void NetworkDevicesToConnectWidget::onWirelessDeviceRemoved(
     } else {
         m_statusLabel->setText(
             QString("Found %1 network device(s)").arg(deviceCount));
+    }
+}
+
+void NetworkDevicesToConnectWidget::onNoPairingFileForWirelessDevice(
+    const QString &macAddress)
+{
+    // m_deviceCards.
+}
+
+// udid or mac address
+void NetworkDevicesToConnectWidget::onDeviceInitFailed(const QString &udid)
+{
+    NetworkDeviceCard *deviceCard = m_deviceCards[udid];
+    if (deviceCard) {
+        qDebug() << "Calling failed() on device card for" << udid;
+        deviceCard->failed();
     }
 }

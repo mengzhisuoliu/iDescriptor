@@ -57,16 +57,8 @@ AppDownloadBaseDialog::AppDownloadBaseDialog(const QString &appName,
     : QDialog(parent), m_appName(appName), m_downloadProcess(nullptr),
       m_progressTimer(nullptr), m_bundleId(bundleId)
 {
-    // Common UI: progress bar and action button
     m_layout = new QVBoxLayout(this);
-    m_layout->setSpacing(20);
-    m_layout->setContentsMargins(30, 30, 30, 30);
-
-    QLabel *nameLabel = new QLabel(appName);
-    nameLabel->setStyleSheet("font-size: 20px; font-weight: bold;");
-    m_layout->addWidget(nameLabel);
-
-    m_actionButton = nullptr; // Derived classes set this
+    m_layout->setContentsMargins(20, 20, 20, 20);
 }
 
 void AppDownloadBaseDialog::startDownloadProcess(const QString &bundleId,

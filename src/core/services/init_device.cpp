@@ -373,6 +373,11 @@ init_idescriptor_device(const QString &udid,
     qDebug() << "Initializing iDescriptor device with UDID: " << udid
              << (isWireless ? "over wireless" : "over USB");
 
+    if (isWireless) {
+        qDebug() << "Wireless args" << "IP:" << wirelessArgs.ip
+                 << "for mac address" << udid;
+    }
+
     iDescriptorInitDeviceResult result = {};
 
     UsbmuxdConnectionHandle *usbmuxd_conn = nullptr;
@@ -550,12 +555,16 @@ init_idescriptor_device(const QString &udid,
     result.heartbeatThread = heartbeatThread;
     // TODO cache pairing file path
     result.deviceInfo.isWireless = isWireless;
+    result.deviceInfo.ipAddress = wirelessArgs.ip.toStdString();
     fullDeviceInfo(infoXml, afc_client, result.diagRelay.get(), result);
-    ::QObject::connect(heartbeatThread, &HeartbeatThread::heartbeatFailed,
-                       AppContext::sharedInstance(),
-                       &AppContext::heartbeatFailed);
-    ::QObject::connect(heartbeatThread, &HeartbeatThread::heartbeatThreadExited,
-                       AppContext::sharedInstance(), &AppContext::removeDevice);
+    if (isWireless) {
+        ::QObject::connect(heartbeatThread, &HeartbeatThread::heartbeatFailed,
+                           AppContext::sharedInstance(),
+                           &AppContext::heartbeatFailed);
+        ::QObject::connect(
+            heartbeatThread, &HeartbeatThread::heartbeatThreadExited,
+            AppContext::sharedInstance(), &AppContext::removeDevice);
+    }
 cleanup:
     // Cleanup on error
     // FIXME: implement proper cleanup

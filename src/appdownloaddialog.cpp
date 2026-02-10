@@ -18,7 +18,7 @@
  */
 
 #include "appdownloaddialog.h"
-#include "Backdrop.h"
+#include "BackDrop.h"
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
 #include "libipatool-go.h"
@@ -43,17 +43,41 @@ AppDownloadDialog::AppDownloadDialog(const QString &appName,
     setWindowTitle("Download " + appName + " IPA");
     setModal(true);
     setFixedWidth(500);
+    setContentsMargins(0, 0, 0, 0);
 
-    m_loadingWidget = new ZLoadingWidget(this);
+    m_loadingWidget = new ZLoadingWidget(true, this);
     layout()->addWidget(m_loadingWidget);
-    QVBoxLayout *contentLayout = new QVBoxLayout(this);
+    QVBoxLayout *contentLayout = new QVBoxLayout();
     contentLayout->setContentsMargins(0, 0, 0, 0);
 
-    m_bgLabel = new QLabel();
-    // FIMXE: causes infinite scaling for some reason, need to investigate
-    //  m_bgLabel->setScaledContents(true);
-    //  m_bgLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-    //  contentLayout->addWidget(m_bgLabel);
+    // m_bgLabel = new QLabel();
+    // m_bgLabel->setScaledContents(true);
+    // m_bgLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    // contentLayout->addWidget(m_bgLabel);
+
+    QHBoxLayout *cardLayout = new QHBoxLayout();
+    cardLayout->setContentsMargins(20, 20, 20, 20);
+    contentLayout->addLayout(cardLayout);
+
+    m_appIcon = new QLabel();
+    m_appIcon->setFixedSize(64, 64);
+    cardLayout->addWidget(m_appIcon);
+    cardLayout->addSpacing(5);
+    QVBoxLayout *textLayout = new QVBoxLayout();
+
+    QLabel *nameLabel = new QLabel(appName);
+    nameLabel->setStyleSheet("font-size: 18px; font-weight: bold;");
+    nameLabel->setWordWrap(true);
+    textLayout->addWidget(nameLabel);
+
+    textLayout->addSpacing(5);
+
+    QLabel *descLabel = new QLabel(description);
+    descLabel->setWordWrap(true);
+    descLabel->setStyleSheet("font-size: 14px; color: #666;");
+    textLayout->addWidget(descLabel);
+
+    cardLayout->addLayout(textLayout);
 
     QPointer<AppDownloadDialog> safeThis = this;
     fetchAppIconFromApple(
@@ -61,19 +85,16 @@ AppDownloadDialog::AppDownloadDialog(const QString &appName,
         [safeThis](const QPixmap &icon, const QJsonObject &appInfo) {
             if (auto dialog = safeThis.data()) {
                 if (!icon.isNull()) {
-                    QPixmap blurred = BackDrop::blurPixmap(icon, 30);
-                    dialog->m_bgLabel->setPixmap(blurred.scaled(
-                        dialog->size(), Qt::KeepAspectRatioByExpanding,
-                        Qt::SmoothTransformation));
+                    dialog->m_appIcon->setPixmap(icon.scaled(
+                        64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                    // QPixmap blurred = BackDrop::blurPixmap(icon, 30);
+                    // dialog->m_bgLabel->setPixmap(blurred.scaled(
+                    //     dialog->size(), Qt::KeepAspectRatioByExpanding,
+                    //     Qt::SmoothTransformation));
                 }
                 dialog->m_loadingWidget->stop(true);
             }
         });
-
-    QLabel *descLabel = new QLabel(description);
-    descLabel->setWordWrap(true);
-    descLabel->setStyleSheet("font-size: 14px; color: #666;");
-    contentLayout->insertWidget(1, descLabel);
 
     // Directory selection UI
     QHBoxLayout *dirLayout = new QHBoxLayout();
@@ -102,7 +123,7 @@ AppDownloadDialog::AppDownloadDialog(const QString &appName,
     });
     dirLayout->addWidget(m_dirButton);
 
-    contentLayout->insertLayout(2, dirLayout);
+    contentLayout->addLayout(dirLayout);
 
     QHBoxLayout *buttonLayout = new QHBoxLayout();
 
