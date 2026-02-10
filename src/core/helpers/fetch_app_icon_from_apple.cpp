@@ -23,9 +23,9 @@
 #include <QNetworkReply>
 #include <QPixmap>
 
-void fetchAppIconFromApple(QNetworkAccessManager *manager,
-                           const QString &bundleId,
-                           std::function<void(const QPixmap &)> callback)
+void fetchAppIconFromApple(
+    QNetworkAccessManager *manager, const QString &bundleId,
+    std::function<void(const QPixmap &, const QJsonObject &)> callback)
 {
     QString url =
         QString("https://itunes.apple.com/lookup?bundleId=%1").arg(bundleId);
@@ -39,21 +39,21 @@ void fetchAppIconFromApple(QNetworkAccessManager *manager,
             QJsonParseError parseError;
             QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
             if (parseError.error != QJsonParseError::NoError) {
-                callback(QPixmap());
+                callback(QPixmap(), QJsonObject());
                 return;
             }
 
             QJsonObject obj = doc.object();
             QJsonArray results = obj.value("results").toArray();
             if (results.isEmpty()) {
-                callback(QPixmap());
+                callback(QPixmap(), QJsonObject());
                 return;
             }
 
             QJsonObject appInfo = results.at(0).toObject();
             QString iconUrl = appInfo.value("artworkUrl100").toString();
             if (iconUrl.isEmpty()) {
-                callback(QPixmap());
+                callback(QPixmap(), appInfo);
                 return;
             }
 
@@ -61,12 +61,12 @@ void fetchAppIconFromApple(QNetworkAccessManager *manager,
             QNetworkReply *iconReply =
                 manager->get(QNetworkRequest(QUrl(iconUrl)));
             QObject::connect(iconReply, &QNetworkReply::finished,
-                             [iconReply, callback]() {
+                             [iconReply, callback, appInfo]() {
                                  QByteArray iconData = iconReply->readAll();
                                  iconReply->deleteLater();
                                  QPixmap pixmap;
                                  pixmap.loadFromData(iconData);
-                                 callback(pixmap);
+                                 callback(pixmap, appInfo);
                              });
         });
 }
