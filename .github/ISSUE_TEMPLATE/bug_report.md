@@ -11,9 +11,10 @@ assignees: ''
 A clear and concise description of what the bug is.
 
 **OS and iDevice info (please complete the following information):**
- - Version [e.g. 22]
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
+ - iDescriptor Version [e.g. v2.0.0]
+ - Device: [e.g. iPhone 14 - iOS26]
+ - Is it the AppImage version ? (Linux only): [Yes/No] 
+ - OS: [e.g. Windows 11, macOS 14, Arch Linux]
 
 **To Reproduce**
 Steps to reproduce the behavior:
