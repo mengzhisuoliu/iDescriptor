@@ -111,7 +111,7 @@ make sure to do "sudo pacman -Syu" otherwise it's not going to find libimobilede
 
 ## Good News!
 
-### iDescriptor v0.3.0 will feature **WIRELESS CONNECTION** support!
+### iDescriptor v0.4.0 will feature **WIRELESS CONNECTION** support!
 
 Learn more about our roadmap [here](#roadmap).
 
@@ -126,7 +126,7 @@ Learn more about our roadmap [here](#roadmap).
 | Feature             | Status               | Notes                                                           |
 | ------------------- | -------------------- | --------------------------------------------------------------- |
 | USB Connection      | ✅ Implemented       | Fully supported on Windows, macOS, and Linux.                   |
-| Wireless Connection | ⚠️ Under Development | Currently under development, planned to be released in v0.3.0 |
+| Wireless Connection | ⚠️ Under Development | Currently under development, planned to be released in v0.4.0 |
 
 ### Tools
 
@@ -300,7 +300,7 @@ You can also send a pr to main branch but it should be something related to buil
 
 ## Roadmap
 
-**Planned Features for v0.3.0:**
+**Planned Features for v0.4.0:**
 
 - Migrate to idevice-rs `99% done`
 - Wireless Connection Support `DONE`
@@ -309,7 +309,7 @@ You can also send a pr to main branch but it should be something related to buil
 - Complete iOS 26 Support
 - Migrate to UCRT for better performance and stability ``Windows``
 - New UI/UX improvements
-- Read gallery from Photos.sqlite (maybe delayed to v0.4.0)
+- Read gallery from Photos.sqlite (maybe delayed to v0.5.0)
 
 
 **You can always become a sponsor/donate to request/prioritize a feature or speed up the development process!**
