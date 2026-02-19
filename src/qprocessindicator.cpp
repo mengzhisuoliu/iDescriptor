@@ -38,7 +38,7 @@ QProcessIndicator::QProcessIndicator(QWidget *parent)
 }
 void QProcessIndicator::updateStyle()
 {
-    m_color = palette().color(QPalette::Highlight);
+    m_color = palette().color(QPalette::Window);
     update();
 }
 
