@@ -57,7 +57,7 @@
 
 #include "diagnosedialog.h"
 #ifdef WIN32
-#include "platform/windows/check_deps.h"
+#include "platform/windows/win_common.h"
 #endif
 #include "toolboxwidget.h"
 

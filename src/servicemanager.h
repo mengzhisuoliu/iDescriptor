@@ -268,7 +268,7 @@ public:
                                             int64_t offset, int whence);
     static IdeviceFfiError *safeAfcFileTell(const iDescriptorDevice *device,
                                             AfcFileHandle *handle,
-                                            off_t *position);
+                                            int64_t *position);
     // Utility functions
     static QByteArray safeReadAfcFileToByteArray(
         const iDescriptorDevice *device, const char *path,

@@ -19,10 +19,11 @@
 
 #include "diagnosewidget.h"
 #ifdef WIN32
-#include "platform/windows/check_deps.h"
+#include "platform/windows/win_common.h"
 #include <archive.h>
 #include <archive_entry.h>
 #endif
+#include "iDescriptor-ui.h"
 #include <QApplication>
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -97,21 +98,37 @@ void DependencyItem::setInstalled(bool installed)
 
     if (installed) {
         if (m_name == "Avahi Daemon") {
-            m_statusLabel->setText("✓ Activated");
+            m_statusLabel->setText("Activated");
         } else {
-            m_statusLabel->setText("✓ Installed");
+            m_statusLabel->setText("Installed");
         }
-        m_statusLabel->setStyleSheet("color: green; font-weight: bold;");
+#ifndef WIN32
+        m_statusLabel->setStyleSheet("color: green;");
+#else
+        // FIXME: if we call this multiple times, the styles will keep stacking
+        // and become a mess, need a better way to handle this
+        m_statusLabel->setStyleSheet(mergeStyles(
+            m_statusLabel,
+            QString("QLabel { color: %1; }").arg(COLOR_GREEN.name())));
+#endif
         m_installButton->setVisible(false);
     } else {
         if (m_name == "Avahi Daemon") {
-            m_statusLabel->setText("✗ Not activated");
+            m_statusLabel->setText("Not activated");
             m_installButton->setText("Enable");
         } else {
-            m_statusLabel->setText("✗ Not Installed");
+            m_statusLabel->setText("Not Installed");
             m_installButton->setText("Install");
         }
-        m_statusLabel->setStyleSheet("color: red; font-weight: bold;");
+#ifndef WIN32
+        m_statusLabel->setStyleSheet("color: red;");
+#else
+        // FIXME: if we call this multiple times, the styles will keep stacking
+        // and become a mess, need a better way to handle this
+        m_statusLabel->setStyleSheet(mergeStyles(
+            m_statusLabel,
+            QString("QLabel { color: %1; }").arg(COLOR_RED.name())));
+#endif
         m_installButton->setVisible(true);
     }
 }

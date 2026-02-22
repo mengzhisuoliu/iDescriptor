@@ -81,7 +81,7 @@ void CableInfoWidget::setupUI()
     m_loadingWidget = new ZLoadingWidget(true, this);
     m_loadingWidget->setupContentWidget(m_mainLayout);
 
-    QVBoxLayout *layout = new QVBoxLayout(this);
+    QVBoxLayout *layout = new QVBoxLayout(contentWidget());
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_loadingWidget);
 
@@ -230,7 +230,7 @@ void CableInfoWidget::updateUI()
     if (!m_cableInfo.isConnected) {
         m_errorLabel->setText(
             QString("%1 does not seem to be connected to any cable.")
-                .arg(m_device->deviceInfo.productType));
+                .arg(QString::fromStdString(m_device->deviceInfo.productType)));
         m_loadingWidget->showError();
         return;
     }
@@ -243,13 +243,13 @@ void CableInfoWidget::updateUI()
                                 "absolute guarantee of authenticity.");
     if (m_cableInfo.isGenuine) {
         // todo: type-c to type-c
-        statusText = QString("✅ Genuine %1")
+        statusText = QString("Genuine %1")
                          .arg(m_cableInfo.isTypeC ? "USB-C to Lightning Cable"
                                                   : "Lightning Cable");
         statusStyle =
             "QLabel { color: #28a745; font-size: 18px; font-weight: bold; }";
     } else {
-        statusText = "⚠️ Third-party Cable";
+        statusText = "Third-party Cable";
         statusStyle =
             "QLabel { color: #dc3545; font-size: 18px; font-weight: bold; }";
 

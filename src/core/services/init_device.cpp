@@ -26,12 +26,18 @@
 #endif
 #include "../../heartbeat.h"
 #include <QDebug>
+
+#ifdef _WIN32
+#include "../../platform/windows/win_common.h"
+#else
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <sstream>
-#include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
+
+#include <sstream>
+#include <string.h>
 
 std::string safeGetXML(const char *key, pugi::xml_node dict)
 {
@@ -453,7 +459,7 @@ void init_idescriptor_device(const iDescriptor::Uniq &uniq,
         heartbeatThread->start();
 
         while (!heartbeatThread->initialCompleted()) {
-            sleep(1);
+            // sleep(1);
         }
 
     } else {

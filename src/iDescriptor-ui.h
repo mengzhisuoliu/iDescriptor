@@ -40,13 +40,35 @@
 
 #ifdef __APPLE__
 #include "./platform/macos/macos.h"
+#elif defined(WIN32)
+#include "./platform/windows/win_common.h"
 #endif
 
 #define COLOR_GREEN QColor(0, 180, 0)    // Green
 #define COLOR_ORANGE QColor(255, 140, 0) // Orange
 #define COLOR_RED QColor(255, 0, 0)      // Red
 #define COLOR_BLUE QColor("#2b5693")
+
+#ifndef WIN32
 #define COLOR_ACCENT_BLUE QColor("#0b5ed7")
+#define COLOR_HYPERLINK QColor(0, 122, 255)
+#else
+#define COLOR_ACCENT_BLUE QColor(getWindowsAccentColor())
+#define COLOR_HYPERLINK QColor("#FF7FFFD4")
+#endif
+
+inline QString mergeStyles(QWidget *widget, const QString &newStyles)
+{
+    if (!widget) {
+        return newStyles;
+    }
+    QString existing = widget->styleSheet();
+    if (existing.isEmpty())
+        return newStyles;
+
+    return existing + "\n" + newStyles;
+}
+
 #define MIN_MAIN_WINDOW_SIZE QSize(900, 600)
 
 class ResponsiveGraphicsView : public QGraphicsView

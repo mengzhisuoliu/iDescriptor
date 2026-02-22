@@ -18,7 +18,6 @@
  */
 
 #include "mainwindow.h"
-#include "./ui_mainwindow.h"
 #include "appswidget.h"
 #include "devicemanagerwidget.h"
 #include "iDescriptor-ui.h"
@@ -26,9 +25,6 @@
 #include "ifusediskunmountbutton.h"
 #include "ifusemanager.h"
 #include "jailbrokenwidget.h"
-// #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
-// #include "libirecovery.h"
-// #endif
 #include "toolboxwidget.h"
 #include "welcomewidget.h"
 #include <QHBoxLayout>
@@ -51,90 +47,11 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
-
 #ifdef WIN32
-#include "platform/windows/check_deps.h"
+#include "platform/windows/win_common.h"
 #endif
 
 using namespace IdeviceFFI;
-
-// void handleCallback(const idevice_event_t *event, void *userData)
-// {
-//     printf("Device event received: ");
-
-//     switch (event->event) {
-//     case IDEVICE_DEVICE_ADD: {
-//         /* this should never happen iDescriptor does not support network
-//         devices but for some reason even though we are only listening for USB
-//         devices, we still get network devices on macOS*/ if (event->conn_type
-//         == CONNECTION_NETWORK) {
-//             return;
-//         }
-//         qDebug() << "Device added: " << QString::fromUtf8(event->udid);
-
-//         QMetaObject::invokeMethod(
-//             AppContext::sharedInstance(), "addDevice", Qt::QueuedConnection,
-//             Q_ARG(QString, QString::fromUtf8(event->udid)),
-//             Q_ARG(idevice_connection_type, event->conn_type),
-//             Q_ARG(AddType, AddType::Regular));
-//         break;
-//     }
-
-//     case IDEVICE_DEVICE_REMOVE: {
-//         QMetaObject::invokeMethod(AppContext::sharedInstance(),
-//         "removeDevice",
-//                                   Qt::QueuedConnection,
-//                                   Q_ARG(QString, QString(event->udid)));
-//         break;
-//     }
-
-//     case IDEVICE_DEVICE_PAIRED: {
-//         if (event->conn_type == CONNECTION_NETWORK) {
-//             qDebug()
-//                 << "Network devices are not supported but a network device
-//                 was "
-//                    "received in event listener. Please report this issue.";
-//             return;
-//         }
-//         qDebug() << "Device paired: " << QString::fromUtf8(event->udid);
-
-//         QMetaObject::invokeMethod(
-//             AppContext::sharedInstance(), "addDevice", Qt::QueuedConnection,
-//             Q_ARG(QString, QString::fromUtf8(event->udid)),
-//             Q_ARG(idevice_connection_type, event->conn_type),
-//             Q_ARG(AddType, AddType::Pairing));
-//         break;
-//     }
-//     default:
-//         qDebug() << "Unhandled event: " << event->event;
-//     }
-// }
-
-// #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
-// void handleCallbackRecovery(const irecv_device_event_t *event, void
-// *userData)
-// {
-
-//     switch (event->type) {
-//     case IRECV_DEVICE_ADD:
-//         qDebug() << "Recovery device added: ";
-//         QMetaObject::invokeMethod(AppContext::sharedInstance(),
-//                                   "addRecoveryDevice", Qt::QueuedConnection,
-//                                   Q_ARG(uint64_t, event->device_info->ecid));
-//         break;
-//     case IRECV_DEVICE_REMOVE:
-//         qDebug() << "Recovery device removed: ";
-//         QMetaObject::invokeMethod(AppContext::sharedInstance(),
-//                                   "removeRecoveryDevice",
-//                                   Qt::QueuedConnection, Q_ARG(uint64_t,
-//                                   event->device_info->ecid));
-//         break;
-//     default:
-//         printf("Unhandled recovery event: %d\n", event->type);
-//     }
-// }
-// irecv_device_event_context_t context;
-// #endif
 
 MainWindow *MainWindow::sharedInstance()
 {
@@ -142,21 +59,26 @@ MainWindow *MainWindow::sharedInstance()
     return &instance;
 }
 
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), ui(new Ui::MainWindow)
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 {
-    ui->setupUi(this);
     setMinimumSize(MIN_MAIN_WINDOW_SIZE);
     resize(MIN_MAIN_WINDOW_SIZE);
-    m_ZTabWidget = new ZTabWidget(this);
-    m_ZTabWidget->setAttribute(Qt::WA_ContentsMarginsRespectsSafeArea, false);
-
     setContentsMargins(0, 0, 0, 0);
+
+    QWidget *centralWidget = new QWidget(this);
+    setCentralWidget(centralWidget);
+    auto mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+
+    m_ZTabWidget = new ZTabWidget(this);
 #ifdef __APPLE__
     setupMacOSWindow(this);
     setAttribute(Qt::WA_ContentsMarginsRespectsSafeArea, false);
 #endif
-    setCentralWidget(m_ZTabWidget);
+    mainLayout->addWidget(m_ZTabWidget);
+#ifdef WIN32
+    setupWinWindow(this);
+#endif
 
     m_mainStackedWidget = new QStackedWidget();
     WelcomeWidget *welcomePage = new WelcomeWidget(this);
@@ -200,25 +122,35 @@ MainWindow::MainWindow(QWidget *parent)
     m_connectedDeviceCountLabel->setStyleSheet(
         "QLabel:hover { background-color : #13131319; }");
 
-    ui->statusbar->addWidget(m_connectedDeviceCountLabel);
+    QWidget *statusbar = new QWidget();
+    QHBoxLayout *statusLayout = new QHBoxLayout(statusbar);
+    statusLayout->setContentsMargins(0, 0, 0, 0);
+    statusbar->setObjectName("StatusBar");
+    statusbar->setStyleSheet(
+        "QWidget#StatusBar { background-color: transparent; }");
+    statusLayout->addWidget(m_connectedDeviceCountLabel);
     // TODO: implement downloads/uploads progress stuff
 
     StatusBalloon *statusBalloon = StatusBalloon::sharedInstance();
 
-    ui->statusbar->addWidget(statusBalloon->getButton());
+    statusLayout->addWidget(statusBalloon->getButton());
+    statusLayout->addStretch(1);
 
-    ui->statusbar->setContentsMargins(0, 0, 0, 0);
+    statusLayout->setContentsMargins(0, 0, 0, 0);
     QLabel *appVersionLabel = new QLabel(QString("v%1").arg(APP_VERSION));
     appVersionLabel->setContentsMargins(5, 0, 5, 0);
     appVersionLabel->setStyleSheet(
         "QLabel:hover { background-color : #13131319; }");
-    ui->statusbar->addPermanentWidget(appVersionLabel);
-    ui->statusbar->addPermanentWidget(githubButton);
-    ui->statusbar->addPermanentWidget(settingsButton);
-#ifdef WIN32
-    ui->statusbar->setStyleSheet(
-        "QStatusBar { border-top: 1px solid #dcdcdc; }");
-#endif
+    statusLayout->addWidget(appVersionLabel);
+    statusLayout->addWidget(githubButton);
+    statusLayout->addWidget(settingsButton);
+    // #ifdef WIN32
+    //     statusLayout->setStyleSheet("QStatusBar { border-top: 1px solid
+    //     #dcdcdc;
+    //     }");
+    // #endif
+
+    mainLayout->addWidget(statusbar);
 
 #ifdef __linux__
     QList<QString> mounted_iFusePaths = iFuseManager::getMountPoints();
@@ -226,7 +158,7 @@ MainWindow::MainWindow(QWidget *parent)
     for (const QString &path : mounted_iFusePaths) {
         auto *p = new iFuseDiskUnmountButton(path);
 
-        ui->statusbar->addPermanentWidget(p);
+        statusbar->addWidget(p);
         connect(p, &iFuseDiskUnmountButton::clicked, this, [this, p, path]() {
             bool ok = iFuseManager::linuxUnmount(path);
             if (!ok) {
@@ -235,7 +167,7 @@ MainWindow::MainWindow(QWidget *parent)
                                          ". Please try again.");
                 return;
             }
-            ui->statusbar->removeWidget(p);
+            statusbar->removeWidget(p);
             p->deleteLater();
         });
     }
@@ -521,7 +453,6 @@ MainWindow::~MainWindow()
     // #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
     // irecv_device_event_unsubscribe(context);
     // #endif
-    delete ui;
     m_deviceMonitor->requestInterruption();
     // FIXME:QThread: Destroyed while thread '' is still running
     // m_deviceMonitor->wait();

@@ -37,7 +37,7 @@ public:
 private:
     void setupUI();
     ZLabel *createStyledLabel(const QString &text, int fontSize = 0,
-                              bool isBold = false);
+                              bool isBold = false, QColor color = Qt::black);
 
     QVBoxLayout *m_mainLayout;
     ZLabel *m_titleLabel;

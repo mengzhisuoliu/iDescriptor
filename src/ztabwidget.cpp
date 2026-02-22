@@ -18,18 +18,51 @@
  */
 
 #include "ztabwidget.h"
+#include "iDescriptor-ui.h"
 #include <QEasingCurve>
 #include <QGraphicsDropShadowEffect>
 #include <QMainWindow>
 #include <QPainter>
+#include <QPropertyAnimation>
+#include <QSequentialAnimationGroup>
 #include <QStyleOption>
 #include <QTimer>
+
+QRect gliderEndRectForTab(const ZTab *tab)
+{
+    if (!tab)
+        return {};
+
+    // Approximate "title center" using the push-button contents rect center.
+    QStyleOptionButton opt;
+    opt.initFrom(tab);
+    opt.text = tab->text();
+    opt.icon = tab->icon();
+    opt.iconSize = tab->iconSize();
+
+    QRect contents =
+        tab->style()->subElementRect(QStyle::SE_PushButtonContents, &opt, tab);
+    if (!contents.isValid())
+        contents = tab->rect();
+
+    const int centerX = tab->mapToParent(contents.center()).x();
+
+    // Half-width glider, clamped so it never exceeds contents width and never
+    // gets too tiny.
+    const int rawW = tab->width() / 1.5;
+    const int maxW = qMax(1, contents.width());
+    const int w = qBound(12, qMin(rawW, maxW), tab->width());
+
+    const int x = centerX - (w / 2);
+    const int y = tab->pos().y() + tab->height() - 2;
+    return QRect(x, y, w, 2);
+}
 
 ZTab::ZTab(const QString &text, QWidget *parent) : QPushButton(text, parent)
 {
     setCheckable(true);
 #ifndef WIN32
-    setFixedHeight(50);
+    setFixedHeight(40);
 #else
     setFixedHeight(40);
 #endif
@@ -40,13 +73,13 @@ ZTab::ZTab(const QString &text, QWidget *parent) : QPushButton(text, parent)
 ZTabWidget::ZTabWidget(QWidget *parent) : QWidget(parent), m_currentIndex(0)
 {
     m_mainLayout = new QVBoxLayout(this);
-    m_mainLayout->setContentsMargins(0, 0, 0, 0);
+    m_mainLayout->setContentsMargins(10, 0, 10, 0);
     m_mainLayout->setSpacing(0);
 
     // Create tab bar container
     m_tabBar = new QWidget();
 #ifndef WIN32
-    m_tabBar->setFixedHeight(50);
+    m_tabBar->setFixedHeight(40);
 #else
     m_tabBar->setFixedHeight(40);
 #endif
@@ -80,10 +113,17 @@ ZTabWidget::ZTabWidget(QWidget *parent) : QWidget(parent), m_currentIndex(0)
 void ZTabWidget::setupGlider()
 {
     m_glider = new QWidget(m_tabBar);
-    m_glider->setStyleSheet("QWidget {"
-                            "  background-color: #2b5693;"
-                            "  border-radius: 1px;"
-                            "}");
+    m_glider->setStyleSheet(QString("QWidget {"
+                                    "  background-color: %1;"
+                                    "  border-radius: %2px;"
+                                    "}")
+                                .arg(COLOR_ACCENT_BLUE.name())
+#ifndef WIN32
+                                .arg(6)
+#else
+                                .arg(2)
+#endif
+    );
     m_glider->hide(); // Hide initially until tabs are added
 }
 
@@ -111,6 +151,9 @@ void ZTabWidget::setCurrentIndex(int index)
     m_currentIndex = index;
     m_tabs[index]->setChecked(true);
     m_stackedWidget->setCurrentIndex(index);
+#ifdef WIN32
+    animateWidget(m_stackedWidget->currentWidget());
+#endif
     updateTabStyles();
     animateGlider(index);
 
@@ -119,22 +162,30 @@ void ZTabWidget::setCurrentIndex(int index)
 
 void ZTabWidget::finalizeStyles()
 {
+    if (m_tabs.isEmpty())
+        return;
+
     ZTab *tab = m_tabs[0];
     if (tab) {
         tab->setChecked(true);
+
         QTimer::singleShot(0, [this, tab]() {
-            if (tab) {
-                m_glider->setFixedSize(tab->size().width(), 2);
-                int targetX = tab->pos().x();
-                int targetY = tab->pos().y() + tab->size().height() - 2;
-                m_glider->move(targetX, targetY);
-                m_gliderAnimation = new QPropertyAnimation(m_glider, "pos");
-                m_gliderAnimation->setDuration(250);
-                m_gliderAnimation->setEasingCurve(QEasingCurve::OutCubic);
-                m_glider->show();
+            if (!tab)
+                return;
+
+            const QRect endRect = gliderEndRectForTab(tab);
+
+            if (m_gliderAnimation) {
+                m_gliderAnimation->stop();
+                delete m_gliderAnimation;
+                m_gliderAnimation = nullptr;
             }
+
+            m_glider->setGeometry(endRect);
+            m_glider->show();
         });
     }
+
     updateTabStyles();
 }
 
@@ -160,7 +211,7 @@ void ZTabWidget::onTabClicked()
     }
 }
 
-void ZTabWidget::animateGlider(int index)
+void ZTabWidget::animateGlider(int index, bool onResize)
 {
     if (index < 0 || index >= m_tabs.count())
         return;
@@ -169,59 +220,144 @@ void ZTabWidget::animateGlider(int index)
     if (!targetTab)
         return;
 
-    // Get the actual position and size of the target tab
-    QPoint targetTabPos = targetTab->pos();
-    QSize targetTabSize = targetTab->size();
+    const QRect endRect = gliderEndRectForTab(targetTab);
 
-    // Set glider width to match tab width and height to 2px for bottom border
-    m_glider->setFixedSize(targetTabSize.width(), 2);
+#ifdef WIN32
+    if (onResize || !m_glider->isVisible()) {
+        if (m_gliderAnimation) {
+            m_gliderAnimation->stop();
+            delete m_gliderAnimation;
+            m_gliderAnimation = nullptr;
+        }
+        m_glider->setGeometry(endRect);
+        m_glider->show();
+        return;
+    }
 
-    // Position glider at the bottom of the target tab
-    int targetX = targetTabPos.x();
-    int targetY =
-        // targetTabPos.y() + targetTabSize.height() + 6; // Position at bottom
-        targetTabPos.y() + targetTabSize.height() - 2; // Position at bottom
+    const QRect startRect = m_glider->geometry();
 
-    if (m_gliderAnimation == nullptr)
+    const int left = qMin(startRect.left(), endRect.left());
+    const int right = qMax(startRect.right(), endRect.right());
+    const QRect stretchRect(left, endRect.y(), (right - left + 1), 2);
+
+    if (m_gliderAnimation) {
+        m_gliderAnimation->stop();
+        delete m_gliderAnimation;
+        m_gliderAnimation = nullptr;
+    }
+
+    auto *group = new QSequentialAnimationGroup(this);
+
+    auto *expandAnim = new QPropertyAnimation(m_glider, "geometry");
+    expandAnim->setDuration(130);
+    expandAnim->setStartValue(startRect);
+    expandAnim->setEndValue(stretchRect);
+    expandAnim->setEasingCurve(QEasingCurve::OutCubic);
+
+    auto *settleAnim = new QPropertyAnimation(m_glider, "geometry");
+    settleAnim->setDuration(190);
+    settleAnim->setStartValue(stretchRect);
+    settleAnim->setEndValue(endRect);
+    settleAnim->setEasingCurve(QEasingCurve::OutCubic);
+
+    group->addAnimation(expandAnim);
+    group->addAnimation(settleAnim);
+
+    m_gliderAnimation = group;
+    group->start();
+#else
+    if (m_gliderAnimation == nullptr) {
+        m_gliderAnimation = new QPropertyAnimation(m_glider, "pos", this);
+        static_cast<QPropertyAnimation *>(m_gliderAnimation)->setDuration(250);
+        static_cast<QPropertyAnimation *>(m_gliderAnimation)
+            ->setEasingCurve(QEasingCurve::OutCubic);
+    }
+
+    m_glider->setFixedSize(endRect.width(), 2);
+    m_gliderAnimation->stop();
+    static_cast<QPropertyAnimation *>(m_gliderAnimation)
+        ->setStartValue(m_glider->pos());
+    static_cast<QPropertyAnimation *>(m_gliderAnimation)
+        ->setEndValue(endRect.topLeft());
+    m_gliderAnimation->start();
+#endif
+}
+
+void ZTabWidget::animateWidget(QWidget *widget)
+{
+#ifdef WIN32
+    if (!widget)
         return;
 
-    m_gliderAnimation->stop();
-    m_gliderAnimation->setStartValue(m_glider->pos());
-    m_gliderAnimation->setEndValue(QPoint(targetX, targetY));
-    m_gliderAnimation->start();
+    // FIXME: doesn't work on Tool tab because we are using opacity in
+    // stylesheet
+    QGraphicsOpacityEffect *opacityEffect =
+        qobject_cast<QGraphicsOpacityEffect *>(widget->graphicsEffect());
+    if (!opacityEffect) {
+        opacityEffect = new QGraphicsOpacityEffect(widget);
+        widget->setGraphicsEffect(opacityEffect);
+    }
+
+    QPropertyAnimation *opacityAnim =
+        new QPropertyAnimation(opacityEffect, "opacity", this);
+    opacityAnim->setDuration(350);
+    opacityAnim->setStartValue(0.0);
+    opacityAnim->setEndValue(1.0);
+    opacityAnim->setEasingCurve(QEasingCurve::OutCubic);
+    opacityAnim->start(QAbstractAnimation::DeleteWhenStopped);
+
+    QPropertyAnimation *posAnim = new QPropertyAnimation(widget, "pos", this);
+    posAnim->setDuration(350);
+    posAnim->setStartValue(QPoint(widget->pos().x(), widget->pos().y() + 20));
+    posAnim->setEndValue(widget->pos());
+    posAnim->setEasingCurve(QEasingCurve::OutCubic);
+    posAnim->start(QAbstractAnimation::DeleteWhenStopped);
+#else
+    Q_UNUSED(widget);
+#endif
 }
 
 void ZTabWidget::updateTabStyles()
 {
+    const QString accentColor =
+
+#ifdef WIN32
+        COLOR_ACCENT_BLUE.name();
+#else
+        "#185ee0";
+#endif
+
     for (int i = 0; i < m_tabs.count(); ++i) {
         ZTab *tab = m_tabs[i];
         if (tab->isChecked()) {
-            tab->setStyleSheet("ZTab {"
-                               "  color: #185ee0;"
-                               //    "  color: #d7e1f4ff;"
-                               "  font-weight: 500;"
-                               "  font-size: 20px;"
-                               "  border: none;"
-                               "  outline: none;"
-                               "  background-color: transparent;"
-                               "}"
-                               "ZTab:hover {"
-                               "  background-color: transparent;"
-                               "}");
+            tab->setStyleSheet(QString("ZTab {"
+                                       "  color: %1;"
+                                       //    "  color: #d7e1f4ff;"
+                                       "  font-weight: 700;"
+                                       "  font-size: 20px;"
+                                       "  border: none;"
+                                       "  outline: none;"
+                                       "  background-color: transparent;"
+                                       "}"
+                                       "ZTab:hover {"
+                                       "  background-color: transparent;"
+                                       "}")
+                                   .arg(accentColor));
         } else {
-            tab->setStyleSheet("ZTab {"
-                               "  color: #666;"
-                               //    "  color: #2b5693;"
-                               "  font-weight: 500;"
-                               "  font-size: 20px;"
-                               "  border: none;"
-                               "  outline: none;"
-                               "  background-color: transparent;"
-                               "}"
-                               "ZTab:hover {"
-                               "  color: #185ee0;"
-                               "  background-color: transparent;"
-                               "}");
+            tab->setStyleSheet(QString("ZTab {"
+                                       "  color: #666;"
+                                       //    "  color: #2b5693;"
+                                       "  font-weight: 700;"
+                                       "  font-size: 20px;"
+                                       "  border: none;"
+                                       "  outline: none;"
+                                       "  background-color: transparent;"
+                                       "}"
+                                       "ZTab:hover {"
+                                       "  color: %1;"
+                                       "  background-color: transparent;"
+                                       "}")
+                                   .arg(accentColor));
         }
     }
 }
@@ -231,6 +367,6 @@ void ZTabWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
     if (m_currentIndex >= 0 && m_currentIndex < m_tabs.count()) {
-        animateGlider(m_currentIndex);
+        animateGlider(m_currentIndex, true);
     }
 }

@@ -22,22 +22,12 @@
 #include "ZDownloader.h"
 #include "ZUpdater.h"
 #include "devicemanagerwidget.h"
-#include "iDescriptor.h"
-#include <QMainWindow>
-// #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
-// #include "libirecovery.h"
-// #endif
 #include "devicemonitor.h"
+#include "iDescriptor.h"
 #include "ztabwidget.h"
 #include <QLabel>
+#include <QMainWindow>
 #include <QStackedWidget>
-
-QT_BEGIN_NAMESPACE
-namespace Ui
-{
-class MainWindow;
-}
-QT_END_NAMESPACE
 
 class MainWindow : public QMainWindow
 {
@@ -54,11 +44,17 @@ public slots:
 private:
     void createMenus();
 
-    Ui::MainWindow *ui;
     ZTabWidget *m_ZTabWidget;
     DeviceManagerWidget *m_deviceManager;
     QStackedWidget *m_mainStackedWidget;
     QLabel *m_connectedDeviceCountLabel;
     DeviceMonitorThread *m_deviceMonitor;
+    QLabel *m_titleLabel;
+    QPushButton *m_minBtn;
+    QPushButton *m_maxBtn;
+    QPushButton *m_closeBtn;
+    QWidget *m_titleBar;
+    QWidget *m_contentArea;
+    QHBoxLayout *m_titleBarLayout;
 };
 #endif // MAINWINDOW_H

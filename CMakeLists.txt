@@ -6,7 +6,6 @@ if(WIN32)
 endif()
 
 # Feature options
-option(ENABLE_RECOVERY_DEVICE_SUPPORT "Enable recovery device support (requires libirecovery)" ON)
 set(PACKAGE_MANAGER_HINT "" CACHE STRING "Name of package manager(s) used to manage this build (e.g. paru, yay, pamac)")
 option(PACKAGE_MANAGER_MANAGED "Build as package manager managed version (auto updates will be handled by the package manager)" OFF)
 option(DEPLOY "Deploy the application (WIN32 only)" ON)
@@ -26,39 +25,27 @@ if (APPLE)
 endif()
 
 # Platform-specific paths for libraries built from source
-# if(WIN32)
-#     include_directories("C:/msys64/mingw64/include")
-#     link_directories("C:/msys64/mingw64/lib")
-#     set(PKG_CONFIG_EXECUTABLE "C:/msys64/mingw64/bin/pkg-config.exe")
-#     list(APPEND CMAKE_PREFIX_PATH "C:/lxqt")
-#     set(CUSTOM_LIB_PATH "C:/msys64/mingw64/lib")
-#     set(CUSTOM_INCLUDE_PATH "C:/msys64/mingw64/include")
-#     set(CUSTOM_PKGCONFIG_PATH "C:/msys64/mingw64/lib/pkgconfig")
-#     set(ENV{PKG_CONFIG_PATH} "${CUSTOM_PKGCONFIG_PATH};$ENV{PKG_CONFIG_PATH}")
-# elseif(APPLE)
-#     set(CUSTOM_LIB_PATH "/usr/local/lib")
-#     # Remove the problematic include path that's causing conflicts
-#     # set(CUSTOM_INCLUDE_PATH "/usr/local/include")
-#     set(CUSTOM_PKGCONFIG_PATH "/usr/local/lib/pkgconfig")
-#     set(ENV{PKG_CONFIG_PATH} "${CUSTOM_PKGCONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
-# else ()
-#     set(CUSTOM_LIB_PATH "/usr/local/lib")
-#     set(CUSTOM_PKGCONFIG_PATH "/usr/local/lib/pkgconfig")
-#     set(ENV{PKG_CONFIG_PATH} "$ENV{PKG_CONFIG_PATH}:${CUSTOM_PKGCONFIG_PATH}")
-# endif()
+if(WIN32)
+    include_directories("C:/msys64/mingw64/include")
+    link_directories("C:/msys64/mingw64/lib")
+    set(PKG_CONFIG_EXECUTABLE "C:/msys64/mingw64/bin/pkg-config.exe")
+    list(APPEND CMAKE_PREFIX_PATH "C:/lxqt")
+    set(CUSTOM_LIB_PATH "C:/msys64/mingw64/lib")
+    set(CUSTOM_INCLUDE_PATH "C:/msys64/mingw64/include")
+    set(CUSTOM_PKGCONFIG_PATH "C:/msys64/mingw64/lib/pkgconfig")
+    set(ENV{PKG_CONFIG_PATH} "${CUSTOM_PKGCONFIG_PATH};$ENV{PKG_CONFIG_PATH}")
+elseif(APPLE)
+    set(CUSTOM_LIB_PATH "/usr/local/lib")
+    # Remove the problematic include path that's causing conflicts
+    # set(CUSTOM_INCLUDE_PATH "/usr/local/include")
+    set(CUSTOM_PKGCONFIG_PATH "/usr/local/lib/pkgconfig")
+    set(ENV{PKG_CONFIG_PATH} "${CUSTOM_PKGCONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
+else ()
+    set(CUSTOM_LIB_PATH "/usr/local/lib")
+    set(CUSTOM_PKGCONFIG_PATH "/usr/local/lib/pkgconfig")
+    set(ENV{PKG_CONFIG_PATH} "$ENV{PKG_CONFIG_PATH}:${CUSTOM_PKGCONFIG_PATH}")
+endif()
 
-# foreach(_ IN LISTS CMAKE_PREFIX_PATH)
-#     list(APPEND _qt_pkg_dirs
-#         "${_}/lib/pkgconfig"
-#         "${_}/lib64/pkgconfig"
-#         "${_}/lib64/qt/pkgconfig"
-#         "${_}/lib/qt/pkgconfig"
-#     )
-# endforeach()
-
-
-# list(APPEND _qt_pkg_dirs ${CUSTOM_PKGCONFIG_PATH})
- 
 find_package(PkgConfig REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Network QuickControls2 SerialPort Positioning Location QuickWidgets) 
 find_package(SQLite3 REQUIRED)
@@ -110,6 +97,14 @@ add_custom_command(
     COMMENT "Building idevice-rs FFI libraryy"
     VERBATIM
 )
+elseif(WIN32)
+add_custom_command(
+    OUTPUT ${IDEVICE_RS_LIB_PATH}
+    COMMAND ${CARGO_EXECUTABLE} +stable-x86_64-pc-windows-gnu build --manifest-path ${IDEVICE_RS_SOURCE_DIR}/Cargo.toml
+    WORKING_DIRECTORY ${IDEVICE_RS_SOURCE_DIR}
+    COMMENT "Building idevice-rs FFI libraryy"
+    VERBATIM
+)
 else()
 add_custom_command(
     OUTPUT ${IDEVICE_RS_LIB_PATH}
@@ -149,6 +144,11 @@ file(GLOB PLIST_CPP_SOURCES
 
 add_library(idevice_cpp STATIC ${IDEVICE_CPP_SOURCES} ${PLIST_CPP_SOURCES})
 add_dependencies(idevice_cpp idevice_rs_build)
+
+if(WIN32)
+# Define LIBPLIST_STATIC to prevent functions from being marked as DLL imports
+target_compile_definitions(idevice_cpp PUBLIC LIBPLIST_STATIC)
+endif()
 
 target_include_directories(idevice_cpp PUBLIC
     ${IDEVICE_CPP_INCLUDE_DIR}
@@ -201,21 +201,6 @@ pkg_check_modules(AVCODEC REQUIRED IMPORTED_TARGET libavcodec)
 pkg_check_modules(AVUTIL REQUIRED IMPORTED_TARGET libavutil)
 pkg_check_modules(SWSCALE REQUIRED IMPORTED_TARGET libswscale)
 
-# if(ENABLE_RECOVERY_DEVICE_SUPPORT)
-#     find_library(IRECOVERY_LIBRARY 
-#         NAMES irecovery-1.0
-#         PATHS ${CUSTOM_LIB_PATH}
-#         NO_DEFAULT_PATH
-#     )
-#     if(IRECOVERY_LIBRARY)
-#         message(STATUS "Building with recovery device support enabled")
-#     else()
-#         message(WARNING "libirecovery not found. Recovery device support will be disabled. This is to be expected if you are installing from Arch AUR.")
-#         set(ENABLE_RECOVERY_DEVICE_SUPPORT OFF)
-#     endif()
-# else()
-#     message(STATUS "Recovery device support disabled")
-# endif()
 
 # Add libssh for SSH connections
 pkg_check_modules(SSH REQUIRED IMPORTED_TARGET libssh)
@@ -252,23 +237,14 @@ elseif (WIN32)
         src/core/services/dnssd/dnssd_service.h
     )
 
-    file(GLOB WINDOWS_PLATFORM_SOURCES src/platform/windows/*.cpp src/platform/windows/*.h)
+    file(GLOB WINDOWS_PLATFORM_SOURCES src/platform/windows/*.cpp src/platform/windows/*.h src/platform/windows/widgets/*.cpp src/platform/windows/widgets/*.h)
     list(APPEND PROJECT_SOURCES ${WINDOWS_PLATFORM_SOURCES})
+    list(APPEND PROJECT_SOURCES
+        resources.win.qrc)
 else()
     list(APPEND PROJECT_SOURCES
         src/core/services/avahi/avahi_service.cpp
         src/core/services/avahi/avahi_service.h
-    )
-endif()
-
-if (NOT ENABLE_RECOVERY_DEVICE_SUPPORT)
-    list(REMOVE_ITEM PROJECT_SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/recoverydeviceinfowidget.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/recoverydeviceinfowidget.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/core/helpers/parse_recovery_mode.cpp
-        src/recoverydeviceinfowidget.cpp
-        src/recoverydeviceinfowidget.h
-        src/core/helpers/parse_recovery_mode.cpp
     )
 endif()
 
@@ -323,14 +299,8 @@ target_link_libraries(iDescriptor PRIVATE
     Qt6::Positioning
     Qt6::QuickWidgets
     Qt6::QuickControls2
-    # ${IMOBILEDEVICE_LIBRARY}
-    # ${IMOBILEDEVICE_GLUE_LIBRARY}
-    # ${TATSU_LIBRARY}
-    # ${SSL_LIBRARY}
-    # ${CRYPTO_LIBRARY}
     PkgConfig::SSH
     ${SSH_LIBRARY}
-    # ${USBMUXD_LIBRARY}
     PkgConfig::PUGIXML
     # PkgConfig::USB
     # PkgConfig::PLIST
@@ -349,11 +319,6 @@ target_link_libraries(iDescriptor PRIVATE
     ${IDEVICE_IMPLEMENTATION_LIBS}
     SQLite::SQLite3
 )
-
-# # Conditionally link libirecovery
-# if(ENABLE_RECOVERY_DEVICE_SUPPORT)
-#     target_link_libraries(iDescriptor PRIVATE ${IRECOVERY_LIBRARY})
-# endif()
 
 target_include_directories(iDescriptor PRIVATE
     # Put idevice-rs includes FIRST
@@ -376,7 +341,7 @@ if(APPLE)
     ${CORE_SERVICES_FRAMEWORK})
     message(STATUS "Using macOS Bonjour framework for network service discovery")
 elseif (WIN32)
-    target_link_libraries(iDescriptor PRIVATE PkgConfig::LIBARCHIVE)
+    target_link_libraries(iDescriptor PRIVATE PkgConfig::LIBARCHIVE dwmapi ntdll)
     find_path(DNSSD_INCLUDE_DIR dns_sd.h HINTS ${BONJOUR_SDK}/Include ) 
     # $<$<COMPILE_LANGUAGE:CXX> fixes winres compiler errors
     target_include_directories(iDescriptor PRIVATE 
@@ -406,11 +371,6 @@ target_compile_definitions(iDescriptor PRIVATE
     SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
-# Add compile definition for recovery device support
-if(ENABLE_RECOVERY_DEVICE_SUPPORT)
-    target_compile_definitions(iDescriptor PRIVATE ENABLE_RECOVERY_DEVICE_SUPPORT)
-endif()
-
 if(PACKAGE_MANAGER_MANAGED)
     target_compile_definitions(iDescriptor PRIVATE PACKAGE_MANAGER_MANAGED)
     message(STATUS "Building as package manager managed version, updates will be handled by the package manager")
@@ -435,14 +395,8 @@ set_target_properties(iDescriptor PROPERTIES
     WIN32_EXECUTABLE TRUE
     BUILD_WITH_INSTALL_RPATH TRUE
 )
+
 if (UNIX AND NOT APPLE)
-    # Required on Linux to find libirecovery-1.0.so.5 at runtime
-    if (ENABLE_RECOVERY_DEVICE_SUPPORT)
-    set_target_properties(iDescriptor PROPERTIES
-        # Control library search order - system libs first, then /usr/local/lib
-        INSTALL_RPATH "/usr/lib/x86_64-linux-gnu:/usr/lib:/usr/local/lib:$ORIGIN"
-    )
-    endif()
 # Add install rules for the project
 # include(GNUInstallDirs)
 

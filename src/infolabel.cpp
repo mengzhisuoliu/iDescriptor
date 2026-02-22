@@ -29,9 +29,7 @@ InfoLabel::InfoLabel(const QString &text, const QString &textToCopy,
       m_textToCopy(!textToCopy.isEmpty() ? textToCopy : text)
 {
     setCursor(Qt::PointingHandCursor);
-    setStyleSheet("QLabel:hover { background-color: rgba(255, 255, 255, 0.1); "
-                  "border-radius: 2px; }");
-
+    setStyleSheet(m_style);
     m_restoreTimer = new QTimer(this);
     m_restoreTimer->setSingleShot(true);
     connect(m_restoreTimer, &QTimer::timeout, this,
@@ -49,39 +47,26 @@ void InfoLabel::mousePressEvent(QMouseEvent *event)
         // prevent layout shifts
         setMinimumWidth(originalWidth);
         setText("Copied!");
+#ifdef WIN32
+        setStyleSheet(QStringLiteral(
+            "QLabel { color: #4CAF50; font-weight: bold; font-size: 14px; }"
+            "QLabel:hover { background-color: rgba(255, 255, 255, 0.1); "
+            "border-radius: 2px; }"));
+#else
         setStyleSheet("QLabel { color: #4CAF50; font-weight: bold; } "
                       "QLabel:hover { background-color: rgba(255, 255, 255, "
                       "0.1); border-radius: 2px; }");
-
+#endif
         m_restoreTimer->start(1000); // Show "Copied!" for 1 second
     }
     QLabel::mousePressEvent(event);
-}
-
-void InfoLabel::enterEvent(QEnterEvent *event)
-{
-    if (!m_restoreTimer->isActive()) {
-        setStyleSheet("QLabel:hover { background-color: rgba(255, 255, 255, "
-                      "0.1); border-radius: 2px; }");
-    }
-    QLabel::enterEvent(event);
-}
-
-void InfoLabel::leaveEvent(QEvent *event)
-{
-    if (!m_restoreTimer->isActive()) {
-        setStyleSheet("QLabel:hover { background-color: rgba(255, 255, 255, "
-                      "0.1); border-radius: 2px; }");
-    }
-    QLabel::leaveEvent(event);
 }
 
 void InfoLabel::restoreOriginalText()
 {
     setText(m_originalText);
     setMinimumWidth(0);
-    setStyleSheet("QLabel:hover { background-color: rgba(255, 255, 255, 0.1); "
-                  "border-radius: 2px; }");
+    setStyleSheet(m_style);
 }
 
 void InfoLabel::setOriginalText(const QString &text) { m_originalText = text; }

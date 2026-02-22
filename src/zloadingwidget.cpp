@@ -27,34 +27,36 @@ ZLoadingWidget::ZLoadingWidget(bool start, QWidget *parent)
 
 void ZLoadingWidget::setupContentWidget(QWidget *contentWidget)
 {
-    addWidget(contentWidget); // Content widget at index 1
+    m_contentWidget = contentWidget;
+    addWidget(m_contentWidget);
 }
 
 void ZLoadingWidget::setupContentWidget(QLayout *contentLayout)
 {
-    QWidget *contentWidget = new QWidget();
-    contentWidget->setLayout(contentLayout);
+    m_contentWidget = new QWidget();
+    m_contentWidget->setLayout(contentLayout);
 
-    addWidget(contentWidget); // Content widget at index 1
+    addWidget(m_contentWidget);
 }
 
 void ZLoadingWidget::setupErrorWidget(QWidget *errorWidget)
 {
-    addWidget(errorWidget); // Error widget at index 2
+    m_errorWidget = errorWidget;
+    addWidget(m_errorWidget);
 }
 
 void ZLoadingWidget::setupErrorWidget(QLayout *errorLayout)
 {
-    QWidget *errorWidget = new QWidget();
-    errorWidget->setLayout(errorLayout);
+    m_errorWidget = new QWidget();
+    m_errorWidget->setLayout(errorLayout);
 
-    addWidget(errorWidget); // Error widget at index 2
+    addWidget(m_errorWidget);
 }
 
 void ZLoadingWidget::setupErrorWidget(const QString &errorMessage)
 {
-    QWidget *errorWidget = new QWidget();
-    QVBoxLayout *errorLayout = new QVBoxLayout(errorWidget);
+    m_errorWidget = new QWidget();
+    QVBoxLayout *errorLayout = new QVBoxLayout(m_errorWidget);
     errorLayout->setAlignment(Qt::AlignCenter);
 
     QLabel *errorLabel = new QLabel(errorMessage);
@@ -62,7 +64,7 @@ void ZLoadingWidget::setupErrorWidget(const QString &errorMessage)
     errorLabel->setStyleSheet("QLabel { color: red; }");
     errorLayout->addWidget(errorLabel);
 
-    addWidget(errorWidget); // Error widget at index 2
+    addWidget(m_errorWidget);
 }
 
 void ZLoadingWidget::setupAditionalWidget(QWidget *customWidget)
@@ -92,8 +94,9 @@ void ZLoadingWidget::stop(bool showContent)
 void ZLoadingWidget::showError()
 {
     m_loadingIndicator->stop();
-    // FIXME: dont use hardcoded index
-    setCurrentIndex(2);
+    if (m_errorWidget) {
+        setCurrentWidget(m_errorWidget);
+    }
 }
 
 void ZLoadingWidget::showLoading()

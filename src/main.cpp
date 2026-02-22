@@ -23,14 +23,15 @@
 #include <QApplication>
 #include <QDebug>
 #include <QDir>
+#include <QFile>
 #include <QMessageBox>
 #include <QStyleFactory>
 #include <QtGlobal>
 #include <stdlib.h>
-
 #ifdef WIN32
-#include "platform/windows/check_deps.h"
+#include "platform/windows/win_common.h"
 #endif
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
@@ -45,6 +46,15 @@ int main(int argc, char *argv[])
     //                              " "their default values.");
     // }
 #ifdef WIN32
+    QFile styleFile(detectDarkModeWindows() ? ":/resources/win.dark.qcss"
+                                            : ":/resources/win.light.qcss");
+    if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
+        const QString style = QString::fromUtf8(styleFile.readAll())
+                                  .arg(COLOR_ACCENT_BLUE.name());
+        qDebug() << "Loaded Windows style sheet successfully.";
+        a.setStyleSheet(style);
+    }
+
     QString appPath = QCoreApplication::applicationDirPath();
     QString gstPluginPath =
         QDir::toNativeSeparators(appPath + "/gstreamer-1.0");

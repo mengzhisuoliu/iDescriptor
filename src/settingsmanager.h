@@ -28,6 +28,10 @@
 #include <QStringList>
 #include <functional>
 
+#ifdef WIN32
+#include "platform/windows/win_common.h"
+#endif
+
 class SettingsManager : public QObject
 {
     Q_OBJECT
@@ -127,6 +131,10 @@ public:
     QMap<QString, QString> getAllIdeviceDefaultPairingFiles() const;
 #endif
 
+#ifdef WIN32
+    void setWinBackdropType(WIN_BACKDROP type);
+    WIN_BACKDROP winBackdropType() const;
+#endif
 signals:
     void favoritePlacesChanged();
     void recentLocationsChanged();

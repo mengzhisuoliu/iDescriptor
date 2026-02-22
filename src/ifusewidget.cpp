@@ -30,7 +30,7 @@
 #include <QStatusBar>
 #include <QTimer>
 #ifdef WIN32
-#include "platform/windows/check_deps.h"
+#include "platform/windows/win_common.h"
 #endif
 
 iFuseWidget::iFuseWidget(iDescriptorDevice *device, QWidget *parent)

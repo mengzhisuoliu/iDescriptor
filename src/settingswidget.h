@@ -77,6 +77,10 @@ private:
     QCheckBox *m_showV4L2CheckBox;
 #endif
 
+#ifdef WIN32
+    QComboBox *m_backDropTypeCombo;
+#endif
+
     // Buttons
     QPushButton *m_checkUpdatesButton;
     QPushButton *m_resetButton;

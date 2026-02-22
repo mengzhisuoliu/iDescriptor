@@ -322,7 +322,7 @@ void InstalledAppsWidget::fetchInstalledApps()
                             plist_get_string_val(bundle_id, &bundle_id_str);
                             if (bundle_id_str) {
                                 appData["bundleId"] = QString(bundle_id_str);
-                                free(bundle_id_str);
+                                plist_mem_free(bundle_id_str);
                             }
                         }
 
@@ -337,7 +337,7 @@ void InstalledAppsWidget::fetchInstalledApps()
                             if (display_name_str) {
                                 appData["displayName"] =
                                     QString(display_name_str);
-                                free(display_name_str);
+                                plist_mem_free(display_name_str);
                             }
                         }
 
@@ -350,7 +350,7 @@ void InstalledAppsWidget::fetchInstalledApps()
                             plist_get_string_val(version, &version_str);
                             if (version_str) {
                                 appData["version"] = QString(version_str);
-                                free(version_str);
+                                plist_mem_free(version_str);
                             }
                         }
 

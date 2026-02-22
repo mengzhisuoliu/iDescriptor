@@ -21,6 +21,7 @@
 #define INFOLABEL_H
 
 #include <QLabel>
+#include <QString>
 #include <QTimer>
 
 class InfoLabel : public QLabel
@@ -37,8 +38,6 @@ public:
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
-    void enterEvent(QEnterEvent *event) override;
-    void leaveEvent(QEvent *event) override;
 
 private slots:
     void restoreOriginalText();
@@ -47,6 +46,18 @@ private:
     QString m_originalText;
     QString m_textToCopy;
     QTimer *m_restoreTimer;
+    QString m_style =
+#ifdef WIN32
+        QStringLiteral(
+            "QLabel:hover { background-color: rgba(255, 255, 255, 0.1); "
+            "border-radius: 2px; }"
+            "QLabel { "
+            "font-size: 14px;}");
+#else
+        QStringLiteral(
+            "QLabel:hover { background-color: rgba(255, 255, 255, 0.1); "
+            "border-radius: 2px; }");
+#endif
 };
 
 #endif // INFOLABEL_H

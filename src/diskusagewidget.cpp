@@ -143,22 +143,25 @@ void DiskUsageWidget::setupUI()
     // Set colors
     m_systemBar->setStyleSheet(
         "QWidget#systemBar { background-color: #a1384d; border: 1px solid"
-        "#e64a5b; padding: 0; margin: 0; border-top-left-radius: 3px; "
+        "#e64a5b; padding: 0; margin: 0; border-radius:0px; "
+        "border-top-left-radius: 3px; "
         "border-bottom-left-radius: 3px; }");
     m_appsBar->setStyleSheet(
         "QWidget#appsBar { background-color: #4f869f; border: 1px solid "
-        "#63b4da; padding: 0; margin: 0; }");
+        "#63b4da;  border-radius:0px; padding: 0; margin: 0; }");
     m_mediaBar->setStyleSheet("QWidget#mediaBar { background-color: #2ECC71; "
                               "border: none; padding: 0; margin: 0; }");
     m_galleryBar->setStyleSheet(
         "QWidget#galleryBar { background-color: #9b59b6; border: 1px solid "
-        "#8e44ad; padding: 0; margin: 0; }");
+        "#8e44ad;  border-radius:0px; padding: 0; margin: 0; }");
     m_othersBar->setStyleSheet(
         "QWidget#othersBar { background-color: #a28729; border: 1px solid "
-        "#c4a32d; padding: 0; margin: 0; }");
+        "#c4a32d;  border-radius:0px; padding: 0; margin: 0; }");
     m_freeBar->setStyleSheet(
-        "QWidget#freeBar { background-color: #474747; border: 1px solid "
-        "#4f4f4f; padding: 0; margin: 0; border-top-right-radius: 3px; "
+        "QWidget#freeBar { background-color: rgba(255, 255, 255, 10); border: "
+        "1px solid "
+        "#4f4f4f4f; padding: 0; margin: 0; border-radius:0px; "
+        "border-top-right-radius: 3px; "
         "border-bottom-right-radius: 3px; }");
 
     // remove padding margin from layout

@@ -37,14 +37,23 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#ifdef WIN32
+#include "platform/windows/win_common.h"
+#include <QOperatingSystemVersion>
+#endif
+
 SettingsWidget::SettingsWidget(QWidget *parent) : QDialog{parent}
 {
+#ifdef WIN32
+    m_backDropTypeCombo = nullptr;
+#endif
     setupUI();
     loadSettings();
     connectSignals();
     // due to scrollbar add 10px on windows
 #ifdef WIN32
     resize(sizeHint().width() + 10, sizeHint().height());
+    setupWinWindow(this);
 #endif
 }
 
@@ -113,7 +122,26 @@ void SettingsWidget::setupUI()
 
     themeLayout->addWidget(m_themeCombo);
     themeLayout->addStretch();
-    generalLayout->addLayout(themeLayout);
+
+#ifdef WIN32
+    QOperatingSystemVersion osVersion = QOperatingSystemVersion::current();
+    if (osVersion >= QOperatingSystemVersion::Windows11) {
+        auto *backDropTypeLayout = new QHBoxLayout();
+        backDropTypeLayout->addWidget(new QLabel("Backdrop Type:"));
+        m_backDropTypeCombo = new QComboBox();
+
+        // "Auto" => no userData => means "no override"
+        m_backDropTypeCombo->addItem("Auto");
+        m_backDropTypeCombo->addItem("Mica", static_cast<int>(MICA));
+        m_backDropTypeCombo->addItem("Mica Alt", static_cast<int>(MICA_ALT));
+        m_backDropTypeCombo->addItem("Acrylic", static_cast<int>(ACRYLIC));
+
+        backDropTypeLayout->addWidget(m_backDropTypeCombo);
+        backDropTypeLayout->addStretch();
+
+        generalLayout->addLayout(backDropTypeLayout);
+    }
+#endif
 
     scrollLayout->addWidget(generalGroup);
 
@@ -190,7 +218,6 @@ void SettingsWidget::setupUI()
 
     m_noHoldCheckbox = new QCheckBox("Allow New Connections to Take Over");
     airplayLayout->addWidget(m_noHoldCheckbox);
-
 
 #ifdef __linux__
     m_showV4L2CheckBox = new QCheckBox("Show V4L2 Button on AirPlay Widget");
@@ -302,6 +329,18 @@ void SettingsWidget::loadSettings()
 #ifdef __linux__
     m_showV4L2CheckBox->setChecked(sm->showV4L2());
 #endif
+
+#ifdef WIN32
+    if (m_backDropTypeCombo) {
+        const int typeValue = static_cast<int>(sm->winBackdropType());
+        const int index = m_backDropTypeCombo->findData(typeValue);
+        if (index != -1) {
+            m_backDropTypeCombo->setCurrentIndex(index);
+        } else {
+            m_backDropTypeCombo->setCurrentIndex(0);
+        }
+    }
+#endif
 }
 
 void SettingsWidget::connectSignals()
@@ -356,13 +395,20 @@ void SettingsWidget::connectSignals()
 
     connect(m_defaultJailbrokenRootPassword, &QLineEdit::textChanged, this,
             &SettingsWidget::onSettingChanged);
-    connect(m_fpsComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            &SettingsWidget::onSettingChanged);
+    connect(m_fpsComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &SettingsWidget::onSettingChanged);
     connect(m_noHoldCheckbox, &QCheckBox::toggled, this,
             &SettingsWidget::onSettingChanged);
 #ifdef __linux__
     connect(m_showV4L2CheckBox, &QCheckBox::toggled, this,
             &SettingsWidget::onSettingChanged);
+#endif
+#ifdef WIN32
+    if (m_backDropTypeCombo) {
+        connect(m_backDropTypeCombo,
+                QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+                &SettingsWidget::onSettingChanged);
+    }
 #endif
 }
 
@@ -457,6 +503,18 @@ void SettingsWidget::saveSettings()
     sm->setShowV4L2(m_showV4L2CheckBox->isChecked());
 #endif
     m_applyButton->setEnabled(false);
+
+#ifdef WIN32
+    if (m_backDropTypeCombo) {
+        const QVariant data = m_backDropTypeCombo->currentData();
+        if (!data.isValid()) {
+            // Mica
+            sm->setWinBackdropType(static_cast<WIN_BACKDROP>(2));
+        } else {
+            sm->setWinBackdropType(static_cast<WIN_BACKDROP>(data.toInt()));
+        }
+    }
+#endif
 }
 
 void SettingsWidget::resetToDefaults()

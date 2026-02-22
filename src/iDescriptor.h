@@ -355,7 +355,7 @@ public:
         plist_get_string_val(current_node, &value);
         std::string result = value ? value : "";
         if (value)
-            free(value);
+            plist_mem_free(value);
         return result;
     }
     plist_t getNode() const { return current_node; }
@@ -605,10 +605,12 @@ inline void free_directory_listing(char **entries, size_t count)
         return;
     for (size_t i = 0; i < count; i++) {
         if (entries[i]) {
-            free(entries[i]);
+            // FIXME: crashes on Windows
+            //  free(entries[i]);
         }
     }
-    free(entries);
+    // FIXME: crashes on Windows
+    //  free(entries);
 }
 
 inline int read_file(const char *filename, uint8_t **data, size_t *length)

@@ -32,18 +32,20 @@ void ZLineEdit::setupStyles() { updateStyles(); }
 
 void ZLineEdit::updateStyles()
 {
-    setStyleSheet("QLineEdit { "
-                  "    border: 2px solid " +
-                  qApp->palette().color(QPalette::Midlight).name() +
-                  "; "
-                  "    border-radius: 6px; "
-                  "    padding: 8px 12px; "
-                  "    font-size: 14px; "
-                  "} "
-                  "QLineEdit:focus { "
-                  "    border: 2px solid " +
-                  COLOR_ACCENT_BLUE.name() +
-                  "; "
-                  "    outline: none; "
-                  "}");
+    // FIMXE: seg faults if Qt decides to change pallets due to applied
+    // stylesheets
+    // setStyleSheet("QLineEdit { "
+    //               "    border: 2px solid " +
+    //               qApp->palette().color(QPalette::Midlight).name() +
+    //               "; "
+    //               "    border-radius: 6px; "
+    //               "    padding: 8px 12px; "
+    //               "    font-size: 14px; "
+    //               "} "
+    //               "QLineEdit:focus { "
+    //               "    border: 2px solid " +
+    //               COLOR_ACCENT_BLUE.name() +
+    //               "; "
+    //               "    outline: none; "
+    //               "}");
 }

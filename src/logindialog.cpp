@@ -30,11 +30,19 @@
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrent>
 
+#ifdef WIN32
+#include "platform/windows/win_common.h"
+#endif
+
 LoginDialog::LoginDialog(QWidget *parent) : QDialog(parent)
 {
     setWindowTitle("Login to App Store - iDescriptor");
     setModal(true);
     setFixedWidth(400);
+
+#ifdef WIN32
+    setupWinWindow(this);
+#endif
 
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setSpacing(15);
@@ -47,8 +55,11 @@ LoginDialog::LoginDialog(QWidget *parent) : QDialog(parent)
 
     m_emailEdit = new QLineEdit();
     m_emailEdit->setPlaceholderText("Enter your email");
+#ifndef WIN32
     m_emailEdit->setStyleSheet("padding: 8px; border: 1px solid #ddd; "
                                "border-radius: 4px; font-size: 14px;");
+#endif
+
     layout->addWidget(m_emailEdit);
 
     // Password
@@ -59,33 +70,35 @@ LoginDialog::LoginDialog(QWidget *parent) : QDialog(parent)
     m_passwordEdit = new QLineEdit();
     m_passwordEdit->setPlaceholderText("Enter your password");
     m_passwordEdit->setEchoMode(QLineEdit::Password);
+#ifndef WIN32
     m_passwordEdit->setStyleSheet("padding: 8px; border: 1px solid #ddd; "
                                   "border-radius: 4px; font-size: 14px;");
+#endif
     layout->addWidget(m_passwordEdit);
 
     // Description
-    QLabel *descriptionLabel =
-        new QLabel("Don't worry, your credentials won't be "
-                   "stored or shared anywhere. This App is open-source.");
+    QLabel *descriptionLabel = new QLabel(
+        "You shouldn't be using your main account here and don't worry, "
+        "your credentials won't be "
+        "stored or shared anywhere. This App is open-source.");
     descriptionLabel->setStyleSheet("font-size: 10px; font-weight: thin;");
     descriptionLabel->setAlignment(Qt::AlignLeft);
-    descriptionLabel->setWordWrap(true); // Add this line
+    descriptionLabel->setWordWrap(true);
     layout->addWidget(descriptionLabel);
 
-    // --- Buttons and Indicator ---
-    // Create a container widget for the sign-in button and the indicator
     QWidget *signInContainer = new QWidget(this);
     m_signInStackedLayout = new QStackedLayout(signInContainer);
     m_signInStackedLayout->setContentsMargins(0, 0, 0, 0);
 
     // Create the actual "Sign In" button
     m_signInButton = new QPushButton("Sign In");
+#ifndef WIN32
     m_signInButton->setStyleSheet(
         "QPushButton { padding: 8px 16px; font-size: 14px; border-radius: 4px; "
         "background-color: #007AFF; color: white; border: none; min-width: "
         "80px; }"
         "QPushButton:hover { background-color: #0056CC; }");
-
+#endif
     // Create the indicator
     QWidget *indicatorWidget = new QWidget();
     QVBoxLayout *indicatorLayout = new QVBoxLayout(indicatorWidget);
@@ -103,15 +116,15 @@ LoginDialog::LoginDialog(QWidget *parent) : QDialog(parent)
     // Ensure the container has the same size as the button
     signInContainer->setFixedSize(m_signInButton->sizeHint());
 
-    // Create the "Cancel" button
     m_cancelButton = new QPushButton("Cancel");
-    // add disabled style to cancel button
+#ifndef WIN32
     m_cancelButton->setStyleSheet(
         "QPushButton { padding: 8px 16px; font-size: 14px; border-radius: 4px; "
         "background-color: #f0f0f0; color: #333; border: 1px solid #ddd; "
         "min-width: 80px; }"
         "QPushButton:disabled { background-color: #eee; color: #aaa; border: "
         "1px solid #ddd; }");
+#endif
 
     // Layout for the buttons
     QHBoxLayout *buttonLayout = new QHBoxLayout();

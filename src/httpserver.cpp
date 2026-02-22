@@ -239,12 +239,12 @@ QString HttpServer::generateJsonManifest() const
 
 QString HttpServer::getLocalIP() const
 {
-    foreach (const QNetworkInterface &interface,
+    foreach (const QNetworkInterface &netIf,
              QNetworkInterface::allInterfaces()) {
-        if (interface.flags().testFlag(QNetworkInterface::IsUp) &&
-            !interface.flags().testFlag(QNetworkInterface::IsLoopBack)) {
+        if (netIf.flags().testFlag(QNetworkInterface::IsUp) &&
+            !netIf.flags().testFlag(QNetworkInterface::IsLoopBack)) {
             foreach (const QNetworkAddressEntry &entry,
-                     interface.addressEntries()) {
+                     netIf.addressEntries()) {
                 if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol) {
                     return entry.ip().toString();
                 }

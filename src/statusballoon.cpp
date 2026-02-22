@@ -26,6 +26,10 @@
 #include <QUuid>
 #include <qpainterpath.h>
 
+#ifdef WIN32
+#include "platform/windows/win_common.h"
+#endif
+
 Process::Process(QWidget *parent) : QWidget(parent) {}
 
 StatusBalloon *StatusBalloon::sharedInstance()
@@ -39,6 +43,10 @@ StatusBalloon::StatusBalloon(QWidget *parent)
 {
     setMinimumHeight(300);
     setMinimumWidth(300);
+#ifdef WIN32
+    // FIXME: doesnt work the second time we call it
+    enableAcrylic((HWND)winId());
+#endif
     // Create main layout
     m_mainLayout = new QVBoxLayout();
     m_mainLayout->setSpacing(8);
@@ -77,10 +85,11 @@ void StatusBalloon::connectExportThreadSignals()
     connect(exportManager->m_exportThread,
             &ExportManagerThread::fileTransferProgress, this,
             &StatusBalloon::onFileTransferProgress);
-    QTimer::singleShot(0, this, [this]() {
-        // test
-        startExportProcess("Test Export Process", 10, "/path/to/destination");
-    });
+    // QTimer::singleShot(0, this, [this]() {
+    //     // test
+    //     startExportProcess("Test Export Process", 10,
+    //     "/path/to/destination");
+    // });
 }
 
 void StatusBalloon::onFileTransferProgress(const QUuid &processId,

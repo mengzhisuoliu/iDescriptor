@@ -25,7 +25,6 @@
 #include "iDescriptor.h"
 #include "infolabel.h"
 #include "privateinfolabel.h"
-// #include "toolboxwidget.h"
 #include <QApplication>
 #include <QDebug>
 #include <QGraphicsDropShadowEffect>
@@ -146,13 +145,14 @@ DeviceInfoWidget::DeviceInfoWidget(iDescriptorDevice *device, QWidget *parent)
     m_chargingStatusLabel =
         new QLabel(device->deviceInfo.batteryInfo.isCharging ? "Charging"
                                                              : "Not Charging");
-
-    m_chargingStatusLabel->setStyleSheet(
-        device->deviceInfo.batteryInfo.isCharging
-            ? QString("color: %1;").arg(COLOR_GREEN.name())
-            : QString("color: %1;")
-                  .arg(qApp->palette().color(QPalette::WindowText).name()));
-
+    m_chargingStatusLabel->setObjectName("ChargingStatusLabel");
+    m_chargingStatusLabel->setStyleSheet(mergeStyles(
+        m_chargingStatusLabel,
+        (device->deviceInfo.batteryInfo.isCharging
+             ? QString("QLabel#ChargingStatusLabel { color: %1; }")
+                   .arg(COLOR_GREEN.name())
+             : QString("QLabel#ChargingStatusLabel { color: %1; }")
+                   .arg(qApp->palette().color(QPalette::WindowText).name()))));
     // Create the layout without a parent widget
     QHBoxLayout *chargingLayout = new QHBoxLayout();
     chargingLayout->setContentsMargins(0, 0, 0, 0);
@@ -314,7 +314,11 @@ DeviceInfoWidget::DeviceInfoWidget(iDescriptorDevice *device, QWidget *parent)
     for (int i = 0; i < numRows; ++i) {
         // Left column item
         QLabel *keyLabelLeft = new QLabel(infoItems[i].first);
+#ifndef WIN32
         keyLabelLeft->setStyleSheet("font-weight: bold;");
+#else
+        keyLabelLeft->setStyleSheet("font-size: 15px; font-weight: 500;");
+#endif
         gridLayout->addWidget(keyLabelLeft, i, 0);
         gridLayout->addWidget(infoItems[i].second, i, 1);
 
@@ -322,7 +326,11 @@ DeviceInfoWidget::DeviceInfoWidget(iDescriptorDevice *device, QWidget *parent)
         int rightIndex = i + numRows;
         if (rightIndex < infoItems.size()) {
             QLabel *keyLabelRight = new QLabel(infoItems[rightIndex].first);
+#ifndef WIN32
             keyLabelRight->setStyleSheet("font-weight: bold;");
+#else
+            keyLabelRight->setStyleSheet("font-size: 15px; font-weight: 500;");
+#endif
             gridLayout->addWidget(keyLabelRight, i, 2);
             gridLayout->addWidget(infoItems[rightIndex].second, i, 3);
         }
@@ -348,8 +356,6 @@ DeviceInfoWidget::DeviceInfoWidget(iDescriptorDevice *device, QWidget *parent)
     rightSideLayout->addWidget(new DiskUsageWidget(device, this));
 
     rightSideLayout->addStretch();
-    // // TODO: layout shift cause ?
-    // // rightSideLayout->setAlignment(Qt::AlignCenter);
 
     mainLayout->addLayout(rightSideLayout);
     mainLayout->addStretch();

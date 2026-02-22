@@ -87,18 +87,23 @@ void AppsWidget::setupUI()
 
     QWidget *headerWidget = new QWidget();
     headerWidget->setFixedHeight(60);
-    headerWidget->setStyleSheet("border-bottom: 1px solid #363d32;");
+    headerWidget->setStyleSheet(
+        "border-bottom: 1px solid #363d32; border-radius: 0px;");
 
     QHBoxLayout *headerLayout = new QHBoxLayout(headerWidget);
     headerLayout->setContentsMargins(20, 10, 20, 10);
 
     // Create status label first
     m_statusLabel = new QLabel("Not signed in");
-    m_statusLabel->setStyleSheet("margin-right: 20px;");
+    m_statusLabel->setStyleSheet("margin-right: 20px; border: none;");
 
     m_loginButton = new QPushButton();
-    m_searchEdit = new ZLineEdit();
+    m_searchEdit = new QLineEdit();
+#ifndef WIN32
     m_searchEdit->setMaximumWidth(350);
+#else
+    m_searchEdit->setMaximumWidth(200);
+#endif
 
     // --- Status and Login Button ---
     m_manager = AppStoreManager::sharedInstance();
@@ -214,7 +219,7 @@ void AppsWidget::handleInit()
     }
     /*
         FIXME: ipatoolinitialze still uses the secure backends
-        when if the user rejects it, the moment he/she tries to sign in
+        even if the user rejects it, the moment he/she tries to sign in
         prompt(keychain or secret-service whatever the backend is) will be seen
         again
     */
@@ -262,10 +267,12 @@ void AppsWidget::onAppStoreInitialized(const QJsonObject &accountInfo)
     }
 
     m_loginButton->setText(m_isLoggedIn ? "Sign Out" : "Sign In");
+#ifndef WIN32
     m_loginButton->setStyleSheet(
         "background-color: #007AFF; color: white; border: none; "
         "border-radius: "
         "4px; padding: 8px 16px; font-size: 14px;");
+#endif
     m_searchEdit->setPlaceholderText(m_isLoggedIn ? "Search for apps..."
                                                   : "Sign in to search");
 }
@@ -638,8 +645,9 @@ void AppsWidget::createAppCard(
         ZLabel *installLabel = new ZLabel("Install");
         installLabel->setAlignment(Qt::AlignCenter);
         installLabel->setStyleSheet(
-            "font-size: 12px; color: #007AFF; font-weight: "
-            "bold; background-color: transparent;");
+            QString("font-size: 12px; color: %1; font-weight: "
+                    "bold; background-color: transparent;")
+                .arg(COLOR_ACCENT_BLUE.name()));
         installLabel->setCursor(Qt::PointingHandCursor);
         installLabel->setFixedHeight(30);
 

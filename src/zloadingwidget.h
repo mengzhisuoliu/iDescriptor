@@ -23,6 +23,8 @@ public:
 
 private:
     class QProcessIndicator *m_loadingIndicator = nullptr;
+    QWidget *m_contentWidget = nullptr;
+    QWidget *m_errorWidget = nullptr;
 signals:
 };
 

@@ -98,10 +98,10 @@ ServiceManager::safeAfcFileSeek(const iDescriptorDevice *device,
                                 AfcFileHandle *handle, int64_t offset,
                                 int whence)
 {
-    off_t newPos;
     return executeAfcOperation(
         device,
-        [offset, whence, &newPos](AfcFileHandle *handle) {
+        [offset, whence](AfcFileHandle *handle) {
+            int64_t newPos;
             return afc_file_seek(handle, offset, whence, &newPos);
         },
         handle);
@@ -109,7 +109,7 @@ ServiceManager::safeAfcFileSeek(const iDescriptorDevice *device,
 
 IdeviceFfiError *
 ServiceManager::safeAfcFileTell(const iDescriptorDevice *device,
-                                AfcFileHandle *handle, off_t *position)
+                                AfcFileHandle *handle, int64_t *position)
 {
     return executeAfcOperation(
         device,

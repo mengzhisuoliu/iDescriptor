@@ -78,8 +78,8 @@ void WelcomeWidget::setupUI()
     m_mainLayout->addSpacing(10);
 
     // GitHub link
-    m_githubLabel =
-        createStyledLabel("Found an issue? Report it on GitHub", 12, false);
+    m_githubLabel = createStyledLabel("Found an issue? Report it on GitHub", 12,
+                                      false, COLOR_HYPERLINK);
     m_githubLabel->setWordWrap(false);
     m_githubLabel->setMaximumWidth(m_imageLabel->sizeHint().width());
     m_githubLabel->setCursor(Qt::PointingHandCursor);
@@ -88,7 +88,7 @@ void WelcomeWidget::setupUI()
 
     QPalette githubPalette = m_githubLabel->palette();
     githubPalette.setColor(QPalette::WindowText,
-                           QColor(0, 122, 255)); // Apple blue
+                           COLOR_HYPERLINK); // Apple blue
     m_githubLabel->setPalette(githubPalette);
 
     m_mainLayout->addWidget(m_githubLabel, 0, Qt::AlignCenter);
@@ -102,11 +102,13 @@ void WelcomeWidget::setupUI()
     m_mainLayout->addStretch(1);
 }
 
+// FIXME: color param is only respected in Windows build
 ZLabel *WelcomeWidget::createStyledLabel(const QString &text, int fontSize,
-                                         bool isBold)
+                                         bool isBold, QColor color)
 {
     ZLabel *label = new ZLabel(text);
 
+#ifndef WIN32
     QFont font = label->font();
     if (fontSize > 0) {
         font.setPointSize(fontSize);
@@ -117,6 +119,20 @@ ZLabel *WelcomeWidget::createStyledLabel(const QString &text, int fontSize,
 
     label->setFont(font);
     label->setWordWrap(true);
+#else
+    label->setStyleSheet(mergeStyles(
+        label,
+        QString("QLabel {"
+                "  font-size: %1px;"
+                "  font-weight: %2;"
+                "%3"
+                "}")
+            .arg(fontSize > 0 ? QString::number(fontSize) : "inherit")
+            .arg(isBold ? "bold" : "normal")
+            //    FIXME: handle this better
+            .arg(color != Qt::black ? QString("color: %1;").arg(color.name())
+                                    : "")));
+#endif
 
     return label;
 }

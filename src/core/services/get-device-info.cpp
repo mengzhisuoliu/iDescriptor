@@ -126,6 +126,7 @@ void get_device_info_xml(const char *udid, LockdowndClientHandle *client,
 
     if (xml_string) {
         infoXml.load_string(xml_string);
-        free(xml_string);
+        // FIXME: crashes on Windows
+        // free(xml_string);
     }
 }

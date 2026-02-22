@@ -476,3 +476,17 @@ QMap<QString, QString> SettingsManager::getAllIdeviceDefaultPairingFiles() const
     return macAddresses;
 }
 #endif
+
+#ifdef WIN32
+void SettingsManager::setWinBackdropType(WIN_BACKDROP type)
+{
+    m_settings->setValue("winBackdropType", static_cast<int>(type));
+    m_settings->sync();
+}
+
+WIN_BACKDROP SettingsManager::winBackdropType() const
+{
+    return static_cast<WIN_BACKDROP>(
+        m_settings->value("winBackdropType", static_cast<int>(MICA)).toInt());
+}
+#endif

@@ -37,6 +37,10 @@
 #include <QMessageBox>
 #include <QStyle>
 
+#ifdef WIN32
+#include <QGraphicsOpacityEffect>
+#endif
+
 struct iDescriptorToolWidget {
     iDescriptorTool tool;
     QString description;
@@ -335,14 +339,35 @@ void ToolboxWidget::updateToolboxStates()
         bool enabled = !requiresDevice || hasDevice;
         toolbox->setEnabled(enabled);
 
+// Opacity does not work because of the stylesheet on Windows
+#ifndef WIN32
         if (enabled) {
-            toolbox->setStyleSheet("#toolboxFrame { "
-                                   "border-radius: 5px; padding: 5px; }");
+            toolbox->setStyleSheet("QWidget#toolboxFrame { "
+                                   "padding: 5px; }");
         } else {
-            toolbox->setStyleSheet("#toolboxFrame { border-radius: 5px; "
+            toolbox->setStyleSheet("QWidget#toolboxFrame { "
                                    "padding: 5px;"
                                    "opacity: 0.45;  }");
         }
+#else
+        // base style
+        // toolbox->setStyleSheet("QWidget#toolboxFrame{ padding: 5px; border: "
+        //                        "none; outline: none; }");
+
+        if (enabled) {
+            // normal look
+            toolbox->setStyleSheet("QWidget#toolboxFrame { padding: 5px; "
+                                   "border: none; outline: none; }");
+            toolbox->setCursor(Qt::PointingHandCursor);
+        } else {
+            // disabled look: dull bg + border + muted text, no hand cursor
+            toolbox->setStyleSheet("padding: 5px;"
+                                   "border-radius: 8px;"
+                                   "background-color: rgba(255,255,255,1);"
+                                   "color: #666;");
+            toolbox->setCursor(Qt::ArrowCursor);
+        }
+#endif
     }
 }
 
