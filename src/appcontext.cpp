@@ -348,7 +348,7 @@ void AppContext::addDevice(iDescriptor::Uniq uniq,
                                     };
                                     err = lockdownd_pair(
                                         lockdown, hostId.toStdString().c_str(),
-                                        buid, &pairing_file);
+                                        buid, nullptr, &pairing_file);
                                     if (err) {
                                         qDebug() << "Failed to pair with device"
                                                  << err->message;
@@ -704,8 +704,8 @@ void AppContext::tryToConnectToNetworkDevice(const NetworkDevice &device)
         Q_ARG(iDescriptor::Uniq, iDescriptor::Uniq(device.macAddress, true)),
         Q_ARG(DeviceMonitorThread::IdeviceConnectionType,
               DeviceMonitorThread::CONNECTION_NETWORK),
-        Q_ARG(AddType, AddType::UpgradeToWireless),
-        Q_ARG(QString, device.macAddress), Q_ARG(QString, device.address));
+        Q_ARG(AddType, AddType::Wireless), Q_ARG(QString, device.macAddress),
+        Q_ARG(QString, device.address));
 }
 
 // this is required because cannot emit signals from qfuture
