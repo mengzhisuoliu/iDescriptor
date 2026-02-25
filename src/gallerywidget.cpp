@@ -232,12 +232,6 @@ void GalleryWidget::onExportSelected()
         return;
     }
 
-    if (ExportManager::sharedInstance()->isExporting()) {
-        QMessageBox::information(this, "Export in Progress",
-                                 "An export is already in progress.");
-        return;
-    }
-
     QModelIndexList selectedIndexes =
         m_listView->selectionModel()->selectedIndexes();
     QStringList filePaths = m_model->getSelectedFilePaths(selectedIndexes);
@@ -259,7 +253,8 @@ void GalleryWidget::onExportSelected()
     int index = 0;
     for (const QString &filePath : filePaths) {
         QString fileName = filePath.split('/').last();
-        exportItems.append(ExportItem(filePath, fileName, index));
+        exportItems.append(
+            ExportItem(filePath, fileName, m_device->udid, index));
         ++index;
     }
 

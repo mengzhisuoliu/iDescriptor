@@ -297,7 +297,8 @@ void AfcExplorerWidget::onFileListContextMenu(const QPoint &pos)
             QString fileName = selItem->text();
             QString devicePath =
                 currPath == "/" ? "/" + fileName : currPath + fileName;
-            exportItems.append(ExportItem(devicePath, fileName, index));
+            exportItems.append(
+                ExportItem(devicePath, fileName, m_device->udid, index));
             index++;
         }
 
@@ -354,7 +355,8 @@ void AfcExplorerWidget::onExportClicked()
         QString fileName = item->text();
         QString devicePath =
             currPath == "/" ? "/" + fileName : currPath + fileName;
-        exportItems.append(ExportItem(devicePath, fileName, index));
+        exportItems.append(
+            ExportItem(devicePath, fileName, m_device->udid, index));
         index++;
     }
 
