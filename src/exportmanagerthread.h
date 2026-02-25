@@ -17,8 +17,7 @@ public:
     ExportManagerThread(QObject *parent = nullptr) : QObject(parent) {}
 
     void executeExportJob(ExportJob *job);
-    ExportResult exportSingleItem(iDescriptorDevice *device,
-                                  const ExportItem &item,
+    ExportResult exportSingleItem(const ExportItem &item,
                                   const QString &destinationDir,
                                   std::optional<AfcClientHandle *> altAfc,
                                   std::atomic<bool> &cancelRequested,

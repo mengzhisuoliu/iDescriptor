@@ -82,15 +82,15 @@ QUuid ExportManager::startExport(iDescriptorDevice *device,
     // Create new job
     auto job = new ExportJob();
     job->jobId = QUuid::createUuid();
-    job->device = device;
     job->items = items;
     job->destinationPath = destinationPath;
     job->altAfc = altAfc;
+    job->d_udid = device->udid;
 
     // fixme : pass ExportJob
     job->statusBalloonProcessId =
         StatusBalloon::sharedInstance()->startExportProcess(
-            QString("Exporting %1 items").arg(items.size()), items.size(),
+            QString("Exporting %1 item(s)").arg(items.size()), items.size(),
             destinationPath);
 
     // Use ExportManager's own jobId for its internal tracking and signals
@@ -120,12 +120,6 @@ void ExportManager::cancelExport(const QUuid &jobId)
         it.value()->cancelRequested = true;
         qDebug() << "Cancellation requested for job" << jobId;
     }
-}
-
-bool ExportManager::isExporting() const
-{
-    QMutexLocker locker(&m_jobsMutex);
-    return !m_activeJobs.isEmpty();
 }
 
 bool ExportManager::isJobRunning(const QUuid &jobId) const

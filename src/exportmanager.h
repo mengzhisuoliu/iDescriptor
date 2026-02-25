@@ -54,8 +54,6 @@ public:
 
     void cancelExport(const QUuid &jobId);
 
-    bool isExporting() const;
-
     bool isJobRunning(const QUuid &jobId) const;
     static QString generateUniqueOutputPath(const QString &basePath);
 

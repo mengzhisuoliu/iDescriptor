@@ -1,5 +1,6 @@
 
 #include "exportmanagerthread.h"
+#include "appcontext.h"
 #include "iDescriptor.h"
 #include "servicemanager.h"
 #include <QDebug>
@@ -10,7 +11,7 @@
 // TODO: unfinished
 void ExportManagerThread::executeExportJob(ExportJob *job)
 {
-    // FIXME: limit to 1 at a time
+    // FIXME: limit to 1 at a time per udid/device
     QtConcurrent::run([this, job]() { executeExportJobInternal(job); });
 }
 
@@ -43,9 +44,9 @@ void ExportManagerThread::executeExportJobInternal(ExportJob *job)
         // emit exportProgress(job->jobId, i + 1, job->items.size(),
         //                     item.suggestedFileName);
 
-        ExportResult result = exportSingleItem(
-            job->device, item, job->destinationPath, job->altAfc,
-            job->cancelRequested, job->statusBalloonProcessId);
+        ExportResult result =
+            exportSingleItem(item, job->destinationPath, job->altAfc,
+                             job->cancelRequested, job->statusBalloonProcessId);
         if (result.success) {
             summary.successfulItems++;
             summary.totalBytesTransferred += result.bytesTransferred;
@@ -53,7 +54,7 @@ void ExportManagerThread::executeExportJobInternal(ExportJob *job)
             summary.failedItems++;
         }
 
-        emit itemExported(job->jobId, result);
+        emit itemExported(job->statusBalloonProcessId, result);
 
         // // Check for cancellation again after potentially long file
         // // operation
@@ -90,9 +91,8 @@ void ExportManagerThread::executeExportJobInternal(ExportJob *job)
 }
 
 ExportResult ExportManagerThread::exportSingleItem(
-    iDescriptorDevice *device, const ExportItem &item,
-    const QString &destinationDir, std::optional<AfcClientHandle *> altAfc,
-    std::atomic<bool> &cancelRequested,
+    const ExportItem &item, const QString &destinationDir,
+    std::optional<AfcClientHandle *> altAfc, std::atomic<bool> &cancelRequested,
     const QUuid &statusBalloonProcessId) // Change parameter name and type
 {
     ExportResult result;
@@ -119,6 +119,18 @@ ExportResult ExportManagerThread::exportSingleItem(
 
     qDebug() << "About to export file from device:" << item.sourcePathOnDevice
              << "to" << outputPath;
+
+    iDescriptorDevice *device =
+        AppContext::sharedInstance()->getDevice(item.d_udid);
+
+    // FIXME: is this way we do it?
+    if (!device) {
+        result.errorMessage = QString("Device with UDID %1 not found")
+                                  .arg(QString::fromStdString(item.d_udid));
+        qDebug() << result.errorMessage;
+        return result;
+    }
+
     // Export file using ServiceManager
     IdeviceFfiError *err = ServiceManager::exportFileToPath(
         device, item.sourcePathOnDevice.toUtf8().constData(),
