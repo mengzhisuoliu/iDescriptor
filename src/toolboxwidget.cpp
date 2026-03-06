@@ -452,7 +452,6 @@ void ToolboxWidget::onToolboxClicked(iDescriptorTool tool, bool requiresDevice)
 
     case iDescriptorTool::LiveScreen: {
         LiveScreenWidget *liveScreen = new LiveScreenWidget(device);
-        liveScreen->setAttribute(Qt::WA_DeleteOnClose);
         liveScreen->show();
     } break;
     case iDescriptorTool::RecoveryMode: {

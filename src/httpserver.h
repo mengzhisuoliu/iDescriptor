@@ -39,6 +39,8 @@ public:
     void stop();
     int getPort() const;
     QString getJsonFileName() const { return jsonFileName; }
+    static QString getLocalIP();
+
 signals:
     void serverStarted();
     void serverError(const QString &error);
@@ -64,7 +66,6 @@ private:
     void sendJsonManifest(QTcpSocket *socket);
     QString generateJsonManifest() const;
     QString getMimeType(const QString &filePath) const;
-    QString getLocalIP() const;
 };
 
 #endif // HTTPSERVER_H

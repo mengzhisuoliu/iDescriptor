@@ -105,3 +105,19 @@ inline void setupWinWindow(QWidget *window)
         enableAcrylic(hwnd);
     }
 }
+
+enum CornerPreference : int {
+    Corner_Default = DWMWCP_DEFAULT,
+    Corner_NoRound = DWMWCP_DONOTROUND,
+    Corner_Round = DWMWCP_ROUND,
+    Corner_RoundSmall = DWMWCP_ROUNDSMALL
+};
+inline void SetCorner(HWND hwnd, CornerPreference corner)
+{
+    if (corner != Corner_Default) {
+        DWM_WINDOW_CORNER_PREFERENCE cp =
+            static_cast<DWM_WINDOW_CORNER_PREFERENCE>(corner);
+        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &cp,
+                              sizeof(cp));
+    }
+}

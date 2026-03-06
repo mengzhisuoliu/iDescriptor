@@ -20,9 +20,15 @@
 #ifndef SPONSORWIDGET_H
 #define SPONSORWIDGET_H
 
+#include "base/tool.h"
+#include "iDescriptor.h"
+#include "sponsorappcard.h"
+#include <QLabel>
+#include <QUrl>
+#include <QVBoxLayout>
 #include <QWidget>
 
-class SponsorWidget : public QWidget
+class SponsorWidget : public Tool
 {
     Q_OBJECT
 public:

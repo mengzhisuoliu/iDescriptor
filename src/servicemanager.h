@@ -241,7 +241,7 @@ public:
     // Specific AFC operation wrappers
     static IdeviceFfiError *safeAfcReadDirectory(
         const iDescriptorDevice *device, const char *path, char ***dirs,
-        size_t count, std::optional<AfcClientHandle *> altAfc = std::nullopt);
+        size_t *count, std::optional<AfcClientHandle *> altAfc = std::nullopt);
 
     static IdeviceFfiError *
     safeAfcGetFileInfo(const iDescriptorDevice *device, const char *path,
@@ -307,6 +307,12 @@ public:
     static IdeviceFfiError *
     revealDeveloperModeOptionInUI(const iDescriptorDevice *device);
     static IdeviceFfiError *enableDevMode(const iDescriptorDevice *device);
+    static IdeviceFfiError *
+    safeParseOldDeviceBattery(const iDescriptorDevice *device,
+                              PlistNavigator &ioreg, DeviceInfo &d);
+    static IdeviceFfiError *
+    safeParseDeviceBattery(const iDescriptorDevice *device,
+                           PlistNavigator &ioreg, DeviceInfo &d);
 };
 
 #endif // SERVICEMANAGER_H

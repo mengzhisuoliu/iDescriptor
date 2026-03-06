@@ -130,41 +130,45 @@ void QBalloonTip::balloon(const QPoint &pos, int msecs)
     if (!screen) {
         screen = QGuiApplication::primaryScreen();
     }
-    QRect scr = screen->availableGeometry();
-    const int border = 1;
-    const int ah = 18, ao = 18, aw = 18, rc = 7;
-    // bool arrowAtTop = (pos.y() + sh.height() + ah < scr.height());
-    // bool arrowAtLeft = (pos.x() + sh.width() - ao < scr.width());
-    // setContentsMargins(border + 3, border + (arrowAtTop ? ah : 0) + 2,
-    //                    border + 3, border + (arrowAtTop ? 0 : ah) + 2);
-    updateGeometry();
-    QSize sz = sizeHint();
     QRect screenRect = screen->availableGeometry();
 
-    // Calculate the total required size for the balloon widget, including
-    // potential arrow space. Assuming the arrow takes up 'ah' height at either
-    // the top or bottom of the widget.
-    QSize sh_total = QSize(sz.width(), sz.height() + ah);
+    // Ensure layout is up to date so we get the correct size
+    ensurePolished();
+    adjustSize();
 
-    // Determine the desired X position: center the balloon horizontally on
-    // pos.x 'pos' is the global bottom-center of your button.
-    int targetX = pos.x() - sh_total.width() / 2;
-    // Clamp X position to screen bounds
-    targetX = qBound(screenRect.left(), targetX,
-                     screenRect.right() - sh_total.width());
+    QSize balloonSize = size();
+    if (!balloonSize.isValid() || balloonSize.isEmpty()) {
+        balloonSize = sizeHint();
+    }
 
-    // Determine the desired Y position: Place the bottom of the balloon at
-    // pos.y() (button's bottom) This makes the balloon appear ABOVE the button.
-    int targetY = pos.y() - sh_total.height();
-    // Clamp Y position to screen bounds
-    targetY = qBound(screenRect.top(), targetY,
-                     screenRect.bottom() - sh_total.height());
+    // Arrow dimensions
+    const int arrowGap = 40; // gap between balloon and anchor
+    const int margin = 5;    // margin from screen edges
 
-    // Apply the calculated position
-    move(targetX, targetY);
+    // Calculate horizontal position - center on the anchor point
+    int balloonX = pos.x() - balloonSize.width() / 2;
 
-    // if (msecs > 0)
-    //      timer = startTimer(msecs);
+    // Clamp to screen bounds with margin
+    balloonX = qBound(screenRect.left() + margin, balloonX,
+                      screenRect.right() - balloonSize.width() - margin);
+
+    // Calculate vertical position - prefer above the anchor point
+    int balloonY;
+    int spaceAbove = pos.y() - screenRect.top();
+
+    if (spaceAbove >= balloonSize.height() + arrowGap + margin) {
+        // Show above the anchor point (preferred)
+        balloonY = pos.y() - balloonSize.height() - arrowGap;
+    } else {
+        // Not enough space above, show below
+        balloonY = pos.y() + arrowGap;
+    }
+
+    balloonY = qBound(screenRect.top() + margin, balloonY,
+                      screenRect.bottom() - balloonSize.height() - margin);
+
+    setGeometry(balloonX, balloonY, balloonSize.width(), balloonSize.height());
+
     show();
     raise();
     activateWindow();
@@ -192,11 +196,20 @@ bool QBalloonTip::eventFilter(QObject *obj, QEvent *event)
 {
     if (event->type() == QEvent::MouseButtonPress) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-        // Check if click is outside the balloon
-        if (!geometry().contains(mouseEvent->globalPos())) {
+
+        if (m_button) {
+            if (QWidget *clickedWidget = qobject_cast<QWidget *>(obj)) {
+                if (clickedWidget == m_button ||
+                    m_button->isAncestorOf(clickedWidget)) {
+                    return false;
+                }
+            }
+        }
+
+        if (m_visible && !geometry().contains(mouseEvent->globalPos())) {
             m_visible = false;
             close();
-            return false;
+            return true;
         }
     } else if (event->type() == QEvent::WindowDeactivate) {
         // Close when window loses focus

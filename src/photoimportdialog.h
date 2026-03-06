@@ -21,6 +21,7 @@
 #define PHOTOIMPORTDIALOG_H
 
 #include "httpserver.h"
+#include "iDescriptor-ui.h"
 #include <QDialog>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -68,7 +69,6 @@ private:
 
     void setupUI();
     void generateQRCode(const QString &url);
-    QString getLocalIP() const;
 };
 
 #endif // PHOTOIMPORTDIALOG_H

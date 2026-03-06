@@ -30,12 +30,7 @@
 #include "../platform/windows/widgets/wintoolwidget.h"
 #endif
 
-#ifdef WIN32
-class Tool : public WinToolWidget
-#else
 class Tool : public QWidget
-#endif
-
 {
 public:
     explicit Tool(QWidget *parent = nullptr);

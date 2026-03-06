@@ -593,14 +593,11 @@ void AfcExplorerWidget::setupFileExplorer()
     navLayout->setContentsMargins(0, 0, 0, 0);
     navLayout->setSpacing(0);
 
-    // Create navigation buttons using ClickableIconWidget
     QWidget *explorerLeftSideNavButtons = new QWidget();
     QHBoxLayout *leftNavLayout = new QHBoxLayout(explorerLeftSideNavButtons);
-    // explorerLeftSideNavButtons->setStyleSheet("border-right: 1px solid
-    // red;");
+
     leftNavLayout->setContentsMargins(0, 0, 0, 0);
     leftNavLayout->setSpacing(1);
-    // rename to ziconwidget
     m_backButton = new ZIconWidget(
         QIcon(":/resources/icons/MaterialSymbolsArrowLeftAlt.png"), "Go Back");
     m_backButton->setEnabled(false);
@@ -654,9 +651,21 @@ void AfcExplorerWidget::setupFileExplorer()
     // File list
     m_fileList = new QListWidget();
     m_fileList->setSelectionMode(QAbstractItemView::ExtendedSelection);
-
-    QScrollBar *vBar = m_fileList->QAbstractScrollArea::verticalScrollBar();
-    vBar->setStyleSheet(styleSheet());
+#ifdef WIN32
+    m_fileList->setStyleSheet(R"(
+    QScrollBar:vertical {
+        border: 6px solid rgba(0, 0, 0, 0);
+        margin: 14px 0px 14px 0px;
+        width: 16px;
+        background-color: transparent;
+    }
+    QScrollBar::handle:vertical {
+        background-color: rgba(0, 0, 0, 110);
+        border-radius: 2px;
+        min-height: 25px;
+    }
+    )");
+#endif
     fileListLayout->addWidget(m_fileList);
 
     // Create error widget
@@ -720,8 +729,10 @@ void AfcExplorerWidget::setupFileExplorer()
     }
 
     updateNavigationButtons();
-    updateButtonStates(); // Initialize button states
+    updateButtonStates();
+#ifndef WIN32
     updateNavStyles();
+#endif
 }
 
 void AfcExplorerWidget::onAddToFavoritesClicked()
@@ -744,6 +755,7 @@ void AfcExplorerWidget::onAddToFavoritesClicked()
     }
 }
 
+#ifndef WIN32
 void AfcExplorerWidget::updateNavStyles()
 {
     if (!m_navWidget || !m_addressBar)
@@ -768,7 +780,8 @@ void AfcExplorerWidget::updateNavStyles()
                             .arg(bgColor.lighter().name())
                             .arg(accentColor.name());
 
-    m_navWidget->setStyleSheet(navStyles);
+    if (m_navWidget->styleSheet() != navStyles)
+        m_navWidget->setStyleSheet(navStyles);
 
     // Update address bar styles to complement the nav widget
     QString addressBarStyles =
@@ -779,9 +792,10 @@ void AfcExplorerWidget::updateNavStyles()
             .arg(borderColor.lighter().name())
             .arg(isDark ? QColor(Qt::black).name() : QColor(Qt::white).name())
             .arg(COLOR_ACCENT_BLUE.name());
-
-    m_addressBar->setStyleSheet(addressBarStyles);
+    if (m_addressBar->styleSheet() != addressBarStyles)
+        m_addressBar->setStyleSheet(addressBarStyles);
 }
+#endif
 
 void AfcExplorerWidget::updateButtonStates()
 {

@@ -19,6 +19,7 @@
 
 #include "gallerywidget.h"
 #include "exportmanager.h"
+#include "iDescriptor-ui.h"
 #include "iDescriptor.h"
 #include "mediapreviewdialog.h"
 #include "photomodel.h"
@@ -121,7 +122,7 @@ void GalleryWidget::setupControlsLayout()
 
     // Sort order combo box
     QLabel *sortLabel = new QLabel("Sort:");
-    sortLabel->setStyleSheet("font-weight: bold;");
+    sortLabel->setStyleSheet(mergeStyles(sortLabel, "font-weight: 600;"));
     m_sortComboBox = new QComboBox();
     m_sortComboBox->addItem("Newest First",
                             static_cast<int>(PhotoModel::NewestFirst));
@@ -133,7 +134,7 @@ void GalleryWidget::setupControlsLayout()
 
     // Filter combo box
     QLabel *filterLabel = new QLabel("Filter:");
-    filterLabel->setStyleSheet("font-weight: bold;");
+    filterLabel->setStyleSheet(mergeStyles(filterLabel, "font-weight: 600;"));
     m_filterComboBox = new QComboBox();
     m_filterComboBox->addItem("All Media", static_cast<int>(PhotoModel::All));
     m_filterComboBox->addItem("Images Only",
@@ -147,14 +148,16 @@ void GalleryWidget::setupControlsLayout()
 
     // Export buttons
     m_exportSelectedButton = new QPushButton("Export Selected");
-    m_exportSelectedButton->setEnabled(false); // Initially disabled
+    m_exportSelectedButton->setEnabled(false);
     m_exportSelectedButton->setSizePolicy(QSizePolicy::Preferred,
                                           QSizePolicy::Fixed);
     m_exportAllButton = new QPushButton("Export All");
+    m_exportAllButton->setEnabled(false);
 
     // Back button
-    m_backButton = new QPushButton("←");
-    m_backButton->setToolTip("Back to Albums");
+    m_backButton = new ZIconWidget(
+        QIcon(":/resources/icons/MaterialSymbolsArrowLeftAlt.png"),
+        "Back to Albums");
     m_backButton->setMaximumWidth(30);
     m_backButton->hide(); // Hidden initially
 
@@ -168,7 +171,7 @@ void GalleryWidget::setupControlsLayout()
             &GalleryWidget::onExportSelected);
     connect(m_exportAllButton, &QPushButton::clicked, this,
             &GalleryWidget::onExportAll);
-    connect(m_backButton, &QPushButton::clicked, this,
+    connect(m_backButton, &ZIconWidget::clicked, this,
             &GalleryWidget::onBackToAlbums);
 
     // Add widgets to layout
@@ -226,6 +229,31 @@ void GalleryWidget::onFilterChanged()
 
 void GalleryWidget::onExportSelected()
 {
+    // if we are exporting from album selection view
+    if (m_loadingWidget->currentWidget() == m_albumSelectionWidget) {
+
+        QModelIndexList selectedIndexes =
+            m_albumListView->selectionModel()->selectedIndexes();
+        // QStringList filePaths =
+        // m_albumModel->getSelectedFilePaths(selectedIndexes);
+
+        QStringList paths;
+        for (const QModelIndex &index : selectedIndexes) {
+            if (index.isValid() &&
+                index.row() < m_albumListView->model()->rowCount()) {
+                paths.append(index.data(Qt::UserRole).toString());
+            } else {
+                qDebug() << "Invalid index in selection:" << index;
+            }
+        }
+        // /DCIM/100APPLE
+        qDebug() << "Selected file paths:" << paths;
+
+        auto *exportAlbum = new ExportAlbum(m_device, paths, this);
+        exportAlbum->show();
+        return;
+    }
+
     if (!m_model || !m_listView->selectionModel()->hasSelection()) {
         QMessageBox::information(this, "No Selection",
                                  "Please select photos to export.");
@@ -247,7 +275,6 @@ void GalleryWidget::onExportSelected()
         return;
     }
 
-    // Convert QStringList to QList<ExportItem>
     QList<ExportItem> exportItems;
     // FIXME: index
     int index = 0;
@@ -267,52 +294,64 @@ void GalleryWidget::onExportSelected()
 
 void GalleryWidget::onExportAll()
 {
+    // if we are exporting from album selection view
+    if (m_loadingWidget->currentWidget() == m_albumSelectionWidget) {
+
+        // gel all available albums
+        QStringList paths;
+        for (int row = 0; row < m_albumListView->model()->rowCount(); ++row) {
+            QModelIndex index = m_albumListView->model()->index(row, 0);
+            if (index.isValid()) {
+                paths.append(index.data(Qt::UserRole).toString());
+            }
+        }
+
+        auto *exportAlbum = new ExportAlbum(m_device, paths, this);
+        exportAlbum->show();
+        return;
+    }
+
     if (!m_model)
         return;
 
-    // if (ExportManager::sharedInstance()->isExporting()) {
-    //     QMessageBox::information(this, "Export in Progress",
-    //                              "An export is already in progress.");
-    //     return;
-    // }
+    QStringList filePaths = m_model->getFilteredFilePaths();
 
-    // QStringList filePaths = m_model->getFilteredFilePaths();
+    if (filePaths.isEmpty()) {
+        QMessageBox::information(this, "No Items", "No items to export.");
+        return;
+    }
 
-    // if (filePaths.isEmpty()) {
-    //     QMessageBox::information(this, "No Items", "No items to export.");
-    //     return;
-    // }
+    QString message =
+        QString("Export all %1 items currently shown?").arg(filePaths.size());
+    int reply = QMessageBox::question(this, "Export All", message,
+                                      QMessageBox::Yes | QMessageBox::No,
+                                      QMessageBox::No);
 
-    // QString message =
-    //     QString("Export all %1 items currently
-    //     shown?").arg(filePaths.size());
-    // int reply = QMessageBox::question(this, "Export All", message,
-    //                                   QMessageBox::Yes | QMessageBox::No,
-    //                                   QMessageBox::No);
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
 
-    // if (reply != QMessageBox::Yes) {
-    //     return;
-    // }
+    QString exportDir = selectExportDirectory();
+    if (exportDir.isEmpty()) {
+        return;
+    }
 
-    // QString exportDir = selectExportDirectory();
-    // if (exportDir.isEmpty()) {
-    //     return;
-    // }
+    // FIXME: index
+    int index = 0;
+    QList<ExportItem> exportItems;
+    for (const QString &filePath : filePaths) {
+        QString fileName = filePath.split('/').last();
+        exportItems.append(
+            ExportItem(filePath, fileName, m_device->udid, index));
+        ++index;
+    }
 
-    // // Convert QStringList to QList<ExportItem>
-    // QList<ExportItem> exportItems;
-    // for (const QString &filePath : filePaths) {
-    //     QString fileName = filePath.split('/').last();
-    //     exportItems.append(ExportItem(filePath, fileName));
-    // }
+    qDebug() << "Starting export of:" << exportItems.size() << "items to"
+             << exportDir;
 
-    // qDebug() << "Starting export of all filtered files:" <<
-    // exportItems.size()
-    //          << "items to" << exportDir;
-
-    // // Start export and the manager will show its own dialog
-    // ExportManager::sharedInstance()->startExport(m_device, exportItems,
-    //                                              exportDir);
+    // Start export and the manager will show its own dialog
+    ExportManager::sharedInstance()->startExport(m_device, exportItems,
+                                                 exportDir);
 }
 
 QString GalleryWidget::selectExportDirectory()
@@ -440,12 +479,10 @@ void GalleryWidget::loadAlbumList(const AFCFileTree &dcimTree)
     qDebug() << "DCIM directory read successfully, found"
              << dcimTree.entries.size() << "entries";
 
-    auto *albumModel = new QStandardItemModel(this);
+    m_albumModel = new QStandardItemModel(this);
 
     for (const MediaEntry &entry : dcimTree.entries) {
         QString albumName = QString::fromStdString(entry.name);
-        qDebug() << "DCIM entry:" << albumName << "(isDir:" << entry.isDir
-                 << ")";
 
         // Check if it's a directory and matches common iOS photo album patterns
         if (entry.isDir &&
@@ -459,15 +496,23 @@ void GalleryWidget::loadAlbumList(const AFCFileTree &dcimTree)
             item->setData(fullPath, Qt::UserRole); // Store full path
 
             item->setIcon(QIcon::fromTheme("folder"));
-            albumModel->appendRow(item);
+            m_albumModel->appendRow(item);
 
             loadAlbumThumbnailAsync(fullPath, item);
         }
     }
 
-    m_albumListView->setModel(albumModel);
+    m_albumListView->setModel(m_albumModel);
     m_loadingWidget->stop();
     m_loadingWidget->switchToWidget(m_albumSelectionWidget);
+    m_exportAllButton->setEnabled(m_albumModel->rowCount() > 0);
+
+    connect(m_albumListView->selectionModel(),
+            &QItemSelectionModel::selectionChanged, this, [this]() {
+                bool hasSelection =
+                    m_albumListView->selectionModel()->hasSelection();
+                m_exportSelectedButton->setEnabled(hasSelection);
+            });
 }
 
 void GalleryWidget::onAlbumSelected(const QString &albumPath)
@@ -528,7 +573,6 @@ void GalleryWidget::setControlsEnabled(bool enabled)
     m_filterComboBox->setEnabled(enabled);
     m_exportSelectedButton->setEnabled(
         enabled && m_listView && m_listView->selectionModel()->hasSelection());
-    m_exportAllButton->setEnabled(enabled);
 }
 
 /*

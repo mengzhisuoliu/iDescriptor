@@ -332,8 +332,11 @@ void ZTabWidget::updateTabStyles()
         if (tab->isChecked()) {
             tab->setStyleSheet(QString("ZTab {"
                                        "  color: %1;"
-                                       //    "  color: #d7e1f4ff;"
-                                       "  font-weight: 700;"
+//    "  color: #d7e1f4ff;"
+#ifdef WIN32
+                                       "font-family : \"Segoe UI\", serif;"
+#endif
+                                       "  font-weight: 600;"
                                        "  font-size: 20px;"
                                        "  border: none;"
                                        "  outline: none;"
@@ -346,8 +349,11 @@ void ZTabWidget::updateTabStyles()
         } else {
             tab->setStyleSheet(QString("ZTab {"
                                        "  color: #666;"
-                                       //    "  color: #2b5693;"
-                                       "  font-weight: 700;"
+            //    "  color: #2b5693;"
+#ifdef WIN32
+                                       "font-family : \"Segoe UI\", serif;"
+#endif
+                                       "  font-weight: 600;"
                                        "  font-size: 20px;"
                                        "  border: none;"
                                        "  outline: none;"

@@ -31,7 +31,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-class VirtualLocation : public Tool
+class VirtualLocation : public QWidget
 {
     Q_OBJECT
 

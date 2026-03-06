@@ -298,7 +298,9 @@ void DiagnoseWidget::checkDependencies(bool autoExpand)
                 QString("All dependencies are installed/activated (%1/%2)")
                     .arg(installedCount)
                     .arg(totalCount));
-            m_summaryLabel->setStyleSheet("color: green; font-weight: bold;");
+            m_summaryLabel->setStyleSheet(
+                QString("color: %1; font-weight: bold;")
+                    .arg(COLOR_GREEN.name()));
             if (m_isExpanded && autoExpand) {
                 onToggleExpand();
             }
@@ -307,7 +309,8 @@ void DiagnoseWidget::checkDependencies(bool autoExpand)
                 QString("Missing dependencies (%1/%2 installed)")
                     .arg(installedCount)
                     .arg(totalCount));
-            m_summaryLabel->setStyleSheet("color: red; font-weight: bold;");
+            m_summaryLabel->setStyleSheet(
+                QString("color: %1; font-weight: bold;").arg(COLOR_RED.name()));
             if (!m_isExpanded && autoExpand) {
                 onToggleExpand();
             }

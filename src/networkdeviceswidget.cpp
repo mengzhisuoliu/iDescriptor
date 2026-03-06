@@ -33,8 +33,8 @@
 NetworkDevicesWidget::NetworkDevicesWidget(QWidget *parent) : Tool(parent)
 {
     setWindowTitle("Network Devices - iDescriptor");
-    resize(500, 600);
-    setMinimumSize(400, 300);
+    setMinimumSize(300, 300);
+    setMaximumSize(500, 500);
     setupUI();
 #ifdef __linux__
     m_networkProvider = new AvahiService(this);
@@ -162,15 +162,14 @@ void NetworkDevicesWidget::createDeviceCard(const NetworkDevice &device)
     infoLayout->addWidget(portLabel);
     infoLayout->addStretch();
 
-    // Status indicator
     QLabel *statusIndicator = new QLabel("●");
-    QFont statusFont = statusIndicator->font();
-    statusFont.setPointSize(12);
-    statusIndicator->setFont(statusFont);
-    QPalette statusPalette = statusIndicator->palette();
-    statusPalette.setColor(QPalette::WindowText,
-                           QColor(52, 199, 89)); // iOS green
-    statusIndicator->setPalette(statusPalette);
+    statusIndicator->setStyleSheet(
+        QString("QLabel { font-size: 14px; color: %1; }")
+#ifdef WIN32
+            .arg(COLOR_ACCENT_BLUE.name()));
+#else
+            .arg(COLOR_GREEN.name()));
+#endif
 
     infoLayout->addWidget(statusIndicator);
 

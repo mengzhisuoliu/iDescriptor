@@ -20,6 +20,8 @@
 #ifndef GALLERYWIDGET_H
 #define GALLERYWIDGET_H
 
+#include "exportalbum.h"
+#include "iDescriptor-ui.h"
 #include "iDescriptor.h"
 #include "photomodel.h"
 #include "zloadingwidget.h"
@@ -34,6 +36,7 @@ class QVBoxLayout;
 class QStackedWidget;
 class QLabel;
 class QStandardItem;
+class QStandardItemModel;
 QT_END_NAMESPACE
 
 class ExportManager;
@@ -88,13 +91,14 @@ private:
     QWidget *m_photoGalleryWidget;
     QListView *m_listView;
     PhotoModel *m_model;
+    QStandardItemModel *m_albumModel;
 
     // Control widgets
     QComboBox *m_sortComboBox;
     QComboBox *m_filterComboBox;
     QPushButton *m_exportSelectedButton;
     QPushButton *m_exportAllButton;
-    QPushButton *m_backButton;
+    ZIconWidget *m_backButton;
 
     // Export manager
     ExportManager *m_exportManager;

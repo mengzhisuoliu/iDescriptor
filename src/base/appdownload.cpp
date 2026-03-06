@@ -17,8 +17,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "appdownloadbasedialog.h"
-#include "appstoremanager.h"
+#include "appdownload.h"
 #include <QDesktopServices>
 #include <QDir>
 #include <QFutureWatcher>
@@ -59,6 +58,9 @@ AppDownloadBaseDialog::AppDownloadBaseDialog(const QString &appName,
 {
     m_layout = new QVBoxLayout(this);
     m_layout->setContentsMargins(20, 20, 20, 20);
+#ifdef WIN32
+    setupWinWindow(this);
+#endif
 }
 
 void AppDownloadBaseDialog::startDownloadProcess(const QString &bundleId,

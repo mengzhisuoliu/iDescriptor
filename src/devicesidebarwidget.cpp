@@ -171,7 +171,9 @@ void DeviceSidebarItem::setupUI()
 void DeviceSidebarItem::setSelected(bool selected)
 {
     m_selected = selected;
+    bool dark = isDarkMode();
 
+#ifndef WIN32
     if (selected) {
         setStyleSheet(
             "QFrame#DeviceSidebarItem {     background-color: rgba(255, "
@@ -181,6 +183,27 @@ void DeviceSidebarItem::setSelected(bool selected)
             "QFrame#DeviceSidebarItem {     background-color: rgba(255, "
             "255, 255, 16); }");
     }
+#else
+    if (selected) {
+        if (!dark) {
+            setStyleSheet("QFrame#DeviceSidebarItem {     background-color: "
+                          "rgba(0, 0, 0, 30); }");
+        } else {
+            setStyleSheet(
+                "QFrame#DeviceSidebarItem {     background-color: rgba(255, "
+                "255, 255, 45); }");
+        }
+    } else {
+        if (!dark) {
+            setStyleSheet("QFrame#DeviceSidebarItem {     background-color: "
+                          "rgba(0, 0, 0, 10); }");
+        } else {
+            setStyleSheet(
+                "QFrame#DeviceSidebarItem {     background-color: rgba(255, "
+                "255, 255, 16); }");
+        }
+    }
+#endif
 }
 
 void DeviceSidebarItem::setCollapsed(bool collapsed)

@@ -39,13 +39,18 @@
 AppTabWidget::AppTabWidget(const QString &appName, const QString &bundleId,
                            const QString &version, const QPixmap &icon,
                            QWidget *parent)
-    : QGroupBox(parent), m_appName(appName), m_bundleId(bundleId),
+    : QWidget(parent), m_appName(appName), m_bundleId(bundleId),
       m_version(version), m_selected(false)
 {
+#ifndef WIN32
     setFixedHeight(60);
+#else
+    setMinimumHeight(60);
+#endif
     setMinimumWidth(100);
     setCursor(Qt::PointingHandCursor);
-
+    setAttribute(Qt::WA_StyledBackground, true);
+    setObjectName("AppTabWidget");
     setupUI(icon);
 }
 
@@ -118,20 +123,28 @@ void AppTabWidget::mousePressEvent(QMouseEvent *event)
 void AppTabWidget::updateStyles()
 {
     QString style;
+#ifndef WIN32
     QColor bgColor = isDarkMode() ? qApp->palette().color(QPalette::Light)
                                   : qApp->palette().color(QPalette::Dark);
+#else
+    QColor bgColor =
+        isDarkMode() ? QColor(255, 255, 255, 25) : QColor(0, 0, 0, 25);
+#endif
     if (m_selected) {
-        style = "QGroupBox { background-color: " + COLOR_ACCENT_BLUE.name() +
-                "; border-radius: "
-                "10px; border : 1px solid " +
-                bgColor.lighter().name() + "; }";
+        style =
+            "#AppTabWidget { background-color: " + COLOR_ACCENT_BLUE.name() +
+            "; border-radius: "
+            "10px; border : 1px solid " +
+            bgColor.lighter().name() + "; }";
     } else {
-        style = "QGroupBox { background-color: " + bgColor.name() +
+        style = "#AppTabWidget { background-color: " +
+                bgColor.name(QColor::HexArgb) +
                 "; border-radius: 10px; border: 1px solid " +
                 bgColor.lighter().name() + "; }";
     }
     // prevent infinite loop
     if (style != styleSheet()) {
+        qDebug() << "Style" << style;
         setStyleSheet(style);
     }
 }

@@ -90,15 +90,14 @@ NetworkDeviceCard::NetworkDeviceCard(const NetworkDevice &device,
     infoLayout->addWidget(m_connectButton);
     infoLayout->addSpacing(5);
 
-    // Status indicator
     QLabel *statusIndicator = new QLabel("●");
-    QFont statusFont = statusIndicator->font();
-    statusFont.setPointSize(12);
-    statusIndicator->setFont(statusFont);
-    QPalette statusPalette = statusIndicator->palette();
-    statusPalette.setColor(QPalette::WindowText,
-                           QColor(52, 199, 89)); // iOS green
-    statusIndicator->setPalette(statusPalette);
+    statusIndicator->setStyleSheet(
+        QString("QLabel { font-size: 14px; color: %1; }")
+#ifdef WIN32
+            .arg(COLOR_ACCENT_BLUE.name()));
+#else
+            .arg(COLOR_GREEN.name()));
+#endif
 
     infoLayout->addWidget(statusIndicator);
 

@@ -20,7 +20,7 @@
 #ifndef APPINSTALLDIALOG_H
 #define APPINSTALLDIALOG_H
 
-#include "appdownloadbasedialog.h"
+#include "base/appdownload.h"
 #include "iDescriptor.h"
 #include <QComboBox>
 #include <QDialog>

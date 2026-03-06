@@ -30,11 +30,11 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
-// todo add a retry button when failed
 LiveScreenWidget::LiveScreenWidget(iDescriptorDevice *device, QWidget *parent)
-    : QWidget{parent}, m_device(device)
+    : Tool{parent}, m_device(device)
 {
     setWindowTitle("Live Screen - iDescriptor");
+    setAttribute(Qt::WA_DeleteOnClose);
 
     unsigned int deviceMajorVersion =
         m_device->deviceInfo.parsedDeviceVersion.major;

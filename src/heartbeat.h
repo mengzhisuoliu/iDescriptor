@@ -10,8 +10,8 @@ class HeartbeatThread : public QThread
 {
     Q_OBJECT
 public:
-    HeartbeatThread(HeartbeatClientHandle *heartbeat, QString macAddress,
-                    QObject *parent = nullptr)
+    HeartbeatThread(HeartbeatClientHandle *heartbeat,
+                    iDescriptor::Uniq macAddress, QObject *parent = nullptr)
         : QThread(parent), m_hb(Heartbeat::adopt(heartbeat)),
           m_macAddress(macAddress)
     {
@@ -88,11 +88,11 @@ public:
 private:
     Heartbeat m_hb;
     bool m_initialCompleted = false;
-    QString m_macAddress;
+    iDescriptor::Uniq m_macAddress;
     unsigned int m_tries = 0;
 
 signals:
     void heartbeatFailed(const QString &macAddress, unsigned int tries = 0);
-    void heartbeatThreadExited(const QString &macAddress);
+    void heartbeatThreadExited(const iDescriptor::Uniq &uniq);
 };
 #endif // HEARTBEATTHREAD_H

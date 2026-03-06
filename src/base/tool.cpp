@@ -23,13 +23,15 @@
 #include "../platform/windows/win_common.h"
 #endif
 
-#ifdef WIN32
-Tool::Tool(QWidget *parent) : WinToolWidget(parent)
-#else
 Tool::Tool(QWidget *parent) : QWidget(parent)
-#endif
 {
 #ifdef __APPLE__
     setupToolFrame(this);
+#elif defined(WIN32)
+    setupWinWindow(this);
+    setWindowFlags(Qt::CustomizeWindowHint | Qt::WindowTitleHint |
+                   Qt::WindowMinimizeButtonHint | Qt::WindowCloseButtonHint);
+#else
+
 #endif
 }

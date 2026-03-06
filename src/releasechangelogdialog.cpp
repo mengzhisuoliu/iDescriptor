@@ -36,16 +36,19 @@ ReleaseChangelogDialog::ReleaseChangelogDialog(QJsonDocument data,
     : QDialog(parent)
 {
     setupUI(data);
+#ifdef WIN32
+    setupWinWindow(this);
+#endif
 }
 
 ReleaseChangelogDialog::~ReleaseChangelogDialog() {}
 
 void ReleaseChangelogDialog::setupUI(const QJsonDocument &data)
 {
-    setWindowTitle("iDescriptor - Release Changelog");
+    setWindowTitle("Release Changelog");
     setModal(true);
-    setMinimumSize(500, 250);
-    resize(600, 300);
+    setMinimumSize(400, 250);
+    resize(500, 400);
 
     m_mainLayout = new QVBoxLayout(this);
     m_mainLayout->setContentsMargins(20, 20, 20, 20);

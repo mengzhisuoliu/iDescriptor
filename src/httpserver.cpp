@@ -237,7 +237,7 @@ QString HttpServer::generateJsonManifest() const
     return doc.toJson();
 }
 
-QString HttpServer::getLocalIP() const
+QString HttpServer::getLocalIP()
 {
     foreach (const QNetworkInterface &netIf,
              QNetworkInterface::allInterfaces()) {

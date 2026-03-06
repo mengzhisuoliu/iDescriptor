@@ -1,9 +1,30 @@
 QWidget {
     background: transparent;
     color: rgb(255, 255, 255);
-    font-size: 17px;
+    font-size: 14px;
     font-family: "Segoe UI Variable Small", serif;
     font-weight: 400;
+}
+
+
+QMessageBox {
+    background-color: rgba(255, 255, 255, 16);
+    border: 1px solid rgba(255, 255, 255, 13);
+    border-radius: 8px;
+}
+
+QMessageBox QLabel {
+    background-color: transparent;
+    color: rgb(255, 255, 255);
+}
+
+QMessageBox QPushButton {
+    background-color: rgba(255, 255, 255, 18);
+    border: 1px solid rgba(255, 255, 255, 13);
+    border-radius: 7px;
+    min-height: 32px;
+    min-width: 80px;
+    padding: 5px 15px;
 }
 
 /*MENU*/
@@ -11,7 +32,7 @@ QMenuBar {
     background-color: transparent;
     color: white;
     padding: 10px;
-    font-size: 17px;
+    font-size: 14px;
     font-family: "Segoe UI Variable Small", serif;
     font-weight: 400;
 }
@@ -33,7 +54,7 @@ QMenuBar::item:pressed {
 }
 
 QMenu {
-    background-color: transparent;
+    background-color: rgba(0, 0, 0, 210);
     padding-left: 1px;
     padding-top: 1px;
     border-radius: 5px;
@@ -173,7 +194,7 @@ QCheckBox::indicator:pressed {
 QCheckBox::indicator:checked {
     background-color: %1;
     border: 2px solid %1;
-    image: url(:/CheckBox/img dark/CheckBox.png);
+    image: url(:/resources/win/dark/CheckBox.png);
 }
 
 QCheckBox::indicator:checked:pressed {
@@ -656,16 +677,47 @@ QComboBox::down-arrow:disabled {
     image: url(:/resources/win/dark/ComboBoxDisabled.png);
 }
 
+/*COMBOBOX POPUP*/
+QComboBox QAbstractItemView {
+    background-color: rgba(0, 0, 0, 210);
+    border: 1px solid rgba(255, 255, 255, 13);
+    border-radius: 5px;
+    padding: 3px;
+    outline: 0;
+}
+
+QComboBox QAbstractItemView::item {
+    background-color: transparent;
+    padding: 5px 10px;
+    min-height: 26px;
+    border-radius: 4px;
+}
+
+QComboBox QAbstractItemView::item:selected {
+    background-color: rgba(255, 255, 255, 16);
+    color: rgb(255, 255, 255);
+}
+
+QComboBox QAbstractItemView::item:!selected:hover {
+    background-color: rgba(255, 255, 255, 10);
+    color: rgb(255, 255, 255);
+}
+
+QComboBox QAbstractItemView::item:disabled {
+    color: rgb(150, 150, 150);
+}
+
 /*LINEEDIT*/
 QLineEdit {
     background-color: rgba(255, 255, 255, 16);
     border: 1px solid rgba(255, 255, 255, 13);
-    font-size: 16px;
+    font-size: 14px;
     font-family: "Segoe UI", serif;
     font-weight: 500;
     border-radius: 7px;
     border-bottom: 1px solid rgba(255, 255, 255, 150);
     padding: 5px;
+    min-height: 30px;
 }
 
 QLineEdit:hover {
@@ -790,7 +842,7 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
 QTextEdit {
     background-color: rgba(255, 255, 255, 16);
     border: 1px solid rgba(255, 255, 255, 13);
-    font-size: 16px;
+    font-size: 14px;
     font-family: "Segoe UI", serif;
     font-weight: 500;
     border-radius: 7px;
@@ -824,7 +876,7 @@ QCalendarWidget {
 
 QCalendarWidget QToolButton {
     height: 36px;
-    font-size: 18px;
+    font-size: 14px;
     background-color: rgba(255, 255, 255, 0);
     margin: 5px;
 }
@@ -1021,7 +1073,7 @@ QTreeView:disabled {
 /*TOGGLESWITCH*/
 #toggleSwitch {
     color: rgb(255, 255, 255);
-    font-size: 17px;
+    font-size: 14px;
     font-family: "Segoe UI Variable Small", serif;
     font-weight: 400;
 }
@@ -1083,7 +1135,7 @@ QTreeView:disabled {
 /*HYPERLINKBUTTON*/
 #hyperlinkButton {
     color: %1;
-    font-size: 17px;
+    font-size: 14px;
     font-family: "Segoe UI Variable Small", serif;
     border-radius: 5px;
     background-color: rgba(255, 255, 255, 0);
@@ -1106,7 +1158,7 @@ QTreeView:disabled {
 /*LISTVIEW*/
 QListView {
     background-color: transparent;
-    font-size: 17px;
+    font-size: 14px;
     font-family: "Segoe UI Variable Small", serif;
     font-weight: 400;
     padding: 7px;
@@ -1123,4 +1175,17 @@ QListView::item:selected {
     color: white;
     border-radius: 5px;
     padding-left: 0px;
+}
+
+QWidget#navWidget {
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 13);
+    background-color: rgba(255, 255, 255, 16);
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+
+QWidget#VirtualLocationWidget {
+    background-color: rgb(0, 0, 0);
 }

@@ -36,8 +36,11 @@ PhotoImportDialog::PhotoImportDialog(const QStringList &files, QWidget *parent)
 {
     setupUI();
     setModal(true);
-    resize(600, 700);
+    resize(600, 600);
     setWindowTitle("Import Photos to iDevice - iDescriptor");
+#ifdef WIN32
+    setupWinWindow(this);
+#endif
 }
 
 PhotoImportDialog::~PhotoImportDialog()
@@ -181,7 +184,7 @@ void PhotoImportDialog::init()
 void PhotoImportDialog::onServerStarted()
 {
 
-    QString localIP = getLocalIP();
+    QString localIP = HttpServer::getLocalIP();
     int port = m_httpServer->getPort();
     QString jsonFileName = m_httpServer->getJsonFileName();
     QString url =
@@ -265,23 +268,6 @@ void PhotoImportDialog::generateQRCode(const QString &url)
 
     qrCodeLabel->setPixmap(qrPixmap);
     QRcode_free(qrcode);
-}
-
-QString PhotoImportDialog::getLocalIP() const
-{
-    foreach (const QNetworkInterface &interface,
-             QNetworkInterface::allInterfaces()) {
-        if (interface.flags().testFlag(QNetworkInterface::IsUp) &&
-            !interface.flags().testFlag(QNetworkInterface::IsLoopBack)) {
-            foreach (const QNetworkAddressEntry &entry,
-                     interface.addressEntries()) {
-                if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol) {
-                    return entry.ip().toString();
-                }
-            }
-        }
-    }
-    return "127.0.0.1";
 }
 
 void PhotoImportDialog::toggleInstructionMode()

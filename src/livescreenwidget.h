@@ -20,6 +20,7 @@
 #ifndef LIVESCREEN_H
 #define LIVESCREEN_H
 
+#include "iDescriptor-ui.h"
 #include "iDescriptor.h"
 #include "servicemanager.h"
 #include <QLabel>
@@ -72,7 +73,7 @@ private:
     iDescriptorDevice *m_device;
 };
 
-class LiveScreenWidget : public QWidget
+class LiveScreenWidget : public Tool
 {
     Q_OBJECT
 public:

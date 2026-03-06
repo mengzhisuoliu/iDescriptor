@@ -37,7 +37,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-class iFuseWidget : public QWidget
+class iFuseWidget : public Tool
 {
     Q_OBJECT
 

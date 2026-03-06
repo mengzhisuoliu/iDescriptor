@@ -34,6 +34,9 @@ DevDiskImageHelper::DevDiskImageHelper(const iDescriptorDevice *device,
     : QDialog(parent), m_device(device)
 {
     setAttribute(Qt::WA_DeleteOnClose);
+#ifdef WIN32
+    setupWinWindow(this);
+#endif
     setWindowTitle("Developer Disk Image - iDescriptor");
     setupUI();
 

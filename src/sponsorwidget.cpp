@@ -18,14 +18,10 @@
  */
 
 #include "sponsorwidget.h"
-#include "iDescriptor.h" // Include for REPO_URL
-#include "sponsorappcard.h"
-#include <QLabel>
-#include <QUrl>
-#include <QVBoxLayout>
 
-SponsorWidget::SponsorWidget(QWidget *parent) : QWidget(parent)
+SponsorWidget::SponsorWidget(QWidget *parent) : Tool(parent)
 {
+    setMaximumSize(600, 400);
     setLayout(new QVBoxLayout(this));
     QLabel *sponsorTitle = new QLabel("Would you like to sponsor us?");
     sponsorTitle->setStyleSheet("font-weight: bold; font-size: 16pt;");

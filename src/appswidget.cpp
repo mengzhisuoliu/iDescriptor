@@ -19,7 +19,6 @@
 
 #include "appswidget.h"
 #include "appcontext.h"
-#include "appdownloadbasedialog.h"
 #include "appdownloaddialog.h"
 #include "appinstalldialog.h"
 #include "appstoremanager.h"
@@ -87,8 +86,8 @@ void AppsWidget::setupUI()
 
     QWidget *headerWidget = new QWidget();
     headerWidget->setFixedHeight(60);
-    headerWidget->setStyleSheet(
-        "border-bottom: 1px solid #363d32; border-radius: 0px;");
+    // headerWidget->setStyleSheet(
+    //     "border-bottom: 1px solid #363d32; border-radius: 0px;");
 
     QHBoxLayout *headerLayout = new QHBoxLayout(headerWidget);
     headerLayout->setContentsMargins(20, 10, 20, 10);
@@ -210,11 +209,13 @@ void AppsWidget::handleInit()
         m_statusLabel->setText("Failed to initialize");
         m_loginButton->setText("Failed to initialize");
         m_loginButton->setEnabled(false);
+#ifndef WIN32
         m_loginButton->setStyleSheet(
             "background-color: #ccc; color: #666; "
             "border: "
             "none; border-radius: "
             "4px; padding: 8px 16px; font-size: 14px;");
+#endif
         return;
     }
     /*
@@ -606,6 +607,7 @@ void AppsWidget::createAppCard(
     // App name with sponsor indicator
     QHBoxLayout *nameLayout = new QHBoxLayout();
     QLabel *nameLabel = new QLabel(name);
+    // nameLabel->font().setSize(16);
     nameLabel->setStyleSheet("font-size: 16px;");
     nameLabel->setWordWrap(true);
     nameLayout->addWidget(nameLabel);

@@ -36,7 +36,6 @@
 #include <idevice++/heartbeat.hpp>
 #include <idevice++/installation_proxy.hpp>
 #include <idevice++/lockdown.hpp>
-#include <idevice++/lockdown_location_simulation.hpp>
 #include <idevice++/provider.hpp>
 #include <idevice++/readwrite.hpp>
 #include <idevice++/rsd.hpp>
@@ -81,6 +80,7 @@
 #define TimeoutErrorCode -71
 
 #define DISK_IMAGE_TYPE_DEVELOPER "Developer"
+#define PHOTOS_SQLITE_DB_PATH "/PhotoData/Photos.sqlite"
 
 #define HEARTBEAT_RETRY_LIMIT 2
 
@@ -480,8 +480,8 @@ struct ImageInfo {
 
 void get_battery_info(DiagnosticsRelay *diagRelay, plist_t &diagnostics);
 
-// void parseOldDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d);
-// void parseDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d);
+void parseOldDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d);
+void parseDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d);
 
 void fetchAppIconFromApple(
     QNetworkAccessManager *manager, const QString &bundleId,

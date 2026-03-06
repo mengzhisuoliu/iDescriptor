@@ -55,6 +55,9 @@ MediaPreviewDialog::MediaPreviewDialog(const iDescriptorDevice *device,
       m_afcClient(afcClient)
 {
     setWindowTitle(QFileInfo(filePath).fileName() + " - iDescriptor");
+#ifdef WIN32
+    setupWinWindow(this);
+#endif
 
     // Make dialog fullscreen
     setWindowState(Qt::WindowMaximized);
@@ -112,6 +115,7 @@ void MediaPreviewDialog::setupImageView()
     // Controls layout
     m_controlsLayout = new QHBoxLayout();
     m_controlsLayout->setContentsMargins(10, 5, 10, 5);
+    m_controlsLayout->setSpacing(10);
 
     m_zoomInBtn = new QPushButton("Zoom In", this);
     m_zoomOutBtn = new QPushButton("Zoom Out", this);

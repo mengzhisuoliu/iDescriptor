@@ -79,7 +79,7 @@ void WelcomeWidget::setupUI()
 
     // GitHub link
     m_githubLabel = createStyledLabel("Found an issue? Report it on GitHub", 12,
-                                      false, COLOR_HYPERLINK);
+                                      true, COLOR_HYPERLINK);
     m_githubLabel->setWordWrap(false);
     m_githubLabel->setMaximumWidth(m_imageLabel->sizeHint().width());
     m_githubLabel->setCursor(Qt::PointingHandCursor);

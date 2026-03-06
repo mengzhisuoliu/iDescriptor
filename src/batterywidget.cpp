@@ -137,9 +137,13 @@ void BatteryWidget::paintEvent(QPaintEvent *)
 
     pen.setColor(palette().color(QPalette::Text));
     painter.setPen(pen);
+#ifndef WIN32
     QFont textFont = QFont();
-    textFont.setPixelSize(widgetFrame.height() / 1.65);
     textFont.setWeight(QFont::Bold);
+#else
+    QFont textFont = QFont("Segoe UI Variable Small", 12);
+#endif
+    textFont.setPixelSize(widgetFrame.height() / 1.65);
     painter.setFont(textFont);
     QFontMetrics fm(textFont);
     QString percentageLevelString = QString("%1%").arg(m_value);

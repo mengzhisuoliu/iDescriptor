@@ -23,6 +23,7 @@
 #include "deviceimagewidget.h"
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
+#include "servicemanager.h"
 #include <QLabel>
 #include <QTimer>
 #include <QWidget>

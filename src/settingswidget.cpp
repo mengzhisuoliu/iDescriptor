@@ -407,7 +407,10 @@ void SettingsWidget::connectSignals()
     if (m_backDropTypeCombo) {
         connect(m_backDropTypeCombo,
                 QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-                &SettingsWidget::onSettingChanged);
+                [this]() {
+                    m_restartRequired = true;
+                    onSettingChanged();
+                });
     }
 #endif
 }

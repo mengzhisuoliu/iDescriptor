@@ -19,6 +19,7 @@
 #include <QPropertyAnimation>
 #include <QPushButton>
 #include <QScreen>
+#include <QShowEvent>
 #include <QStyle>
 #include <QTimer>
 #include <QTimerEvent>
@@ -35,7 +36,7 @@ BalloonProcess::BalloonProcess(ProcessItem *item, QWidget *parent)
 {
     auto *layout = new QVBoxLayout(this);
     layout->setSpacing(6);
-    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setContentsMargins(15, 15, 15, 15);
 
     m_lastBytesTransferred = 0;
     m_lastUpdateTime = QDateTime::currentDateTime();
@@ -152,16 +153,18 @@ StatusBalloon::StatusBalloon(QWidget *parent) : QBalloonTip(parent)
     setMinimumHeight(300);
     setMinimumWidth(300);
 #ifdef WIN32
-    // FIXME: doesnt work the second time we call it
-    enableAcrylic((HWND)winId());
+    setAttribute(Qt::WA_TranslucentBackground);
 #endif
-    // Create main layout
     m_mainLayout = new QVBoxLayout();
     m_mainLayout->setSpacing(8);
-    m_mainLayout->setContentsMargins(0, 0, 0, 0);
+    m_mainLayout->setContentsMargins(5, 5, 5, 5);
+
+    m_noProcesesLabel =
+        new QLabel("Export & Import processes will appear here", this);
 
     // Header label
     m_headerLabel = new QLabel("Processes");
+    m_headerLabel->hide();
     QFont headerFont = m_headerLabel->font();
     headerFont.setPointSize(headerFont.pointSize() + 2);
     headerFont.setBold(true);
@@ -354,6 +357,7 @@ void StatusBalloon::updateHeader()
         else if (item->status == ProcessStatus::Failed)
             failed++;
     }
+    int total = running + completed + failed;
 
     QString headerText = QString("Processes: %1 running").arg(running);
     if (completed > 0 || failed > 0) {
@@ -363,14 +367,23 @@ void StatusBalloon::updateHeader()
         }
     }
     m_headerLabel->setText(headerText);
+
+    if (total == 0) {
+        m_headerLabel->hide();
+        m_noProcesesLabel->show();
+        return;
+    } else {
+        m_headerLabel->show();
+        m_noProcesesLabel->hide();
+    }
 }
 
 void StatusBalloon::handleShow(bool forceVisible)
 {
-    QPoint pos = m_button->mapToGlobal(
+    QPoint buttonBottomCenter = m_button->mapToGlobal(
         QPoint(m_button->width() / 2, m_button->height()));
 
-    toggleBaloon(pos, -1, forceVisible);
+    toggleBaloon(buttonBottomCenter, -1, forceVisible);
 }
 
 bool StatusBalloon::isProcessRunning(const QUuid &processId) const
@@ -491,4 +504,27 @@ void StatusBalloon::handleJobUpdate(ProcessItem *item)
 
     item->processWidget->updateStats();
     item->processWidget->updateButtons();
+}
+
+#ifdef WIN32
+void StatusBalloon::showEvent(QShowEvent *event)
+{
+    QBalloonTip::showEvent(event);
+    // HWND changes after hide/show, so have reapply acrylic here
+    enableMica((HWND)winId());
+    SetCorner((HWND)winId(), CornerPreference::Corner_Round);
+}
+#endif
+
+void StatusBalloon::resizeEvent(QResizeEvent *event)
+{
+    QBalloonTip::resizeEvent(event);
+
+    if (!m_noProcesesLabel)
+        return;
+
+    m_noProcesesLabel->adjustSize();
+    int x = (width() - m_noProcesesLabel->width()) / 2;
+    int y = (height() - m_noProcesesLabel->height()) / 2;
+    m_noProcesesLabel->move(x, y);
 }

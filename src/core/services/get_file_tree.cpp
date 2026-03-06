@@ -37,7 +37,7 @@ AFCFileTree get_file_tree(const iDescriptorDevice *device, bool checkDir,
 
     // Use safe wrapper to read directory
     IdeviceFfiError *err = ServiceManager::safeAfcReadDirectory(
-        device, path.c_str(), &dirs, count, altAfc);
+        device, path.c_str(), &dirs, &count, altAfc);
 
     if (err) {
         qDebug() << "Failed to read directory:" << path.c_str()
@@ -94,7 +94,8 @@ AFCFileTree get_file_tree(const iDescriptorDevice *device, bool checkDir,
                 // it's a dir
                 IdeviceFfiError *link_err =
                     ServiceManager::safeAfcReadDirectory(
-                        device, fullPath.c_str(), &dir_contents, count, altAfc);
+                        device, fullPath.c_str(), &dir_contents, &count,
+                        altAfc);
 
                 if (!link_err) {
                     isDir = true;

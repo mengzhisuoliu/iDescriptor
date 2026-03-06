@@ -46,8 +46,12 @@ QueryMobileGestaltWidget::QueryMobileGestaltWidget(iDescriptorDevice *device,
 void QueryMobileGestaltWidget::setupUI()
 {
     setWindowTitle("Query MobileGestalt - iDescriptor");
+#ifdef WIN32
+    resize(600, 500);
+    setMaximumSize(800, 600);
+#else
     setMinimumSize(800, 600);
-
+#endif
     // Main layout
     mainLayout = new QVBoxLayout(this);
 

@@ -90,7 +90,7 @@ signals:
     void currentDeviceSelectionChanged(const DeviceSelection &selection);
     void deviceHeartbeatFailed(const QString &macAddress, int tries);
 public slots:
-    void removeDevice(QString udid);
+    void removeDevice(iDescriptor::Uniq uniq);
     void addDevice(iDescriptor::Uniq udid,
                    DeviceMonitorThread::IdeviceConnectionType connType,
                    AddType addType, QString wifiMacAddress = QString(),

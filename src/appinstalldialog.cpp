@@ -19,7 +19,6 @@
 
 #include "appinstalldialog.h"
 #include "appcontext.h"
-#include "appdownloadbasedialog.h"
 #include "iDescriptor.h"
 #include "servicemanager.h"
 #include <QApplication>

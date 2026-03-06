@@ -81,9 +81,15 @@ public:
     bool isProcessRunning(const QUuid &processId) const;
     bool hasActiveProcesses() const;
     bool isCancelRequested(const QUuid &processId) const;
-    ZIconWidget *getButton() { return m_button; }
     void onCancelClicked();
     void onOpenFolderClicked();
+
+protected:
+#ifdef WIN32
+    void showEvent(QShowEvent *event) override;
+// void paintEvent(QPaintEvent *event) override;
+#endif
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void updateHeader();
@@ -104,8 +110,6 @@ private:
     QMap<QUuid, ProcessItem *> m_processes;
     QUuid m_currentProcessId;
     mutable QMutex m_processesMutex;
-
-    ZIconWidget *m_button =
-        new ZIconWidget(QIcon(":/resources/icons/UimProcess.png"), "Processes");
+    QLabel *m_noProcesesLabel;
 };
 #endif // STATUSBALLOON_H

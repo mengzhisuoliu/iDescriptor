@@ -114,9 +114,10 @@ private:
                          const char *local_path);
     int importFileToDevice(AfcClientHandle *afc, const char *device_path,
                            const char *local_path);
-    void updateNavStyles();
     void updateButtonStates();
     void goUp();
+#ifndef WIN32
+    void updateNavStyles();
 
 protected:
     void changeEvent(QEvent *event) override
@@ -126,6 +127,6 @@ protected:
         }
         QWidget::changeEvent(event);
     }
+#endif
 };
-
 #endif // AFCEXPLORER_H

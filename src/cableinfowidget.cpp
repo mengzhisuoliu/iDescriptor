@@ -26,6 +26,10 @@
 #include <QScrollArea>
 #include <QTimer>
 
+#ifdef WIN32
+#include "platform/windows/win_common.h"
+#endif
+
 CableInfoWidget::CableInfoWidget(iDescriptorDevice *device, QWidget *parent)
     : Tool(parent), m_device(device), m_response(nullptr)
 {
@@ -43,6 +47,9 @@ CableInfoWidget::CableInfoWidget(iDescriptorDevice *device, QWidget *parent)
 void CableInfoWidget::setupUI()
 {
     setWindowTitle("Cable Information - iDescriptor");
+
+    setMinimumSize(500, 400);
+
     m_mainLayout = new QVBoxLayout();
     m_mainLayout->setSpacing(20);
     m_mainLayout->setContentsMargins(20, 20, 20, 20);
@@ -81,7 +88,7 @@ void CableInfoWidget::setupUI()
     m_loadingWidget = new ZLoadingWidget(true, this);
     m_loadingWidget->setupContentWidget(m_mainLayout);
 
-    QVBoxLayout *layout = new QVBoxLayout(contentWidget());
+    QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_loadingWidget);
 

@@ -45,11 +45,16 @@
 // FIXME: on macOS setupToolFrame in Tool widget does nothing
 // probably because we are using a QQuickWidget
 VirtualLocation::VirtualLocation(iDescriptorDevice *device, QWidget *parent)
-    : Tool(parent), m_device(device)
+    : QWidget(parent), m_device(device)
 {
     setWindowTitle("Virtual Location - iDescriptor");
     setMinimumSize(600, 400);
     resize(800, 600);
+
+#ifdef WIN32
+    setObjectName("VirtualLocationWidget");
+    setAttribute(Qt::WA_StyledBackground, true);
+#endif
 
     // Create the main layout
     QHBoxLayout *mainLayout = new QHBoxLayout(this);

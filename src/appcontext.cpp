@@ -446,18 +446,8 @@ void AppContext::addDevice(iDescriptor::Uniq uniq,
                 }
                 qDebug() << "Device initialized: " << uniq;
 
-                /*
-                   We need this because wireless devices get initialized
-                   with Mac addresses. Even though a Mac address is unique, we
-                   are better off using the "UDID" as the unique identifier.
-                   This is only required for wireless devices, Usb devices
-                   already use the UDID but it doesn't hurt to set it for them
-                   as well
-                */
-                uniq.set(initResult->deviceInfo.UniqueDeviceID, false);
-
                 iDescriptorDevice *device = new iDescriptorDevice{
-                    .udid = uniq.get().toStdString(),
+                    .udid = initResult->deviceInfo.UniqueDeviceID,
                     .conn_type = conn_type,
                     .provider = initResult->provider,
                     .deviceInfo = initResult->deviceInfo,
@@ -502,24 +492,36 @@ int AppContext::getConnectedDeviceCount() const
     // #endif
 }
 
-void AppContext::removeDevice(QString _udid)
+void AppContext::removeDevice(iDescriptor::Uniq uniq)
 {
-    const std::string udid = _udid.toStdString();
-    qDebug() << "AppContext::removeDevice device with UUID:"
-             << QString::fromStdString(udid);
+    qDebug() << "AppContext::removeDevice device with"
+             << (uniq.isMac() ? "MAC" : "UDID") << uniq.get();
 
-    if (m_pendingDevices.contains(_udid)) {
-        m_pendingDevices.removeAll(_udid);
-        emit devicePairingExpired(_udid);
+    std::string udid = uniq.isUdid() ? uniq.get().toStdString() : "";
+    QString q_udid = QString::fromStdString(udid);
+
+    if (uniq.isMac()) {
+        const iDescriptorDevice *device = getDeviceByMacAddress(uniq.get());
+        if (device) {
+            udid = device->udid;
+            q_udid = QString::fromStdString(udid);
+        } else {
+            qDebug() << "Device with MAC " << uniq << " not found.";
+        }
+    }
+
+    if (m_pendingDevices.contains(q_udid)) {
+        m_pendingDevices.removeAll(q_udid);
+        emit devicePairingExpired(q_udid);
         emit deviceChange();
         return;
     } else {
-        qDebug() << "Device with UUID " + _udid +
+        qDebug() << "Device with UUID " + q_udid +
                         " not found in pending devices.";
     }
 
     if (!m_devices.contains(udid)) {
-        qDebug() << "Device with UUID " + _udid +
+        qDebug() << "Device with UUID " + q_udid +
                         " not found in normal devices.";
         return;
     }

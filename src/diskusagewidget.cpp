@@ -141,6 +141,8 @@ void DiskUsageWidget::setupUI()
     m_othersBar->setObjectName("othersBar");
     m_freeBar->setObjectName("freeBar");
 
+    bool dark = isDarkMode();
+
     // Set colors
     m_systemBar->setStyleSheet(
         "QWidget#systemBar { background-color: #a1384d; border: 1px solid"
@@ -159,11 +161,12 @@ void DiskUsageWidget::setupUI()
         "QWidget#othersBar { background-color: #a28729; border: 1px solid "
         "#c4a32d;  border-radius:0px; padding: 0; margin: 0; }");
     m_freeBar->setStyleSheet(
-        "QWidget#freeBar { background-color: rgba(255, 255, 255, 10); border: "
-        "1px solid "
-        "#4f4f4f4f; padding: 0; margin: 0; border-radius:0px; "
-        "border-top-right-radius: 3px; "
-        "border-bottom-right-radius: 3px; }");
+        QString("QWidget#freeBar { background-color: %1; border: "
+                "1px solid "
+                "#4f4f4f4f; padding: 0; margin: 0; border-radius:0px; "
+                "border-top-right-radius: 3px; "
+                "border-bottom-right-radius: 3px; }")
+            .arg(dark ? "rgba(255, 255, 255, 10)" : "rgba(0, 0, 0, 25)"));
 
     // remove padding margin from layout
     m_systemBar->setContentsMargins(0, 0, 0, 0);
@@ -519,8 +522,8 @@ void DiskUsageWidget::fetchData()
         size_t total_size = 0;
 
         AfcFileHandle *afcHandle = nullptr;
-        err = ServiceManager::safeAfcFileOpen(
-            m_device, "/PhotoData/Photos.sqlite", AfcRdOnly, &afcHandle);
+        err = ServiceManager::safeAfcFileOpen(m_device, PHOTOS_SQLITE_DB_PATH,
+                                              AfcRdOnly, &afcHandle);
 
         if (err != nullptr) {
             qDebug() << "Failed to open Photos.sqlite on device:"
@@ -530,6 +533,20 @@ void DiskUsageWidget::fetchData()
             result["galleryUsage"] = QVariant::fromValue(uint64_t(0));
             return result;
         }
+
+        AfcFileInfo fileInfo = {};
+        err = ServiceManager::safeAfcGetFileInfo(
+            m_device, PHOTOS_SQLITE_DB_PATH, &fileInfo);
+        if (err != nullptr) {
+            qDebug() << "Failed to get file info for Photos.sqlite:"
+                     << "Error Code:" << err->code
+                     << "Message:" << err->message;
+            idevice_error_free(err);
+            ServiceManager::safeAfcFileClose(m_device, afcHandle);
+            result["galleryUsage"] = QVariant::fromValue(uint64_t(0));
+            return result;
+        }
+        db_size = fileInfo.size;
 
         while (true) {
             uint8_t *chunk = nullptr;
@@ -551,7 +568,24 @@ void DiskUsageWidget::fetchData()
             memcpy(db_data + total_size, chunk, chunk_size);
             total_size += chunk_size;
         }
-        ServiceManager::safeAfcFileClose(m_device, afcHandle);
+        err = ServiceManager::safeAfcFileClose(m_device, afcHandle);
+        if (err != nullptr) {
+            qDebug() << "Failed to close Photos.sqlite on device:"
+                     << "Error Code:" << err->code
+                     << "Message:" << err->message;
+            idevice_error_free(err);
+        }
+
+        if (total_size != db_size) {
+            qDebug()
+                << "Warning: Read size does not match expected file size for "
+                   "Photos.sqlite. Read:"
+                << total_size << "Expected:" << db_size;
+            result["galleryUsage"] = QVariant::fromValue(uint64_t(0));
+
+            return result;
+        }
+
         qDebug() << "Total Photos.sqlite size read:" << total_size;
 
         // HACK: File is in WAL mode (byte 18 == 0x02).

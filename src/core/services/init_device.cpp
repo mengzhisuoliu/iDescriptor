@@ -120,16 +120,13 @@ void parseOldDevice(PlistNavigator &ioreg, DeviceInfo &d)
     parseOldDeviceBattery(ioreg, d);
 }
 
-// this is reused in the ui in deviceinfowidget
 void parseDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d)
 {
     d.batteryInfo.isCharging = ioreg["IsCharging"].getBool();
 
     d.batteryInfo.fullyCharged = ioreg["FullyCharged"].getBool();
 
-    qDebug() << "Stalebatteryinfo:"
-             << ioreg["BatteryData"]["StateOfCharge"].getUInt();
-    /* data is stale here so we need to calculate */
+    /* data is sometimes not accurate here so we need to calculate */
     // d.batteryInfo.currentBatteryLevel =
     //     ioreg["BatteryData"]["StateOfCharge"].getUInt();
 

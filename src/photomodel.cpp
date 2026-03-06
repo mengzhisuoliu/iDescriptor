@@ -182,7 +182,7 @@ bool PhotoModel::populatePhotoPaths()
     char **files = nullptr;
     size_t count = 0;
     err =
-        ServiceManager::safeAfcReadDirectory(m_device, photoDir, &files, count);
+        ServiceManager::safeAfcReadDirectory(m_device, photoDir, &files, &count);
     if (err) {
         qDebug() << "Failed to read photo directory:" << photoDir
                  << "Error:" << err->message;

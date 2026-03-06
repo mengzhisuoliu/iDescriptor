@@ -317,7 +317,11 @@ QPixmap DeviceImageWidget::createCompositeImage() const
     QString currentTime = QDateTime::currentDateTime().toString("hh:mm");
 
     QFont timeFont;
+#ifndef WIN32
     timeFont.setFamily("SF Pro Display, Helvetica, Arial");
+#else
+    timeFont.setFamily("Segoe UI");
+#endif
     int fontSize = screenRect.width() / 5;
     timeFont.setPointSize(fontSize);
     timeFont.setWeight(QFont::Light);

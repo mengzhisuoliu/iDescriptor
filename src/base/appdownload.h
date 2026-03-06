@@ -20,6 +20,8 @@
 #ifndef APPDOWNLOADBASEDIALOG_H
 #define APPDOWNLOADBASEDIALOG_H
 
+#include "../appstoremanager.h"
+#include "../iDescriptor-ui.h"
 #include <QDialog>
 #include <QNetworkAccessManager>
 #include <QProcess>

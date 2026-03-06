@@ -23,12 +23,12 @@
 
 IdeviceFfiError *ServiceManager::safeAfcReadDirectory(
     const iDescriptorDevice *device, const char *path, char ***dirs,
-    size_t count, std::optional<AfcClientHandle *> altAfc)
+    size_t *count, std::optional<AfcClientHandle *> altAfc)
 {
     return executeAfcClientOperation(
         device,
-        [path, dirs, &count, device](AfcClientHandle *client) {
-            return afc_list_directory(client, path, dirs, &count);
+        [path, dirs, count, device](AfcClientHandle *client) {
+            return afc_list_directory(client, path, dirs, count);
         },
         altAfc);
 }
@@ -415,5 +415,27 @@ IdeviceFfiError *ServiceManager::enableDevMode(const iDescriptorDevice *device)
                 qDebug() << "Developer mode enabled, device will reboot.";
             }
             return err;
+        });
+}
+
+IdeviceFfiError *
+ServiceManager::safeParseOldDeviceBattery(const iDescriptorDevice *device,
+                                          PlistNavigator &ioreg, DeviceInfo &d)
+{
+    return executeOperation<IdeviceFfiError *>(
+        device, [device, &ioreg, &d]() -> IdeviceFfiError * {
+            parseOldDeviceBattery(ioreg, d);
+            return nullptr;
+        });
+}
+
+IdeviceFfiError *
+ServiceManager::safeParseDeviceBattery(const iDescriptorDevice *device,
+                                       PlistNavigator &ioreg, DeviceInfo &d)
+{
+    return executeOperation<IdeviceFfiError *>(
+        device, [device, &ioreg, &d]() -> IdeviceFfiError * {
+            parseDeviceBattery(ioreg, d);
+            return nullptr;
         });
 }

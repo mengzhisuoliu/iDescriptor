@@ -25,6 +25,7 @@
 #include "ifusediskunmountbutton.h"
 #include "ifusemanager.h"
 #include "jailbrokenwidget.h"
+#include "releasechangelogdialog.h"
 #include "toolboxwidget.h"
 #include "welcomewidget.h"
 #include <QHBoxLayout>
@@ -155,19 +156,30 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 
     statusLayout->addWidget(statusBalloon->getButton());
 
-    ZIconWidget *welcomeMenu = new ZIconWidget(
+    ZIconWidget *welcomeMenuSwitch = new ZIconWidget(
         QIcon(":/resources/icons/LetsIconsHorizontalDownLeftMainLight.png"),
         "Switch to Welcome Menu");
-    connect(welcomeMenu, &ZIconWidget::clicked, this, [this, welcomeMenu]() {
-        if (m_mainStackedWidget->currentIndex() != 0) {
-            welcomeMenu->setToolTip("Switch to Connected Devices");
-            return m_mainStackedWidget->setCurrentIndex(0);
-        }
-        welcomeMenu->setToolTip("Switch to Welcome Menu");
-        m_mainStackedWidget->setCurrentIndex(1);
-    });
+    connect(welcomeMenuSwitch, &ZIconWidget::clicked, this,
+            [this, welcomeMenuSwitch]() {
+                if (m_mainStackedWidget->currentIndex() != 0) {
+                    welcomeMenuSwitch->setToolTip(
+                        "Switch to Connected Devices");
+                    return m_mainStackedWidget->setCurrentIndex(0);
+                }
+                welcomeMenuSwitch->setToolTip("Switch to Welcome Menu");
+                m_mainStackedWidget->setCurrentIndex(1);
+            });
 
-    statusLayout->addWidget(welcomeMenu);
+    connect(m_ZTabWidget, &ZTabWidget::currentChanged, this,
+            [welcomeMenuSwitch](int index) {
+                if (index != 0) {
+                    return welcomeMenuSwitch->hide();
+                }
+
+                welcomeMenuSwitch->show();
+            });
+
+    statusLayout->addWidget(welcomeMenuSwitch);
     statusLayout->addStretch(1);
 
     statusLayout->setContentsMargins(0, 0, 0, 0);
@@ -220,23 +232,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     qDebug() << "Subscribed to recovery device events successfully.";
 #endif
 
-    //     idevice_error_t res = idevice_event_subscribe(handleCallback,
-    //     nullptr); if (res != IDEVICE_E_SUCCESS) {
-    //         qDebug() << "ERROR: Unable to subscribe to device events. Error
-    //         code:"
-    //                  << res;
-    //     }
-    //     qDebug() << "Subscribed to device events successfully.";
     createMenus();
 
-    //     UpdateProcedure updateProcedure;
-    //     bool packageManagerManaged = false;
-    //     bool isPortable = false;
-    //     bool skipPrerelease = true;
-    // #ifdef WIN32
-    //     isPortable = !is_iDescriptorInstalled();
-    //     qDebug() << "isPortable=" << isPortable;
-    // #endif
+    UpdateProcedure updateProcedure;
+    bool packageManagerManaged = false;
+    bool isPortable = false;
+    bool skipPrerelease = true;
+#ifdef WIN32
+    isPortable = !is_iDescriptorInstalled();
+    qDebug() << "isPortable=" << isPortable;
+#endif
 
     /*
     struct UpdateProcedure {
@@ -247,75 +252,87 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
         QString boxText;
     };
     */
-    //     switch (ZUpdater::detectPlatform()) {
-    //     case Platform::Windows:
-    //         updateProcedure = UpdateProcedure{
-    //             !isPortable,
-    //             isPortable,
-    //             !isPortable,
-    //             isPortable ? "New portable version downloaded, app location
-    //             will "
-    //                          "be shown after this message"
-    //                        : "The application will now quit to install the
-    //                        update.",
-    //             isPortable ? "New portable version downloaded"
-    //                        : "Do you want to install the downloaded update
-    //                        now?",
-    //         };
-    //         break;
-    //         // todo: adjust for pkg managers
-    //     case Platform::MacOS:
-    //         updateProcedure = UpdateProcedure{
-    //             true,
-    //             false,
-    //             true,
-    //             "The application will now quit and open .dmg file downloaded
-    //             to "
-    //             "\"Downloads\" from there you can drag it to Applications to
-    //             " "install.", "Update downloaded would you like to quit and
-    //             install the update?",
-    //         };
-    //         break;
-    //     case Platform::Linux:
-    //         // currently only on linux (arch aur) is enabled
-    // #ifdef PACKAGE_MANAGER_MANAGED
-    //         packageManagerManaged = true;
-    // #endif
-    //         updateProcedure = UpdateProcedure{
-    //             true,
-    //             false,
-    //             true,
-    //             "AppImages we ship are not updateable. New version is
-    //             downloaded " "to "
-    //             "\"Downloads\". You can start using the new version by
-    //             launching " "it " "from there. You can delete this AppImage
-    //             version if you like.", "Update downloaded would you like to
-    //             quit and open the new " "version?",
-    //         };
-    //         break;
-    //     default:
-    //         updateProcedure = UpdateProcedure{
-    //             false, false, false, "", "",
-    //         };
-    //     }
+    switch (ZUpdater::detectPlatform()) {
+    case Platform::Windows:
+        updateProcedure = UpdateProcedure{
+            !isPortable,
+            isPortable,
+            !isPortable,
+            isPortable ? "New portable version downloaded, app location will "
+                         "be shown after this message"
+                       : "The application will now quit to install the update.",
+            isPortable ? "New portable version downloaded"
+                       : "Do you want to install the downloaded update now?",
+        };
+        break;
+        // todo: adjust for pkg managers
+    case Platform::MacOS:
+        updateProcedure = UpdateProcedure{
+            true,
+            false,
+            true,
+            "The application will now quit and open .dmg file downloaded to "
+            "\"Downloads\" from there you can drag it to Applications to "
+            "install.",
+            "Update downloaded would you like to quit and install the update?",
+        };
+        break;
+    case Platform::Linux:
+        // currently only on linux (arch aur) is enabled
+#ifdef PACKAGE_MANAGER_MANAGED
+        packageManagerManaged = true;
+#endif
+        updateProcedure = UpdateProcedure{
+            true,
+            false,
+            true,
+            "AppImages we ship are not updateable. New version is downloaded "
+            "to "
+            "\"Downloads\". You can start using the new version by launching "
+            "it "
+            "from there. You can delete this AppImage version if you like.",
+            "Update downloaded would you like to quit and open the new "
+            "version?",
+        };
+        break;
+    default:
+        updateProcedure = UpdateProcedure{
+            false, false, false, "", "",
+        };
+    }
 
-    //     m_updater = new ZUpdater("iDescriptor/iDescriptor", APP_VERSION,
-    //                              "iDescriptor", updateProcedure, isPortable,
-    //                              packageManagerManaged, skipPrerelease,
-    //                              this);
-    // #if defined(PACKAGE_MANAGER_MANAGED) && defined(__linux__)
-    //     m_updater->setPackageManagerManagedMessage(
-    //         QString(
-    //             "You seem to have installed iDescriptor using a package
-    //             manager. " "Please use %1 to update it.")
-    //             .arg(PACKAGE_MANAGER_HINT));
-    // #endif
+    m_updater = new ZUpdater("iDescriptor/iDescriptor", APP_VERSION,
+                             "iDescriptor", updateProcedure, isPortable,
+                             packageManagerManaged, skipPrerelease, this);
+#if defined(PACKAGE_MANAGER_MANAGED) && defined(__linux__)
+    m_updater->setPackageManagerManagedMessage(
+        QString(
+            "You seem to have installed iDescriptor using a package manager. "
+            "Please use %1 to update it.")
+            .arg(PACKAGE_MANAGER_HINT));
+#endif
 
-    //     SettingsManager::sharedInstance()->doIfEnabled(
-    //         SettingsManager::Setting::AutoCheckUpdates, [this]() {
-    //             qDebug() << "Checking for updates...";
-    //             m_updater->checkForUpdates();
-    //         });
+    QString lastAppVersion = SettingsManager::sharedInstance()->appVersion();
+    bool shouldShowReleaseChangelog = true;
+    SettingsManager::sharedInstance()->setAppVersion(APP_VERSION);
+
+    if (shouldShowReleaseChangelog) {
+        connect(
+            m_updater, &ZUpdater::dataAvailable, this,
+            [this](const QJsonDocument data, bool isUpdateAvailable) {
+                if (!isUpdateAvailable) {
+                    ReleaseChangelogDialog dialog(data, this);
+                    dialog.exec();
+                }
+            },
+            Qt::SingleShotConnection);
+    }
+
+    SettingsManager::sharedInstance()->doIfEnabled(
+        SettingsManager::Setting::AutoCheckUpdates, [this]() {
+            qDebug() << "Checking for updates...";
+            m_updater->checkForUpdates();
+        });
 
     m_deviceMonitor = new DeviceMonitorThread(this);
     connect(
@@ -343,9 +360,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
             }
 
             case DeviceMonitorThread::IDEVICE_DEVICE_REMOVE: {
-                QMetaObject::invokeMethod(AppContext::sharedInstance(),
-                                          "removeDevice", Qt::QueuedConnection,
-                                          Q_ARG(QString, udid));
+                QMetaObject::invokeMethod(
+                    AppContext::sharedInstance(), "removeDevice",
+                    Qt::QueuedConnection,
+                    Q_ARG(iDescriptor::Uniq, iDescriptor::Uniq(udid)));
                 break;
             }
 

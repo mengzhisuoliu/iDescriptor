@@ -44,7 +44,11 @@
 #include "./platform/windows/win_common.h"
 #endif
 
-#define COLOR_GREEN QColor(0, 180, 0)    // Green
+#ifndef WIN32
+#define COLOR_GREEN QColor(0, 180, 0) // Green
+#else
+#define COLOR_GREEN QColor("#FF008000")
+#endif
 #define COLOR_ORANGE QColor(255, 140, 0) // Orange
 #define COLOR_RED QColor(255, 0, 0)      // Red
 #define COLOR_BLUE QColor("#2b5693")

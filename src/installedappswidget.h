@@ -43,7 +43,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-class AppTabWidget : public QGroupBox
+class AppTabWidget : public QWidget
 {
     Q_OBJECT
 
@@ -70,7 +70,7 @@ protected:
         if (event->type() == QEvent::PaletteChange) {
             updateStyles();
         }
-        QGroupBox::changeEvent(event);
+        QWidget::changeEvent(event);
     };
 
 private:

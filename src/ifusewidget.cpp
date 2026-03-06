@@ -34,7 +34,7 @@
 #endif
 
 iFuseWidget::iFuseWidget(iDescriptorDevice *device, QWidget *parent)
-    : QWidget(parent), m_mainLayout(nullptr), m_ifuseProcess(nullptr),
+    : Tool(parent), m_mainLayout(nullptr), m_ifuseProcess(nullptr),
       m_device(device)
 {
     setupUI();

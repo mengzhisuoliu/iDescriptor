@@ -20,7 +20,7 @@
 #ifndef APPDOWNLOADDIALOG_H
 #define APPDOWNLOADDIALOG_H
 
-#include "appdownloadbasedialog.h"
+#include "base/appdownload.h"
 #include "iDescriptor-ui.h"
 #include "zloadingwidget.h"
 #include <QDialog>

@@ -20,6 +20,7 @@
 #ifndef DEVDISKIMAGEHELPER_H
 #define DEVDISKIMAGEHELPER_H
 
+#include "iDescriptor-ui.h"
 #include "iDescriptor.h"
 #include <QDialog>
 #include <QLabel>
