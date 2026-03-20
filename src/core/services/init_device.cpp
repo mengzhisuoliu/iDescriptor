@@ -153,10 +153,9 @@ void parseDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d)
     d.batteryInfo.watts = ioreg["AppleRawAdapterDetails"][0]["Watts"].getUInt();
 }
 
-DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
-                          AfcClientHandle *afcClient,
-                          DiagnosticsRelay *diagRelay,
-                          iDescriptorInitDeviceResult &result)
+void fullDeviceInfo(const pugi::xml_document &doc, AfcClientHandle *afcClient,
+                    DiagnosticsRelay *diagRelay,
+                    iDescriptorInitDeviceResult &result)
 {
     pugi::xml_node dict = doc.child("plist").child("dict");
     auto safeGet = [&](const char *key) -> std::string {
@@ -248,7 +247,7 @@ DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
             IdeviceFfiError *err = afc_get_device_info(afcClient, info);
             if (err) {
                 qDebug() << "AFC get device info error code: " << err->message;
-                return d;
+                return;
             }
             if (info) {
 
@@ -309,7 +308,7 @@ DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
 
     if (!diagnostics) {
         qDebug() << "Failed to get diagnostics plist.";
-        return d;
+        return;
     }
     try {
         PlistNavigator ioreg = PlistNavigator(diagnostics);
@@ -320,7 +319,7 @@ DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
             parseOldDevice(ioreg, d);
             plist_free(diagnostics);
             diagnostics = nullptr;
-            return d;
+            return;
         }
 
         bool newerThaniPhone8 =
@@ -358,10 +357,10 @@ DeviceInfo fullDeviceInfo(const pugi::xml_document &doc,
         plist_free(diagnostics);
         diagnostics = nullptr;
 
-        return d;
+        return;
     } catch (const std::exception &e) {
         qDebug() << "Error occurred: " << e.what();
-        return d;
+        return;
     }
 }
 
@@ -567,6 +566,12 @@ cleanup:
     if (!result.success) {
         qDebug() << "Initialization failed, cleaning up resources."
                  << err->message;
+        if (heartbeatThread) {
+            heartbeatThread->requestInterruption();
+            heartbeatThread->wait();
+            delete heartbeatThread;
+            heartbeatThread = nullptr;
+        }
         if (afc2_client)
             afc_client_free(afc2_client);
         if (afc_client)

@@ -77,6 +77,8 @@
 #define NotFoundErrorCode -14
 #define ServiceNotFoundErrorCode -15
 #define PairingDialogResponsePending -28
+#define InvalidHostID -10
+#define PasswordProtected -30
 #define InvalidServiceErrorCode -59
 #define TimeoutErrorCode -71
 
@@ -225,6 +227,8 @@ struct DeviceInfo {
     std::string UniqueDeviceID;
 };
 
+class HeartbeatThread;
+
 struct iDescriptorDevice {
     std::string udid;
     DeviceMonitorThread::IdeviceConnectionType conn_type;
@@ -237,7 +241,7 @@ struct iDescriptorDevice {
     mutable std::recursive_mutex mutex;
     std::shared_ptr<DiagnosticsRelay> diagRelay;
     // nullptr on USB devices
-    QThread *heartbeatThread;
+    HeartbeatThread *heartbeatThread;
 };
 
 struct iDescriptorInitDeviceResult {
@@ -249,7 +253,7 @@ struct iDescriptorInitDeviceResult {
     AfcClientHandle *afc2Client;
     LockdowndClientHandle *lockdown;
     std::shared_ptr<DiagnosticsRelay> diagRelay;
-    QThread *heartbeatThread;
+    HeartbeatThread *heartbeatThread;
 };
 #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
 struct iDescriptorRecoveryDevice {

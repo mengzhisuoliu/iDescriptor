@@ -3,6 +3,7 @@
 #include "iDescriptor.h"
 #include <QDebug>
 #include <QThread>
+#include <atomic>
 
 using namespace IdeviceFFI;
 
@@ -62,6 +63,7 @@ public:
                                     "exiting for "
                                     "device"
                                  << m_macAddress;
+                        m_exited = true;
                         emit heartbeatThreadExited(m_macAddress);
                         break;
                     }
@@ -84,12 +86,14 @@ public:
     }
 
     bool initialCompleted() const { return m_initialCompleted; }
+    bool exited() const { return m_exited.load(); }
 
 private:
     Heartbeat m_hb;
     bool m_initialCompleted = false;
     iDescriptor::Uniq m_macAddress;
     unsigned int m_tries = 0;
+    std::atomic<bool> m_exited{false};
 
 signals:
     void heartbeatFailed(const QString &macAddress, unsigned int tries = 0);

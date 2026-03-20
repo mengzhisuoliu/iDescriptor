@@ -22,6 +22,7 @@
 
 #include "devicemonitor.h"
 #include "devicesidebarwidget.h"
+#include "heartbeat.h"
 #include "iDescriptor.h"
 #include <QObject>
 
@@ -60,6 +61,8 @@ private:
     void cachePairedDevices();
     void emitNoPairingFileForWirelessDevice(const QString &udid);
     void freeDevice(iDescriptorDevice *device);
+    void handlePairing(iDescriptorInitDeviceResult *initResult, AddType addType,
+                       iDescriptor::Uniq uniq);
 signals:
     void deviceAdded(const iDescriptorDevice *device);
     void deviceRemoved(const std::string &udid, const std::string &macAddress,
