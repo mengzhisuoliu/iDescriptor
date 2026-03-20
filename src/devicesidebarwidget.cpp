@@ -177,11 +177,11 @@ void DeviceSidebarItem::setSelected(bool selected)
     if (selected) {
         setStyleSheet(
             "QFrame#DeviceSidebarItem {     background-color: rgba(255, "
-            "255, 255, 45); }");
+            "255, 255, 45); border-radius: 5px; }");
     } else {
         setStyleSheet(
             "QFrame#DeviceSidebarItem {     background-color: rgba(255, "
-            "255, 255, 16); }");
+            "255, 255, 16); border-radius: 5px; }");
     }
 #else
     if (selected) {
@@ -305,7 +305,6 @@ DeviceSidebarWidget::DeviceSidebarWidget(QWidget *parent)
     mainLayout->setContentsMargins(10, 10, 10, 10);
     mainLayout->setSpacing(0);
 
-    // Create scroll area
     m_scrollArea = new QScrollArea();
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -316,20 +315,17 @@ DeviceSidebarWidget::DeviceSidebarWidget(QWidget *parent)
         "QScrollArea { background: transparent; border: none; }");
     m_scrollArea->viewport()->setStyleSheet("background: transparent;");
 
-    // Create content widget
     m_contentWidget = new QWidget();
     m_contentLayout = new QVBoxLayout(m_contentWidget);
     m_contentLayout->setContentsMargins(5, 5, 5, 5);
     m_contentLayout->setSpacing(10);
     m_contentLayout->addStretch(); // Push items to top
 
-    // Ensure the content widget is also transparent
     m_contentWidget->setStyleSheet("background: transparent;");
 
     m_scrollArea->setWidget(m_contentWidget);
     mainLayout->addWidget(m_scrollArea);
 
-    // Set minimum width
     setMinimumWidth(200);
     setMaximumWidth(200);
 
@@ -378,7 +374,6 @@ RecoveryDeviceSidebarItem *DeviceSidebarWidget::addRecoveryDevice(uint64_t ecid)
 {
     RecoveryDeviceSidebarItem *item = new RecoveryDeviceSidebarItem(ecid, this);
 
-    // Connect to unified handler
     connect(item, &RecoveryDeviceSidebarItem::recoveryDeviceSelected, this,
             [this](uint64_t ecid) { onItemSelected(DeviceSelection(ecid)); });
 
