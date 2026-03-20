@@ -418,54 +418,91 @@ void VirtualLocation::onApplyClicked()
     }
 
     /* iOS 17 and above */
-    IdeviceFfiError *err = nullptr;
-    IdeviceFfiError *err_reveal = nullptr;
-    CoreDeviceProxyHandle *core_device = NULL;
-    uint16_t rsd_port;
-    AdapterHandle *adapter = NULL;
-    ReadWriteOpaque *stream = NULL;
-    RsdHandshakeHandle *handshake = NULL;
-    RemoteServerHandle *remote_server = NULL;
-    LocationSimulationHandle *location_sim = NULL;
+    auto tmpProvider = IdeviceFFI::Provider::adopt(m_device->provider);
 
-    err = core_device_proxy_connect(m_device->provider, &core_device);
-    if (err != NULL) {
-        qDebug() << "Failed to connect to CoreDeviceProxy:" << err->code
-                 << err->message;
-        goto cleanup;
+    auto cdp_res = IdeviceFFI::CoreDeviceProxy::connect(tmpProvider);
+
+    // provider shouldn't be freed
+    tmpProvider.release();
+
+    if (cdp_res.is_err()) {
+        auto err = cdp_res.unwrap_err();
+        qDebug() << "Failed to connect to CoreDeviceProxy:" << err.code
+                 << QString::fromStdString(err.message);
+        QMessageBox::warning(this, "Error",
+                             QString("Failed to connect to CoreDeviceProxy: %1")
+                                 .arg(QString::fromStdString(err.message)));
+        m_applyButton->setEnabled(true);
+        return;
     }
 
-    err = core_device_proxy_get_server_rsd_port(core_device, &rsd_port);
-    if (err != NULL) {
-        qDebug() << "Failed to get server RSD port:" << err->code
-                 << err->message;
-        goto cleanup;
+    auto &cdp = cdp_res.unwrap();
+
+    auto rsd_port_res = cdp.get_server_rsd_port();
+    if (rsd_port_res.is_err()) {
+        auto err = rsd_port_res.unwrap_err();
+        qDebug() << "Failed to get server RSD port:" << err.code
+                 << QString::fromStdString(err.message);
+        QMessageBox::warning(this, "Error",
+                             QString("Failed to get server RSD port: %1")
+                                 .arg(QString::fromStdString(err.message)));
+        m_applyButton->setEnabled(true);
+        return;
     }
 
-    err = core_device_proxy_create_tcp_adapter(core_device, &adapter);
-    if (err != NULL) {
-        qDebug() << "Failed to create TCP adapter:" << err->code
-                 << err->message;
-        goto cleanup;
+    uint16_t rsd_port = rsd_port_res.unwrap();
+
+    auto adapter_res = std::move(cdp).create_tcp_adapter();
+    if (adapter_res.is_err()) {
+        auto err = adapter_res.unwrap_err();
+        qDebug() << "Failed to create software tunnel adapter:" << err.code
+                 << QString::fromStdString(err.message);
+        QMessageBox::warning(
+            this, "Error",
+            QString("Failed to create software tunnel adapter: %1")
+                .arg(QString::fromStdString(err.message)));
+        m_applyButton->setEnabled(true);
+        return;
     }
 
-    err = adapter_connect(adapter, rsd_port, &stream);
-    if (err != NULL) {
-        qDebug() << "Failed to connect to RSD port:" << err->code
-                 << err->message;
-        goto cleanup;
+    auto &adapter = adapter_res.unwrap();
+
+    auto stream_res = adapter.connect(rsd_port);
+    if (stream_res.is_err()) {
+        auto err = stream_res.unwrap_err();
+        qDebug() << "Failed to connect RSD stream:" << err.code
+                 << QString::fromStdString(err.message);
+        QMessageBox::warning(this, "Error",
+                             QString("Failed to connect RSD stream: %1")
+                                 .arg(QString::fromStdString(err.message)));
+        m_applyButton->setEnabled(true);
+        return;
     }
 
-    err = rsd_handshake_new(stream, &handshake);
-    if (err != NULL) {
-        qDebug() << "Failed to perform RSD handshake:" << err->code
-                 << err->message;
-        goto cleanup;
+    auto &stream = stream_res.unwrap();
+
+    auto rsd_res = IdeviceFFI::RsdHandshake::from_socket(std::move(stream));
+    if (rsd_res.is_err()) {
+        auto err = rsd_res.unwrap_err();
+        qDebug() << "Failed RSD handshake:" << err.code
+                 << QString::fromStdString(err.message);
+        QMessageBox::warning(this, "Error",
+                             QString("Failed RSD handshake: %1")
+                                 .arg(QString::fromStdString(err.message)));
+        m_applyButton->setEnabled(true);
+        return;
     }
 
-    err = remote_server_connect_rsd(adapter, handshake, &remote_server);
-    if (err != NULL) {
-        if (err->code == ServiceNotFoundErrorCode) {
+    auto &rsd = rsd_res.unwrap();
+
+    auto rs_res = IdeviceFFI::RemoteServer::connect_rsd(adapter, rsd);
+    if (rs_res.is_err()) {
+        auto err = rs_res.unwrap_err();
+        qDebug() << "Failed to connect to RemoteServer:" << err.code
+                 << QString::fromStdString(err.message);
+
+        IdeviceFfiError *err_reveal = nullptr;
+        if (err.code == ServiceNotFoundErrorCode) {
             err_reveal =
                 ServiceManager::revealDeveloperModeOptionInUI(m_device);
             if (err_reveal != NULL) {
@@ -476,7 +513,7 @@ void VirtualLocation::onApplyClicked()
                     "Developer Mode Not Enabled and failed to "
                     "reveal developer mode option in UI:\n" +
                         QString::fromStdString(err_reveal->message));
-                goto cleanup;
+                idevice_error_free(err_reveal);
             }
             // TODO: create a widget showing instructions on how to enable dev
             // mode,
@@ -484,70 +521,50 @@ void VirtualLocation::onApplyClicked()
                                      "Please enable Developer "
                                      "Mode on the device to use this "
                                      "feature.");
-            goto cleanup;
-        } else {
-            qDebug() << "Failed to connect to remote server:" << err->code
-                     << err->message;
-            QMessageBox::warning(this, "Connection Failed",
-                                 "Failed to connect to device's remote "
-                                 "service:\n" +
-                                     QString::fromStdString(err->message));
-            goto cleanup;
+
+            m_applyButton->setEnabled(true);
+            return;
         }
-    }
 
-    err = location_simulation_new(remote_server, &location_sim);
-    if (err != NULL) {
-        qDebug() << "Failed to create location simulation client:" << err->code
-                 << err->message;
         QMessageBox::warning(this, "Error",
-                             "Failed to create location simulation client:\n" +
-                                 QString::fromStdString(err->message));
-        goto cleanup;
+                             QString("Failed to connect to RemoteServer: %1")
+                                 .arg(QString::fromStdString(err.message)));
+        m_applyButton->setEnabled(true);
+        return;
     }
 
-    err = location_simulation_set(location_sim, latitude, longitude);
-    if (err != NULL) {
-        qDebug() << "Failed to set location:" << err->code << err->message;
+    auto &rs = rs_res.unwrap();
+
+    auto sim_res = IdeviceFFI::LocationSimulation::create(rs);
+    if (sim_res.is_err()) {
+        auto err = sim_res.unwrap_err();
+        qDebug() << "Failed to create LocationSimulation client:" << err.code
+                 << QString::fromStdString(err.message);
+        QMessageBox::warning(
+            this, "Error",
+            QString("Failed to create LocationSimulation client: %1")
+                .arg(QString::fromStdString(err.message)));
+        m_applyButton->setEnabled(true);
+        return;
+    }
+
+    auto &sim = sim_res.unwrap();
+
+    auto set_res = sim.set(latitude, longitude);
+    if (set_res.is_err()) {
+        auto err = set_res.unwrap_err();
+        qDebug() << "Failed to set location simulation:" << err.code
+                 << QString::fromStdString(err.message);
         QMessageBox::warning(this, "Error",
-                             "Failed to set location on device:\n" +
-                                 QString::fromStdString(err->message));
-    } else {
-        qDebug() << "Successfully set location to" << latitude << longitude;
-        QMessageBox::information(this, "Success",
-                                 "Location applied successfully!");
-        SettingsManager::sharedInstance()->saveRecentLocation(latitude,
-                                                              longitude);
+                             QString("Failed to set location simulation: %1")
+                                 .arg(QString::fromStdString(err.message)));
+        m_applyButton->setEnabled(true);
+        return;
     }
 
-cleanup:
-    if (location_sim) {
-        location_simulation_free(location_sim);
-    }
-    if (remote_server) {
-        remote_server_free(remote_server);
-    }
-    if (handshake) {
-        rsd_handshake_free(handshake);
-    }
-    if (adapter) {
-        adapter_close(adapter);
-        adapter_free(adapter);
-    }
-    // FIXME: seg faults
-    // if (stream) {
-    //     idevice_stream_free(stream);
-    // }
-    if (core_device) {
-        core_device_proxy_free(core_device);
-    }
-    if (err) {
-        idevice_error_free(err);
-    }
-    if (err_reveal) {
-        idevice_error_free(err_reveal);
-    }
+    SettingsManager::sharedInstance()->saveRecentLocation(latitude, longitude);
     m_applyButton->setEnabled(true);
+    QMessageBox::information(this, "Success", "Location applied successfully");
 }
 
 void VirtualLocation::loadRecentLocations(QVBoxLayout *layout)
