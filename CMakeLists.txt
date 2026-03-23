@@ -24,7 +24,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if (APPLE) 
+if (APPLE)
     # Target at least macOS 13.0
     set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0")
 endif()
@@ -41,7 +41,7 @@ if(WIN32)
     set(ENV{PKG_CONFIG_PATH} "${CUSTOM_PKGCONFIG_PATH};$ENV{PKG_CONFIG_PATH}")
 elseif(APPLE)
     set(CUSTOM_LIB_PATH "/usr/local/lib")
-    # TODO: do we need this on macOS? 
+    # TODO: do we need this on macOS?
     # set(CUSTOM_INCLUDE_PATH "/usr/local/include")
     set(CUSTOM_PKGCONFIG_PATH "/usr/local/lib/pkgconfig")
     set(ENV{PKG_CONFIG_PATH} "${CUSTOM_PKGCONFIG_PATH}:$ENV{PKG_CONFIG_PATH}")
@@ -52,7 +52,7 @@ else ()
 endif()
 
 find_package(PkgConfig REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Network QuickControls2 SerialPort Positioning Location QuickWidgets) 
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Network QuickControls2 SerialPort Positioning Location QuickWidgets)
 find_package(SQLite3 REQUIRED)
 # Add QTermWidget
 # Prefer CMake-native qtermwidget6, fallback to pkg-config if needed
@@ -221,7 +221,7 @@ endif()
 pkg_check_modules(PUGIXML REQUIRED IMPORTED_TARGET pugixml)
 
 if(ENABLE_RECOVERY_DEVICE_SUPPORT)
-    find_library(IRECOVERY_LIBRARY 
+    find_library(IRECOVERY_LIBRARY
         NAMES irecovery-1.0
     	${CUSTOM_FIND_LIB_ARGS}
     )
@@ -282,8 +282,8 @@ add_subdirectory(lib/ipatool-go)
 add_subdirectory(lib/zupdater)
 # add_subdirectory(lib/ztoast)
 
-if (WIN32) 
-    set(NO_DEPLOY_WIN_IFUSE ON) 
+if (WIN32)
+    set(NO_DEPLOY_WIN_IFUSE ON)
     add_subdirectory(lib/win-ifuse)
 endif()
 
@@ -318,28 +318,42 @@ endif()
 add_dependencies(idevice_cpp idevice_rs_build)
 
 
-set(RUST_MONITOR_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/rust)
-set(RUST_MONITOR_LIB_PATH ${RUST_MONITOR_SOURCE_DIR}/target/debug/libidevice_monitor.a)
+set(RUST_CODEBASE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/rust)
+set(RUST_CODEBASE_LIB_PATH ${RUST_CODEBASE_SOURCE_DIR}/target/debug/librust_codebase.a)
 
-add_custom_command(
-    OUTPUT ${RUST_MONITOR_LIB_PATH}
-    COMMAND ${CARGO_EXECUTABLE} build --manifest-path ${RUST_MONITOR_SOURCE_DIR}/Cargo.toml
-    WORKING_DIRECTORY ${RUST_MONITOR_SOURCE_DIR}
-    COMMENT "Building Rust device monitor library"
-    VERBATIM
+
+if (APPLE)
+    add_custom_command(
+        OUTPUT ${RUST_CODEBASE_LIB_PATH}
+        COMMAND ${CMAKE_COMMAND} -E env
+                "PATH=$ENV{HOME}/.cargo/bin:/usr/local/bin:$ENV{PATH}"
+                "RUSTC=/usr/local/bin/rustc"
+                ${CARGO_EXECUTABLE} build --manifest-path ${RUST_CODEBASE_SOURCE_DIR}/Cargo.toml
+        WORKING_DIRECTORY ${RUST_CODEBASE_SOURCE_DIR}
+        COMMENT "Building Rust codebase"
+        VERBATIM
+    )
+else()
+    add_custom_command(
+        OUTPUT ${RUST_CODEBASE_LIB_PATH}
+        COMMAND ${CARGO_EXECUTABLE} build --manifest-path ${RUST_CODEBASE_SOURCE_DIR}/Cargo.toml
+        WORKING_DIRECTORY ${RUST_CODEBASE_SOURCE_DIR}
+        COMMENT "Building Rust codebase"
+        VERBATIM
+    )
+endif()
+
+add_custom_target(rust_codebase_build DEPENDS ${RUST_CODEBASE_LIB_PATH})
+
+add_library(rust_codebase STATIC IMPORTED GLOBAL)
+set_target_properties(rust_codebase PROPERTIES
+    IMPORTED_LOCATION "${RUST_CODEBASE_LIB_PATH}"
 )
 
-add_custom_target(rust_device_monitor_build DEPENDS ${RUST_MONITOR_LIB_PATH})
+add_dependencies(rust_codebase rust_codebase_build)
 
-add_library(idevice_monitor STATIC IMPORTED GLOBAL)
-set_target_properties(idevice_monitor PROPERTIES
-    IMPORTED_LOCATION "${RUST_MONITOR_LIB_PATH}"
-)
-
-add_dependencies(idevice_monitor rust_device_monitor_build)
-
-target_link_libraries(iDescriptor PRIVATE 
-    Qt6::Widgets 
+target_link_libraries(iDescriptor PRIVATE
+    Qt6::Widgets
     Qt6::Multimedia
     Qt6::MultimediaWidgets
     Qt6::Network
@@ -368,7 +382,7 @@ target_link_libraries(iDescriptor PRIVATE
     # ZToast
     ${IDEVICE_IMPLEMENTATION_LIBS}
     SQLite::SQLite3
-    idevice_monitor
+    rust_codebase
 )
 
 if(ENABLE_RECOVERY_DEVICE_SUPPORT)
@@ -381,11 +395,11 @@ target_include_directories(iDescriptor PRIVATE
     ${IDEVICE_CPP_INCLUDE_DIR}
     ${IDEVICE_FFI_INCLUDE_DIR}
     ${PLIST_CPP_INCLUDE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib 
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/zupdater/src
     # System includes last
     ${IDEVICE_IMPLEMENTATION_INCLUDES}
-    ${RUST_MONITOR_SOURCE_DIR}/include
+    ${RUST_CODEBASE_SOURCE_DIR}/include
 )
 
 
@@ -399,9 +413,9 @@ if(APPLE)
     message(STATUS "Using macOS Bonjour framework for network service discovery")
 elseif (WIN32)
     target_link_libraries(iDescriptor PRIVATE PkgConfig::LIBARCHIVE dwmapi ntdll)
-    find_path(DNSSD_INCLUDE_DIR dns_sd.h HINTS ${BONJOUR_SDK}/Include ) 
+    find_path(DNSSD_INCLUDE_DIR dns_sd.h HINTS ${BONJOUR_SDK}/Include )
     # $<$<COMPILE_LANGUAGE:CXX> fixes winres compiler errors
-    target_include_directories(iDescriptor PRIVATE 
+    target_include_directories(iDescriptor PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:${DNSSD_INCLUDE_DIR}>
     )
 else()
@@ -424,7 +438,7 @@ if(APPLE)
 endif()
 
 # Add compile definition for source directory
-target_compile_definitions(iDescriptor PRIVATE 
+target_compile_definitions(iDescriptor PRIVATE
     SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
@@ -440,7 +454,7 @@ if(PACKAGE_MANAGER_MANAGED)
 endif()
 
 
-target_compile_definitions(iDescriptor PRIVATE 
+target_compile_definitions(iDescriptor PRIVATE
     APP_VERSION="${PROJECT_VERSION}"
 )
 
@@ -522,13 +536,13 @@ if(WIN32)
         # Check if file exists before deployment
         set(EXECUTABLE_PATH \"\${CMAKE_INSTALL_PREFIX}/iDescriptor.exe\")
         message(STATUS \"Looking for executable at: \${EXECUTABLE_PATH}\")
-        
+
         if(EXISTS \"\${EXECUTABLE_PATH}\")
             message(STATUS \"SUCCESS: Executable found at \${EXECUTABLE_PATH}\")
         else()
             message(STATUS \"ERROR: Executable NOT found at \${EXECUTABLE_PATH}\")
         endif()
-        
+
         execute_process(
             COMMAND \"${CMAKE_COMMAND}\"
                 -DEXECUTABLE_PATH=\${EXECUTABLE_PATH}
@@ -563,7 +577,7 @@ if(WIN32)
     string(UUID CPACK_WIX_PRODUCT_GUID NAMESPACE "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d" NAME "${PROJECT_NAME}-${PROJECT_VERSION}" TYPE MD5)
     string(UUID CPACK_WIX_UPGRADE_GUID NAMESPACE "d6c5b4a3-f2e1-d0c9-b8a7-f6e5d4c3b2a1" NAME "${PROJECT_NAME}" TYPE MD5)
     set(CPACK_WIX_UI_REF "WixUI_InstallDir")
-    
+
     set(CPACK_WIX_UI_BANNER "${CMAKE_CURRENT_SOURCE_DIR}/resources/installer/banner.bmp")
     set(CPACK_WIX_UI_DIALOG "${CMAKE_CURRENT_SOURCE_DIR}/resources/installer/dialog.bmp")
 
@@ -582,10 +596,10 @@ if(WIN32)
     set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
     set(CPACK_ARCHIVE_COMPONENT_INSTALL TRUE)
     set(CPACK_ARCHIVE_INSTALL_DIRECTORY ".")
-    
+
     # Tell CPack to use the pre-built dist directory
     set(CPACK_INSTALLED_DIRECTORIES "${CMAKE_INSTALL_PREFIX};.")
-    
+
     # Prevent CPack from running install again
     set(CPACK_INSTALL_CMAKE_PROJECTS "")
 endif()

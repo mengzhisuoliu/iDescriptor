@@ -96,9 +96,9 @@
 #define LOCKDOWN_PATH qgetenv("PROGRAMDATA") + "/Apple/Lockdown"
 #endif
 
-// idevice_monitor (rust ffi)
+// rust codebase
 extern "C" {
-#include "idevice_monitor.h"
+#include "idecriptor_rust.h"
 }
 namespace iDescriptor
 {

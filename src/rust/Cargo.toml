@@ -1,10 +1,10 @@
 [package]
-name = "idevice_monitor"
+name = "rust_codebase"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
-name = "idevice_monitor"
+name = "rust_codebase"
 crate-type = ["staticlib"]
 
 [dependencies]

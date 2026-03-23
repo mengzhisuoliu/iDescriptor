@@ -230,15 +230,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "idevice_monitor"
-version = "0.1.0"
-dependencies = [
- "futures",
- "idevice",
- "tokio",
-]
-
-[[package]]
 name = "indexmap"
 version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -378,6 +369,15 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "rust_codebase"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "idevice",
+ "tokio",
 ]
 
 [[package]]
