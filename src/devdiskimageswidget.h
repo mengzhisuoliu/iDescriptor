@@ -40,7 +40,7 @@ class DevDiskImagesWidget : public Tool
 {
     Q_OBJECT
 public:
-    explicit DevDiskImagesWidget(iDescriptorDevice *device,
+    explicit DevDiskImagesWidget(const QString &deviceUdid,
                                  QWidget *parent = nullptr);
 
 private slots:

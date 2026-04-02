@@ -1,7 +1,6 @@
 #include "imageloader.h"
 #include "iDescriptor.h"
 #include "imagetask.h"
-#include "servicemanager.h"
 #include <QBuffer>
 #include <QImageReader>
 #include <QPixmap>
@@ -18,7 +17,7 @@ ImageLoader::ImageLoader(QObject *parent) : QObject(parent)
     // TODO: maybe finetune to hardware ?
     m_pool.setMaxThreadCount(10);
     // 350 MB cache for thumbnails
-    m_cache.setMaxCost(350 * 1024 * 1024);
+    m_cache.setMaxCost(350);
 }
 
 bool ImageLoader::isLoading(const QString &path)
@@ -27,8 +26,9 @@ bool ImageLoader::isLoading(const QString &path)
     return m_pendingTasks.contains(path);
 }
 
-void ImageLoader::requestThumbnail(const iDescriptorDevice *device,
-                                   const QString &path, unsigned int row)
+void ImageLoader::requestThumbnail(
+    const std::shared_ptr<iDescriptorDevice> device, const QString &path,
+    unsigned int row)
 {
     if (auto *cached = m_cache.object(path)) {
         emit thumbnailReady(path, *cached, row);
@@ -61,16 +61,16 @@ void ImageLoader::requestThumbnail(const iDescriptorDevice *device,
     we need the original image
 */
 void ImageLoader::requestImageWithCallback(
-    const iDescriptorDevice *device, const QString &path, int priority,
-    std::function<void(const QPixmap &)> callback,
-    std::optional<AfcClientHandle *> altAfc)
+    const std::shared_ptr<iDescriptorDevice> device, const QString &path,
+    int priority, std::function<void(const QPixmap &)> callback,
+    std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest)
 {
 
     /*
-        FIXME: priority is passed as row
-        nothing dangerous but a bit hacky, should be handled better
+        FIXME:  row is passed as priority
+        nothing dangerous but a bit hacky, could be handled better
     */                                                 //scale=false
-    auto *task = new ImageTask(device, path, priority, false, altAfc);
+    auto *task = new ImageTask(device, path, priority, false, hause_arrest);
 
     /*
         TODO: should we do this ?
@@ -122,7 +122,8 @@ void ImageLoader::clear()
             ImageTask *task = it.value();
             if (task && m_pool.tryTake(task)) {
                 qDebug() << "Cancelled pending task";
-                delete task;
+                // FIXME: should we do auto delete?
+                //  delete task;
             }
             it = m_pendingTasks.erase(it);
         }
@@ -159,9 +160,10 @@ void ImageLoader::onTaskFinished(const QString &path, const QPixmap &pixmap,
         task = m_pendingTasks.take(path);
     }
 
-    if (task) {
-        delete task;
-    }
+    // FIXME
+    // if (task) {
+    //     delete task;
+    // }
 
     // Cache
     m_cache.insert(path, new QPixmap(pixmap));
@@ -170,12 +172,23 @@ void ImageLoader::onTaskFinished(const QString &path, const QPixmap &pixmap,
 }
 
 // almost a copy of loadThumbnailFromDevice but without any scaling logic
-QPixmap ImageLoader::loadImage(const iDescriptorDevice *device,
-                               const QString &filePath,
-                               std::optional<AfcClientHandle *> altAfc)
+QPixmap ImageLoader::loadImage(
+    const std::shared_ptr<iDescriptorDevice> device, const QString &filePath,
+    std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest)
 {
-    QByteArray imageData = ServiceManager::safeReadAfcFileToByteArray(
-        device, filePath.toUtf8().constData(), altAfc);
+    if (QCoreApplication::closingDown()) {
+        qDebug() << "Application is closing, aborting loadImage for"
+                 << filePath;
+        return {};
+    }
+    QByteArray imageData;
+
+    if (hause_arrest.has_value() && hause_arrest.value()) {
+        qDebug() << "Loading image using HauseArrest for:" << filePath;
+        imageData = hause_arrest.value()->file_to_buffer(filePath);
+    } else {
+        imageData = device->afc_backend->file_to_buffer(filePath);
+    }
 
     if (imageData.isEmpty()) {
         qDebug() << "Could not read from device:" << filePath;
@@ -210,13 +223,19 @@ QPixmap ImageLoader::loadImage(const iDescriptorDevice *device,
     return {};
 }
 
-QPixmap
-ImageLoader::loadThumbnailFromDevice(const iDescriptorDevice *device,
-                                     const QString &filePath, const QSize &size,
-                                     std::optional<AfcClientHandle *> altAfc)
+QPixmap ImageLoader::loadThumbnailFromDevice(
+    const std::shared_ptr<iDescriptorDevice> device, const QString &filePath,
+    const QSize &size,
+    std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest)
 {
-    QByteArray imageData = ServiceManager::safeReadAfcFileToByteArray(
-        device, filePath.toUtf8().constData(), altAfc);
+    if (QCoreApplication::closingDown()) {
+        qDebug()
+            << "Application is closing, aborting loadThumbnailFromDevice for"
+            << filePath;
+        return {};
+    }
+
+    QByteArray imageData = device->afc_backend->file_to_buffer(filePath);
 
     if (imageData.isEmpty()) {
         qDebug() << "Could not read from device:" << filePath;
@@ -256,173 +275,99 @@ ImageLoader::loadThumbnailFromDevice(const iDescriptorDevice *device,
 }
 
 QPixmap ImageLoader::generateVideoThumbnailFFmpeg(
-    const iDescriptorDevice *device, const QString &filePath,
-    const QSize &requestedSize, std::optional<AfcClientHandle *> altAfc)
+    const std::shared_ptr<iDescriptorDevice> device, const QString &filePath,
+    const QSize &requestedSize,
+    std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest)
 {
     QPixmap thumbnail;
-
-    AfcFileHandle *fileHandle = nullptr;
-
-    IdeviceFfiError *err_open = ServiceManager::safeAfcFileOpen(
-        device, filePath.toUtf8().constData(), AfcFopenMode::AfcRdOnly,
-        &fileHandle, altAfc);
-
-    if (err_open || fileHandle == nullptr) {
-        qWarning() << "Failed to open video file for thumbnail:" << filePath;
-        if (err_open) {
-            idevice_error_free(err_open);
-        }
-        return {};
+    if (QCoreApplication::closingDown()) {
+        qDebug() << "Application is closing, aborting "
+                    "generateVideoThumbnailFFmpeg for"
+                 << filePath;
+        return thumbnail;
     }
 
-    // Get file size
-    AfcFileInfo info = {};
-    IdeviceFfiError *err_info = ServiceManager::safeAfcGetFileInfo(
-        device, filePath.toUtf8().constData(), &info);
+    CXX::AfcBackend *afc = device->afc_backend;
 
-    uint64_t fileSize = 0;
-    if (err_info) {
-        qWarning() << "Failed to get file info for thumbnail:" << filePath
-                   << "Error:" << err_info->message;
-        idevice_error_free(err_info);
-        ServiceManager::safeAfcFileClose(device, fileHandle);
-        return {};
-    }
-
-    fileSize = info.size;
-    afc_file_info_free(&info);
-
-    if (fileSize == 0) {
-        ServiceManager::safeAfcFileClose(device, fileHandle);
+    const qint64 fileSize = afc->get_file_size(filePath);
+    if (fileSize <= 0) {
         qWarning() << "Invalid video file size for thumbnail:" << filePath;
         return {};
     }
 
-    // Create custom AVIOContext for reading from device on-demand
     AVFormatContext *formatCtx = avformat_alloc_context();
     if (!formatCtx) {
-        ServiceManager::safeAfcFileClose(device, fileHandle);
         qWarning() << "Failed to allocate format context";
         return {};
     }
 
-    // Context for streaming read from device
     struct StreamContext {
-        const iDescriptorDevice *device;
-        AfcFileHandle *fileHandle;
-        uint64_t fileSize;
-        uint64_t currentPos;
+        CXX::AfcBackend *backend;
+        QString path;
+        qint64 fileSize;
+        qint64 currentPos;
     };
 
-    StreamContext *streamCtx =
-        new StreamContext{device, fileHandle, fileSize, 0};
+    auto *streamCtx = new StreamContext{afc, filePath, fileSize, 0};
 
-    // Custom read function
     auto readPacket = [](void *opaque, uint8_t *buf, int bufSize) -> int {
-        StreamContext *ctx = static_cast<StreamContext *>(opaque);
+        auto *ctx = static_cast<StreamContext *>(opaque);
 
         if (ctx->currentPos >= ctx->fileSize) {
             return AVERROR_EOF;
         }
 
-        uint32_t toRead =
-            std::min(static_cast<uint32_t>(bufSize),
-                     static_cast<uint32_t>(ctx->fileSize - ctx->currentPos));
-        size_t bytesRead = 0;
-        uint8_t *read_data_ptr = nullptr;
+        qint64 toRead =
+            std::min<qint64>(bufSize, ctx->fileSize - ctx->currentPos);
+        QByteArray chunk =
+            ctx->backend->read_file_range(ctx->path, ctx->currentPos, toRead);
 
-        IdeviceFfiError *err = ServiceManager::safeAfcFileRead(
-            ctx->device, ctx->fileHandle, &read_data_ptr, toRead, &bytesRead);
-
-        if (err) {
-            qWarning() << "AFC read error in readPacket for file handle"
-                       << ctx->fileHandle << ":" << err->message;
-            idevice_error_free(err);
+        if (chunk.isEmpty()) {
+            // IO error
             return AVERROR(EIO);
         }
 
-        if (bytesRead == 0) {
-            // If bytesRead is 0 but we expected to read more, it's an error.
-            // If currentPos is already at fileSize, it's EOF.
-            if (ctx->currentPos < ctx->fileSize) {
-                qWarning() << "AFC readPacket returned 0 bytes but not EOF, "
-                              "expected toRead:"
-                           << toRead << "currentPos:" << ctx->currentPos
-                           << "fileSize:" << ctx->fileSize;
-                // Free the allocated pointer if safeAfcFileRead still allocates
-                // even for 0 bytes.
-                if (read_data_ptr) {
-                    afc_file_read_data_free(read_data_ptr, 0);
-                }
-                return AVERROR(EIO);
-            }
-            // It's EOF
-            return AVERROR_EOF;
-        }
-
-        // Copy the data from the newly allocated `read_data_ptr` into FFmpeg's
-        // `buf`
-        if (read_data_ptr) {
-            memcpy(buf, read_data_ptr, bytesRead);
-            afc_file_read_data_free(read_data_ptr, bytesRead);
-        } else {
-            qWarning() << "AFC readPacket: read_data_ptr was null but "
-                          "bytesRead > 0. This is unexpected.";
-            return AVERROR(EIO);
-        }
-
-        ctx->currentPos += bytesRead;
-        return static_cast<int>(bytesRead);
+        const int n = std::min<int>(chunk.size(), bufSize);
+        memcpy(buf, chunk.constData(), n);
+        ctx->currentPos += n;
+        return n;
     };
 
-    // Custom seek function using AFC seek
     auto seekPacket = [](void *opaque, int64_t offset, int whence) -> int64_t {
-        StreamContext *ctx = static_cast<StreamContext *>(opaque);
+        auto *ctx = static_cast<StreamContext *>(opaque);
 
         if (whence == AVSEEK_SIZE) {
-            return static_cast<int64_t>(ctx->fileSize);
+            return ctx->fileSize;
         }
 
-        int64_t newPos = 0;
-        int seekWhence = SEEK_SET;
-
-        if (whence == SEEK_SET) {
+        qint64 newPos = 0;
+        switch (whence) {
+        case SEEK_SET:
             newPos = offset;
-            seekWhence = SEEK_SET;
-        } else if (whence == SEEK_CUR) {
-            newPos = static_cast<int64_t>(ctx->currentPos) + offset;
-            seekWhence = SEEK_SET;
-        } else if (whence == SEEK_END) {
-            newPos = static_cast<int64_t>(ctx->fileSize) + offset;
-            seekWhence = SEEK_SET;
-        } else {
+            break;
+        case SEEK_CUR:
+            newPos = ctx->currentPos + offset;
+            break;
+        case SEEK_END:
+            newPos = ctx->fileSize + offset;
+            break;
+        default:
             return -1;
         }
 
-        if (newPos < 0 || newPos > static_cast<int64_t>(ctx->fileSize)) {
+        if (newPos < 0 || newPos > ctx->fileSize) {
             return -1;
         }
 
-        IdeviceFfiError *err = ServiceManager::safeAfcFileSeek(
-            ctx->device, ctx->fileHandle, newPos, seekWhence);
-
-        if (err) {
-            qDebug() << "AFC seek error:" << err->message
-                     << "code:" << err->code;
-            idevice_error_free(err);
-            return -1;
-        }
-
-        ctx->currentPos = static_cast<uint64_t>(newPos);
+        ctx->currentPos = newPos;
         return newPos;
     };
 
-    const int avioBufferSize = 32768; // 32KB buffer for streaming
+    const int avioBufferSize = 32768;
     unsigned char *avioBuffer =
         static_cast<unsigned char *>(av_malloc(avioBufferSize));
     if (!avioBuffer) {
         delete streamCtx;
-        ServiceManager::safeAfcFileClose(device, fileHandle);
         avformat_free_context(formatCtx);
         return {};
     }
@@ -430,11 +375,9 @@ QPixmap ImageLoader::generateVideoThumbnailFFmpeg(
     AVIOContext *avioCtx =
         avio_alloc_context(avioBuffer, avioBufferSize, 0, streamCtx, readPacket,
                            nullptr, seekPacket);
-
     if (!avioCtx) {
         av_free(avioBuffer);
         delete streamCtx;
-        ServiceManager::safeAfcFileClose(device, fileHandle);
         avformat_free_context(formatCtx);
         return {};
     }
@@ -591,14 +534,6 @@ QPixmap ImageLoader::generateVideoThumbnailFFmpeg(
     av_packet_free(&packet);
     avcodec_free_context(&codecCtx);
     avformat_close_input(&formatCtx);
-
-    // Close the AFC file handle
-    ServiceManager::safeAfcFileClose(device, fileHandle);
-
-    // Free AVIO context and stream context
-    av_free(avioCtx->buffer);
-    avio_context_free(&avioCtx);
-    delete streamCtx;
 
     return thumbnail;
 }

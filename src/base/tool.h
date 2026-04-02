@@ -29,7 +29,7 @@
 #ifdef WIN32
 #include "../platform/windows/widgets/wintoolwidget.h"
 #endif
-
+//FIXME: implement close logic
 class Tool : public QWidget
 {
 public:

@@ -18,12 +18,11 @@
  */
 
 #include "gallerywidget.h"
-#include "exportmanager.h"
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
+#include "iomanagerclient.h"
 #include "mediapreviewdialog.h"
 #include "photomodel.h"
-#include "servicemanager.h"
 #include <QComboBox>
 #include <QDebug>
 #include <QFileDialog>
@@ -51,10 +50,10 @@
     https://github.com/ScottKjr3347/iOS_Local_PL_Photos.sqlite_Queries
 */
 
-GalleryWidget::GalleryWidget(const iDescriptorDevice *device, QWidget *parent)
-    : QWidget{parent}, m_device(device), m_model(nullptr),
-      m_albumSelectionWidget(nullptr), m_albumListView(nullptr),
-      m_photoGalleryWidget(nullptr), m_listView(nullptr), m_backButton(nullptr)
+GalleryWidget::GalleryWidget(const std::shared_ptr<iDescriptorDevice> device,
+                             QWidget *parent)
+    : QWidget{parent}, m_device(device)
+
 {
     m_mainLayout = new QVBoxLayout(this);
     m_mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -100,16 +99,13 @@ void GalleryWidget::load()
         return;
 
     m_loaded = true;
-    qDebug() << "Before reading DCIM directory";
-
-    auto *watcher = new QFutureWatcher<AFCFileTree>(this);
-    auto future = ServiceManager::getFileTreeAsync(m_device, "/DCIM", true);
-    watcher->setFuture(future);
-
-    connect(watcher, &QFutureWatcher<AFCFileTree>::finished, [this, watcher]() {
-        watcher->deleteLater();
-        loadAlbumList(watcher->result());
-    });
+    connect(
+        m_device->afc_backend, &CXX::AfcBackend::album_list_loaded, this,
+        [this](QString udid, QList<QString> album_list) {
+            onAlbumListLoaded(album_list);
+        },
+        Qt::SingleShotConnection);
+    m_device->afc_backend->load_album_list();
 }
 
 void GalleryWidget::setupControlsLayout()
@@ -249,8 +245,6 @@ void GalleryWidget::onExportSelected()
                 qDebug() << "Invalid index in selection:" << index;
             }
         }
-        // /DCIM/100APPLE
-        qDebug() << "Selected file paths:" << paths;
 
         auto *exportAlbum = new ExportAlbum(m_device, paths, this);
         exportAlbum->show();
@@ -278,16 +272,17 @@ void GalleryWidget::onExportSelected()
         return;
     }
 
-    QList<ExportItem> exportItems;
+    QList<QString> exportItems;
     for (const QString &filePath : filePaths) {
         QString fileName = filePath.split('/').last();
-        exportItems.append(ExportItem(filePath, fileName, m_device->udid));
+        exportItems.append(filePath);
+        // exportItems.append(ExportItem(filePath, fileName, m_device->udid));
     }
 
     qDebug() << "Starting export of selected files:" << exportItems.size()
              << "items to" << exportDir;
 
-    ExportManager::sharedInstance()->startExport(
+    IOManagerClient::sharedInstance()->startExport(
         m_device, exportItems, exportDir, "Exporting from gallery");
 }
 
@@ -335,17 +330,16 @@ void GalleryWidget::onExportAll()
         return;
     }
 
-    QList<ExportItem> exportItems;
+    QList<QString> exportItems;
     for (const QString &filePath : filePaths) {
         QString fileName = filePath.split('/').last();
-        exportItems.append(ExportItem(filePath, fileName, m_device->udid));
+        // exportItems.append(ExportItem(filePath, fileName, m_device->udid));
     }
 
     qDebug() << "Starting export of:" << exportItems.size() << "items to"
              << exportDir;
 
-    // Start export and the manager will show its own dialog
-    ExportManager::sharedInstance()->startExport(
+    IOManagerClient::sharedInstance()->startExport(
         m_device, exportItems, exportDir, "Exporting from gallery");
 }
 
@@ -452,9 +446,8 @@ void GalleryWidget::setupPhotoGalleryView()
                     return;
 
                 qDebug() << "Opening preview for" << filePath;
-                auto *previewDialog = new MediaPreviewDialog(
-                    m_device, m_device->afcClient, filePath, this);
-                previewDialog->setAttribute(Qt::WA_DeleteOnClose);
+                auto *previewDialog =
+                    new MediaPreviewDialog(m_device, filePath);
                 previewDialog->show();
             });
 
@@ -462,40 +455,32 @@ void GalleryWidget::setupPhotoGalleryView()
             &GalleryWidget::onPhotoContextMenu);
 }
 
-void GalleryWidget::loadAlbumList(const AFCFileTree &dcimTree)
+void GalleryWidget::onError()
 {
-    if (!dcimTree.success) {
-        qDebug() << "Failed to read DCIM directory";
-        m_loadingWidget->showError();
-        QMessageBox::warning(this, "Error",
-                             "Could not access DCIM directory on device.");
+    m_loadingWidget->showError();
+    QMessageBox::warning(this, "Error",
+                         "Could not access DCIM directory on device.");
+    return;
+}
+
+void GalleryWidget::onAlbumListLoaded(const QList<QString> &dcimTree)
+{
+    if (dcimTree.isEmpty()) {
+        qDebug() << "DCIM seems to be empty or inaccessible";
         return;
     }
 
-    qDebug() << "DCIM directory read successfully, found"
-             << dcimTree.entries.size() << "entries";
-
     m_albumModel = new QStandardItemModel(this);
 
-    for (const MediaEntry &entry : dcimTree.entries) {
-        QString albumName = QString::fromStdString(entry.name);
+    for (const QString &albumName : dcimTree) {
+        auto *item = new QStandardItem(albumName);
+        QString fullPath = QString("/DCIM/%1").arg(albumName);
+        item->setData(fullPath, Qt::UserRole);
 
-        // Check if it's a directory and matches common iOS photo album patterns
-        if (entry.isDir &&
-            (albumName.contains("APPLE") ||
-             QRegularExpression("^\\d{3}APPLE$").match(albumName).hasMatch() ||
-             QRegularExpression("^\\d{4}\\d{2}\\d{2}$")
-                 .match(albumName)
-                 .hasMatch())) {
-            auto *item = new QStandardItem(albumName);
-            QString fullPath = QString("/DCIM/%1").arg(albumName);
-            item->setData(fullPath, Qt::UserRole); // Store full path
+        item->setIcon(QIcon::fromTheme("folder"));
+        m_albumModel->appendRow(item);
 
-            item->setIcon(QIcon::fromTheme("folder"));
-            m_albumModel->appendRow(item);
-
-            loadAlbumThumbnailAsync(fullPath, item);
-        }
+        loadAlbumThumbnailAsync(fullPath, item);
     }
 
     m_albumListView->setModel(m_albumModel);
@@ -580,22 +565,21 @@ void GalleryWidget::setControlsEnabled(bool enabled)
 QIcon GalleryWidget::loadAlbumThumbnail(const QString &albumPath)
 {
     // Get album directory contents
-    AFCFileTree albumTree = ServiceManager::safeGetFileTree(
-        m_device, albumPath.toStdString(), false);
+    QList<QString> albumTree = m_device->afc_backend->list_dir(albumPath);
 
-    if (!albumTree.success) {
+    if (albumTree.isEmpty()) {
         qDebug() << "Failed to read album directory:" << albumPath;
         return QIcon();
     }
 
     // Find the first image file
     QString firstImagePath;
-    for (const MediaEntry &entry : albumTree.entries) {
-        QString fileName = QString::fromStdString(entry.name);
-
-        if (!entry.isDir && (fileName.endsWith(".JPG", Qt::CaseInsensitive) ||
-                             fileName.endsWith(".PNG", Qt::CaseInsensitive) ||
-                             fileName.endsWith(".HEIC", Qt::CaseInsensitive))) {
+    for (const QString &fileName : albumTree) {
+        bool isDir =
+            m_device->afc_backend->is_directory((albumPath + "/" + fileName));
+        if (!isDir && (fileName.endsWith(".JPG", Qt::CaseInsensitive) ||
+                       fileName.endsWith(".PNG", Qt::CaseInsensitive) ||
+                       fileName.endsWith(".HEIC", Qt::CaseInsensitive))) {
             firstImagePath = albumPath + "/" + fileName;
             break;
         }
@@ -606,24 +590,22 @@ QIcon GalleryWidget::loadAlbumThumbnail(const QString &albumPath)
         return QIcon();
     }
 
-    // Load the thumbnail using ServiceManager
-    QByteArray imageData = ServiceManager::safeReadAfcFileToByteArray(
-        m_device, firstImagePath.toUtf8().constData());
+    QByteArray imageData =
+        m_device->afc_backend->file_to_buffer(firstImagePath);
 
     if (imageData.isEmpty()) {
-        qDebug() << "Could not read image data for thumbnail:"
-                 << firstImagePath;
+        qDebug() << "Could not read image data for thumbnail:" << albumPath;
         return QIcon();
     }
 
     QPixmap thumbnail;
 
+    // Load HEIC
     if (firstImagePath.endsWith(".HEIC", Qt::CaseInsensitive)) {
         qDebug() << "Loading HEIC thumbnail from:" << firstImagePath;
-        // FIXME: move to servicemanager
         thumbnail = load_heic(imageData);
     } else {
-        // Load regular image formats
+        // Load other formats
         if (!thumbnail.loadFromData(imageData)) {
             qDebug() << "Could not decode image data for thumbnail:"
                      << firstImagePath;
@@ -642,20 +624,16 @@ QIcon GalleryWidget::loadAlbumThumbnail(const QString &albumPath)
 void GalleryWidget::loadAlbumThumbnailAsync(const QString &albumPath,
                                             QStandardItem *item)
 {
-    // Create a future watcher to handle the async result
     auto *watcher = new QFutureWatcher<QIcon>(this);
 
-    // Connect the finished signal to update the item icon
     connect(watcher, &QFutureWatcher<QIcon>::finished, this, [watcher, item]() {
         QIcon result = watcher->result();
         if (!result.isNull()) {
             item->setIcon(result);
         }
-        // The item keeps the folder icon if thumbnail loading fails
         watcher->deleteLater();
     });
 
-    // Start the async operation
     QFuture<QIcon> future = QtConcurrent::run(
         [this, albumPath]() { return loadAlbumThumbnail(albumPath); });
 
@@ -692,9 +670,7 @@ void GalleryWidget::onPhotoContextMenu(const QPoint &pos)
             return;
 
         qDebug() << "Opening preview for" << filePath;
-        auto *previewDialog = new MediaPreviewDialog(
-            m_device, m_device->afcClient, filePath, this);
-        previewDialog->setAttribute(Qt::WA_DeleteOnClose);
+        auto *previewDialog = new MediaPreviewDialog(m_device, filePath);
         previewDialog->show();
     });
 

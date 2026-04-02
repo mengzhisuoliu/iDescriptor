@@ -178,5 +178,30 @@ public:
     {
         return isGalleryFile(fileName) || isVideoFile(fileName);
     }
+
+    static QString formatFileSize(qint64 bytes)
+    {
+        const qint64 KB = 1024;
+        const qint64 MB = KB * 1024;
+        const qint64 GB = MB * 1024;
+
+        if (bytes >= GB) {
+            return QString("%1 GB").arg(
+                QString::number(bytes / double(GB), 'f', 2));
+        } else if (bytes >= MB) {
+            return QString("%1 MB").arg(
+                QString::number(bytes / double(MB), 'f', 1));
+        } else if (bytes >= KB) {
+            return QString("%1 KB").arg(
+                QString::number(bytes / double(KB), 'f', 0));
+        } else {
+            return QString("%1 B").arg(bytes);
+        }
+    }
+
+    static QString formatTransferRate(qint64 bytesPerSecond)
+    {
+        return formatFileSize(bytesPerSecond) + "/s";
+    }
 };
 } // namespace iDescriptor

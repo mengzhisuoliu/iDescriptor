@@ -30,7 +30,7 @@ class DeviceImageWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit DeviceImageWidget(const iDescriptorDevice *device,
+    explicit DeviceImageWidget(const std::shared_ptr<iDescriptorDevice> device,
                                QWidget *parent = nullptr);
     ~DeviceImageWidget();
 
@@ -47,7 +47,7 @@ private:
     QPixmap createCompositeImage() const;
     QRect findScreenArea(const QPixmap &mockup) const;
 
-    const iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
     ResponsiveQLabel *m_imageLabel;
     QTimer *m_timeUpdateTimer;
 

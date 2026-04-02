@@ -20,8 +20,8 @@
 #ifndef MEDIASTREAMERMANAGER_H
 #define MEDIASTREAMERMANAGER_H
 
+#include "appcontext.h"
 #include "iDescriptor.h"
-#include "mediastreamer.h"
 #include <QMap>
 #include <QMutex>
 #include <QObject>
@@ -32,8 +32,10 @@ class MediaStreamerManager
 public:
     static MediaStreamerManager *sharedInstance();
 
-    QUrl getStreamUrl(const iDescriptorDevice *device,
-                      AfcClientHandle *afcClient, const QString &filePath);
+    QUrl
+    getStreamUrl(const std::shared_ptr<iDescriptorDevice> device,
+                 std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest,
+                 const QString &filePath);
 
     void releaseStreamer(const QString &filePath);
 
@@ -44,12 +46,9 @@ private:
 
 private:
     struct StreamerInfo {
-        MediaStreamer *streamer;
-        const iDescriptorDevice *device;
+        QString rustUrl;
         int refCount;
     };
-
-    static MediaStreamerManager *s_instance;
     static QMutex s_instanceMutex;
 
     QMap<QString, StreamerInfo> m_streamers;

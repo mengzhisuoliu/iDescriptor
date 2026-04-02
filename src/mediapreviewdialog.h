@@ -23,19 +23,29 @@
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
 #include "zloadingwidget.h"
+#include <QApplication>
+#include <QAudioOutput>
 #include <QCoreApplication>
+#include <QDebug>
 #include <QDialog>
+#include <QFileInfo>
+#include <QFutureWatcher>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMediaPlayer>
 #include <QPushButton>
+#include <QResizeEvent>
+#include <QScreen>
 #include <QSlider>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QVideoWidget>
+#include <QWheelEvent>
+#include <QtConcurrent/QtConcurrent>
 #include <QtGlobal>
 
 class MediaPreviewDialog : public QDialog
@@ -43,9 +53,10 @@ class MediaPreviewDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit MediaPreviewDialog(const iDescriptorDevice *device,
-                                AfcClientHandle *afcClient,
+    explicit MediaPreviewDialog(const std::shared_ptr<iDescriptorDevice> device,
                                 const QString &filePath,
+                                std::optional<std::shared_ptr<CXX::HauseArrest>>
+                                    hause_arrest = std::nullopt,
                                 QWidget *parent = nullptr);
     ~MediaPreviewDialog();
 
@@ -91,7 +102,8 @@ private:
     void formatTime(qint64 milliseconds, QString &timeString);
 
     // Core data
-    const iDescriptorDevice *m_device;
+    std::shared_ptr<iDescriptorDevice> m_device;
+    std::optional<std::shared_ptr<CXX::HauseArrest>> m_hause_arrest;
     QString m_filePath;
     bool m_isVideo;
 
@@ -134,7 +146,6 @@ private:
     bool m_isDraggingTimeline = false;
     qint64 m_videoDuration = 0;
 
-    AfcClientHandle *m_afcClient;
     ZLoadingWidget *m_loadingWidget;
 };
 

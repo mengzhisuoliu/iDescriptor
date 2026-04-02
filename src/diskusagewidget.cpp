@@ -20,7 +20,6 @@
 #include "diskusagewidget.h"
 #include "diskusagebar.h"
 #include "iDescriptor.h"
-#include "servicemanager.h"
 extern "C" {
 #include <sqlite3.h>
 }
@@ -33,15 +32,32 @@ extern "C" {
 
 using namespace iDescriptor;
 
-DiskUsageWidget::DiskUsageWidget(const iDescriptorDevice *device,
-                                 QWidget *parent)
+DiskUsageWidget::DiskUsageWidget(
+    const std::shared_ptr<iDescriptorDevice> device, QWidget *parent)
     : QWidget(parent), m_device(device), m_state(Loading), m_totalCapacity(0),
       m_systemUsage(0), m_appsUsage(0), m_mediaUsage(0), m_othersUsage(0),
       m_freeSpace(0)
 {
     setMinimumHeight(80);
     setupUI();
-    QTimer::singleShot(100, this, &DiskUsageWidget::fetchData);
+    connect(m_device->service_manager,
+            &CXX::ServiceManager::disk_usage_retrieved, this,
+            &DiskUsageWidget::onDiskUsageRetrieved);
+    QTimer::singleShot(100, this, [this] {
+        /*
+            on older devices if Photos.sqlite is high in size and the device is
+            connected wirelessly it takes ~5 minutes to read the entire file
+            maybe skip on wireless connections on old devices than iPhone10,1
+            (iPhone 8)
+        */
+        bool skipGalleryUsage =
+            m_device->deviceInfo.is_iPhone && m_device->deviceInfo.isWireless &&
+            !iDescriptor::Utils::isProductTypeNewer(
+                m_device->deviceInfo.rawProductType, "iPhone10,1");
+        if (skipGalleryUsage)
+            qDebug() << "Skipping gallery usage calculation";
+        m_device->service_manager->fetch_disk_usage(skipGalleryUsage);
+    });
 }
 
 void DiskUsageWidget::setupUI()
@@ -394,265 +410,32 @@ void DiskUsageWidget::updateUI()
             .arg(QString::number((double)m_freeSpace / m_totalCapacity * 100,
                                  'f', 1)));
 }
-void DiskUsageWidget::fetchData()
+void DiskUsageWidget::onDiskUsageRetrieved(bool success, uint64_t apps_usage,
+                                           uint64_t gallery_usage)
 {
-    auto *watcher = new QFutureWatcher<QVariantMap>(this);
-    connect(watcher, &QFutureWatcher<QVariantMap>::finished, this,
-            [this, watcher]() {
-                QVariantMap result = watcher->result();
-                if (result.contains("error")) {
-                    m_state = Error;
-                    m_errorMessage = result["error"].toString();
-                } else {
-                    qDebug() << "Disk usage data fetched:" << result;
-                    m_totalCapacity = result["totalCapacity"].toULongLong();
-                    m_systemUsage = result["systemUsage"].toULongLong();
-                    m_appsUsage = result["appsUsage"].toULongLong();
-                    m_mediaUsage = result["mediaUsage"].toULongLong();
-                    m_freeSpace = result["freeSpace"].toULongLong();
-                    m_galleryUsage = result["galleryUsage"].toULongLong();
+    if (!success) {
+        m_state = Error;
+        m_errorMessage = "Failed to retrieve disk usage data.";
+    } else {
+        m_state = Ready;
+        m_totalCapacity = m_device->deviceInfo.diskInfo.totalDiskCapacity;
+        qDebug() << "Total Capacity:" << m_totalCapacity;
+        m_systemUsage = m_device->deviceInfo.diskInfo.totalSystemCapacity;
+        m_appsUsage = apps_usage;
+        // m_mediaUsage = result["mediaUsage"].toULongLong();
+        m_mediaUsage = 0;
+        m_freeSpace = m_device->deviceInfo.diskInfo.totalDataAvailable;
+        // m_galleryUsage = result["galleryUsage"].toULongLong();
+        m_galleryUsage = gallery_usage;
 
-                    uint64_t usedKnown = m_systemUsage + m_appsUsage +
-                                         m_mediaUsage + m_galleryUsage;
-                    if (m_totalCapacity > (m_freeSpace + usedKnown)) {
-                        m_othersUsage =
-                            m_totalCapacity - m_freeSpace - usedKnown;
-                    } else {
-                        m_othersUsage = 0;
-                    }
-
-                    m_state = Ready;
-                }
-                updateUI();
-                watcher->deleteLater();
-            });
-
-    QFuture<QVariantMap> future = QtConcurrent::run([this]() -> QVariantMap {
-        QVariantMap result;
-        if (!m_device || !m_device->provider) {
-            result["error"] = "Invalid device.";
-            return result;
+        uint64_t usedKnown =
+            m_systemUsage + m_appsUsage + m_mediaUsage + m_galleryUsage;
+        if (m_totalCapacity > (m_freeSpace + usedKnown)) {
+            m_othersUsage = m_totalCapacity - m_freeSpace - usedKnown;
+        } else {
+            m_othersUsage = 0;
         }
+    }
 
-        // Pre-populate with known info
-        result["totalCapacity"] = QVariant::fromValue(
-            m_device->deviceInfo.diskInfo.totalDiskCapacity);
-        result["freeSpace"] = QVariant::fromValue(
-            m_device->deviceInfo.diskInfo.totalDataAvailable);
-        result["systemUsage"] = QVariant::fromValue(
-            m_device->deviceInfo.diskInfo.totalSystemCapacity);
-
-        // Apps usage
-        uint64_t totalAppsSpace = 0;
-
-        InstallationProxyClientHandle *installationProxyClientHandle = nullptr;
-        installation_proxy_connect(m_device->provider,
-                                   &installationProxyClientHandle);
-        auto instproxy =
-            IdeviceFFI::InstallationProxy::adopt(installationProxyClientHandle);
-
-        plist_t client_opts = plist_new_dict();
-        plist_dict_set_item(client_opts, "ApplicationType",
-                            plist_new_string("User"));
-
-        plist_t return_attrs = plist_new_array();
-        plist_array_append_item(return_attrs,
-                                plist_new_string("StaticDiskUsage"));
-        plist_array_append_item(return_attrs,
-                                plist_new_string("DynamicDiskUsage"));
-        plist_dict_set_item(client_opts, "ReturnAttributes", return_attrs);
-
-        auto apps_result = instproxy.browse(client_opts);
-        if (apps_result.is_ok()) {
-            auto apps = std::move(apps_result.unwrap());
-            for (const auto &app_info : apps) {
-                plist_t static_usage =
-                    plist_dict_get_item(app_info, "StaticDiskUsage");
-                if (static_usage &&
-                    plist_get_node_type(static_usage) == PLIST_UINT) {
-                    uint64_t static_size = 0;
-                    plist_get_uint_val(static_usage, &static_size);
-                    totalAppsSpace += static_size;
-                }
-
-                plist_t dynamic_usage =
-                    plist_dict_get_item(app_info, "DynamicDiskUsage");
-                if (dynamic_usage &&
-                    plist_get_node_type(dynamic_usage) == PLIST_UINT) {
-                    uint64_t dynamic_size = 0;
-                    plist_get_uint_val(dynamic_usage, &dynamic_size);
-                    totalAppsSpace += dynamic_size;
-                }
-            }
-        }
-        result["appsUsage"] = QVariant::fromValue(totalAppsSpace);
-        plist_free(client_opts);
-
-        // Media usage
-        uint64_t mediaSpace = 0;
-        plist_t out = nullptr;
-
-        IdeviceFfiError *err = lockdownd_get_value(
-            m_device->lockdown, "com.apple.mobile.iTunes", nullptr, &out);
-        if (!err && out) {
-            plist_t media_node = plist_dict_get_item(out, "MediaLibrarySize");
-            if (media_node && plist_get_node_type(media_node) == PLIST_UINT) {
-                plist_get_uint_val(media_node, &mediaSpace);
-            }
-        }
-        result["mediaUsage"] = QVariant::fromValue(mediaSpace);
-
-        /*
-        on older devices if Photos.sqlite is high in size and the device is
-        connected wirelessly it takes ~5 minutes to read the entire file maybe
-        skip on wireless connections on old devices than iPhone10,1 (iPhone 8)
-        */
-        if (m_device->deviceInfo.is_iPhone && m_device->deviceInfo.isWireless &&
-            !iDescriptor::Utils::isProductTypeNewer(
-                m_device->deviceInfo.rawProductType, "iPhone10,1")) {
-            qDebug() << "Skipping gallery usage calculation on older "
-                        "wireless device.";
-            result["galleryUsage"] = QVariant::fromValue(uint64_t(0));
-            return result;
-        }
-
-        // FIXME:
-        // bool debug = qgetenv("ID_DESCRIPTOR_DEBUG_GALLERY_USAGE") == "1";
-        bool debug = true;
-        if (debug) {
-            result["galleryUsage"] = QVariant::fromValue(uint64_t(0));
-            return result;
-        }
-
-        const size_t CHUNK_SIZE = 256 * 1024;
-        uint8_t *db_data = nullptr;
-        size_t db_size = 0;
-        size_t total_size = 0;
-
-        AfcFileHandle *afcHandle = nullptr;
-        err = ServiceManager::safeAfcFileOpen(m_device, PHOTOS_SQLITE_DB_PATH,
-                                              AfcRdOnly, &afcHandle);
-
-        if (err != nullptr) {
-            qDebug() << "Failed to open Photos.sqlite on device:"
-                     << "Error Code:" << err->code
-                     << "Message:" << err->message;
-            idevice_error_free(err);
-            result["galleryUsage"] = QVariant::fromValue(uint64_t(0));
-            return result;
-        }
-
-        AfcFileInfo fileInfo = {};
-        err = ServiceManager::safeAfcGetFileInfo(
-            m_device, PHOTOS_SQLITE_DB_PATH, &fileInfo);
-        if (err != nullptr) {
-            qDebug() << "Failed to get file info for Photos.sqlite:"
-                     << "Error Code:" << err->code
-                     << "Message:" << err->message;
-            idevice_error_free(err);
-            ServiceManager::safeAfcFileClose(m_device, afcHandle);
-            result["galleryUsage"] = QVariant::fromValue(uint64_t(0));
-            return result;
-        }
-        db_size = fileInfo.size;
-
-        while (true) {
-            uint8_t *chunk = nullptr;
-            size_t chunk_size = 0;
-
-            IdeviceFfiError *read_err = ServiceManager::safeAfcFileRead(
-                m_device, afcHandle, &chunk, CHUNK_SIZE, &chunk_size);
-
-            if (read_err != nullptr) {
-                idevice_error_free(read_err);
-                break;
-            }
-
-            if (chunk_size == 0) {
-                break; // EOF
-            }
-
-            db_data = (uint8_t *)realloc(db_data, total_size + chunk_size);
-            memcpy(db_data + total_size, chunk, chunk_size);
-            total_size += chunk_size;
-        }
-        err = ServiceManager::safeAfcFileClose(m_device, afcHandle);
-        if (err != nullptr) {
-            qDebug() << "Failed to close Photos.sqlite on device:"
-                     << "Error Code:" << err->code
-                     << "Message:" << err->message;
-            idevice_error_free(err);
-        }
-
-        if (total_size != db_size) {
-            qDebug()
-                << "Warning: Read size does not match expected file size for "
-                   "Photos.sqlite. Read:"
-                << total_size << "Expected:" << db_size;
-            result["galleryUsage"] = QVariant::fromValue(uint64_t(0));
-
-            return result;
-        }
-
-        qDebug() << "Total Photos.sqlite size read:" << total_size;
-
-        // HACK: File is in WAL mode (byte 18 == 0x02).
-        // we must change it to Legacy mode (0x01) or SQLite will fail to open
-        // it.
-        if (total_size > 20 && db_data[18] == 0x02) {
-            db_data[18] = 0x01;
-            db_data[19] = 0x01;
-        }
-
-        sqlite3 *db;
-        sqlite3_open(":memory:", &db);
-
-        int rc = sqlite3_deserialize(db, "main", db_data, total_size,
-                                     total_size, SQLITE_DESERIALIZE_READONLY);
-
-        if (rc != SQLITE_OK) {
-            qDebug() << "sqlite3_deserialize failed:" << sqlite3_errmsg(db);
-            sqlite3_close(db);
-            if (db_data)
-                free(db_data);
-            return result;
-        }
-
-        const char *sql = "SELECT SUM(ZORIGINALFILESIZE) "
-                          "FROM ZADDITIONALASSETATTRIBUTES;";
-
-        sqlite3_stmt *stmt = nullptr;
-
-        rc = sqlite3_prepare_v2(db, sql,
-                                -1, // read until NULL terminator
-                                &stmt, nullptr);
-
-        if (rc != SQLITE_OK) {
-            qDebug() << "Failed to prepare statement:" << sqlite3_errmsg(db);
-            result["galleryUsage"] = QVariant::fromValue(uint64_t(0));
-            if (stmt)
-                sqlite3_finalize(stmt);
-            sqlite3_close(db);
-            if (db_data)
-                idevice_data_free(db_data, total_size);
-            return result;
-        }
-
-        rc = sqlite3_step(stmt);
-        if (rc == SQLITE_ROW) {
-            qDebug() << "Size" << sqlite3_column_int64(stmt, 0);
-            result["galleryUsage"] =
-                QVariant::fromValue(sqlite3_column_int64(stmt, 0));
-        } else if (rc != SQLITE_DONE) {
-            result["galleryUsage"] = QVariant::fromValue(uint64_t(0));
-            qDebug() << "sqlite3_step failed:" << sqlite3_errmsg(db);
-        }
-        if (stmt)
-            sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        if (db_data)
-            free(db_data);
-        return result;
-    });
-    watcher->setFuture(future);
+    updateUI();
 }

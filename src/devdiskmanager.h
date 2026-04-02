@@ -59,8 +59,9 @@ public:
 
     QByteArray getImageListData() const { return m_imageListJsonData; }
     bool mountCompatibleImage(const iDescriptorDevice *device);
-    bool downloadCompatibleImage(const iDescriptorDevice *device,
-                                 std::function<void(bool)> callback);
+    bool
+    downloadCompatibleImage(const std::shared_ptr<iDescriptorDevice> device,
+                            std::function<void(bool)> callback);
 
 signals:
     void imageListFetched(bool success,

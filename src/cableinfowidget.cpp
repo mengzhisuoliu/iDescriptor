@@ -19,7 +19,6 @@
 
 #include "cableinfowidget.h"
 #include "appcontext.h"
-#include "servicemanager.h"
 #include <QApplication>
 #include <QDebug>
 #include <QGroupBox>
@@ -30,15 +29,24 @@
 #include "platform/windows/win_common.h"
 #endif
 
-CableInfoWidget::CableInfoWidget(iDescriptorDevice *device, QWidget *parent)
-    : Tool(parent), m_device(device), m_response(nullptr)
+CableInfoWidget::CableInfoWidget(
+    const std::shared_ptr<iDescriptorDevice> device, QWidget *parent)
+    : Tool(parent), m_device(device)
 {
     setupUI();
     setAttribute(Qt::WA_DeleteOnClose);
     resize(600, 400);
 
+    connect(m_device->service_manager,
+            &CXX::ServiceManager::cable_info_retrieved, this,
+            [this](const QString &response) {
+                m_response = response;
+                analyzeCableInfo();
+                updateUI();
+            });
+
     connect(AppContext::sharedInstance(), &AppContext::deviceRemoved, this,
-            [this](const std::string &udid) {
+            [this](const QString &udid) {
                 if (m_device->udid == udid) {
                     this->close();
                 }
@@ -108,24 +116,39 @@ void CableInfoWidget::initCableInfo()
     }
 
     m_statusLabel->setText("Analyzing cable...");
-    ServiceManager::getCableInfo(m_device, m_response);
-
-    analyzeCableInfo();
-    updateUI();
+    m_device->service_manager->get_cable_info();
 }
 
-// FIXME: genuine check is not perfect, still need more research
 void CableInfoWidget::analyzeCableInfo()
 {
+    // FIXME: genuine check is not perfect, still need more research
+    // The 'return;' statement here prevents the entire function from executing.
+    // It should be removed for the parsing logic to run.
+    // return;
+
     qDebug() << "Analyzing cable info...";
+
     m_cableInfo = CableInfo();
 
-    if (!m_response) {
+    // Original logic: `if (!m_response.isEmpty()) { ... showError ... return;
+    // }` This meant if the response was NOT empty, it showed an error and
+    // returned. The correct logic is to show an error if the response IS empty.
+    if (m_response.isEmpty()) {
+        m_loadingWidget->showError("No cable information retrieved.");
         return;
     }
-    PlistNavigator ioreg(m_response);
+
+    pugi::xml_document doc;
+    auto res = doc.load_string(m_response.toUtf8().constData());
+    if (!res) {
+        m_loadingWidget->showError("Failed to parse cable information.");
+        return;
+    }
+    XmlPlistDict ioreg(doc.child("plist").child("dict"));
 
     if (!ioreg.valid()) {
+        m_loadingWidget->showError(
+            "Failed to find plist dictionary in response.");
         return;
     }
     m_cableInfo.isConnected = ioreg["ConnectionActive"].getBool();
@@ -184,28 +207,39 @@ void CableInfoWidget::analyzeCableInfo()
         QString("%1 (Type %2)").arg(connectString).arg(connectType);
 
     // Supported and active transports
-    PlistNavigator supportedTransports = ioreg["TransportsSupported"];
-    if (supportedTransports.valid() &&
-        plist_get_node_type(supportedTransports) == PLIST_ARRAY) {
-        uint32_t count = plist_array_get_size(supportedTransports);
-        for (uint32_t i = 0; i < count; i++) {
-            PlistNavigator transport = supportedTransports[static_cast<int>(i)];
-            if (transport.valid()) {
+    // In XML plists, an array is typically represented by an <array> tag,
+    // and its elements by <string>, <integer>, etc. tags.
+
+    // Handle "TransportsSupported"
+    XmlPlistDict supportedTransportsWrapper = ioreg["TransportsSupported"];
+    // Assuming XmlPlistDict has a 'node()' method to access its underlying
+    // pugi::xml_node
+    pugi::xml_node supportedTransportsNode =
+        supportedTransportsWrapper.getNode();
+
+    if (supportedTransportsNode &&
+        supportedTransportsNode.name() ==
+            "array") { // Check if it's a valid node and if its tag name is
+                       // "array"
+        for (pugi::xml_node transportChild :
+             supportedTransportsNode.children()) {
+            if (transportChild.name() ==
+                "string") { // Assume each item in the array is a <string> node
                 m_cableInfo.supportedTransports.append(
-                    QString::fromStdString(transport.getString()));
+                    QString::fromStdString(transportChild.text().as_string()));
             }
         }
     }
 
-    PlistNavigator activeTransports = ioreg["TransportsActive"];
-    if (activeTransports.valid() &&
-        plist_get_node_type(activeTransports) == PLIST_ARRAY) {
-        uint32_t count = plist_array_get_size(activeTransports);
-        for (uint32_t i = 0; i < count; i++) {
-            PlistNavigator transport = activeTransports[static_cast<int>(i)];
-            if (transport.valid()) {
+    // Handle "TransportsActive" similarly
+    XmlPlistDict activeTransportsWrapper = ioreg["TransportsActive"];
+    pugi::xml_node activeTransportsNode = activeTransportsWrapper.getNode();
+
+    if (activeTransportsNode && activeTransportsNode.name() == "array") {
+        for (pugi::xml_node transportChild : activeTransportsNode.children()) {
+            if (transportChild.name() == "string") {
                 m_cableInfo.activeTransports.append(
-                    QString::fromStdString(transport.getString()));
+                    QString::fromStdString(transportChild.text().as_string()));
             }
         }
     }

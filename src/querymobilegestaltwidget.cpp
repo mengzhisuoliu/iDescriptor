@@ -26,8 +26,8 @@
 #include <QTimer>
 #include <sstream>
 
-QueryMobileGestaltWidget::QueryMobileGestaltWidget(iDescriptorDevice *device,
-                                                   QWidget *parent)
+QueryMobileGestaltWidget::QueryMobileGestaltWidget(
+    const std::shared_ptr<iDescriptorDevice> device, QWidget *parent)
     : Tool(parent), m_device(device)
 {
     // FIXME: not tested on iOS 17,18 but it's deprecated on iOS 26
@@ -124,6 +124,9 @@ void QueryMobileGestaltWidget::setupUI()
             &QueryMobileGestaltWidget::onSelectAllClicked);
     connect(clearAllButton, &QPushButton::clicked, this,
             &QueryMobileGestaltWidget::onClearAllClicked);
+    connect(m_device->service_manager,
+            &CXX::ServiceManager::mobilegestalt_info_retrieved, this,
+            &QueryMobileGestaltWidget::handleResults);
 }
 
 void QueryMobileGestaltWidget::populateKeys()
@@ -1103,8 +1106,12 @@ void QueryMobileGestaltWidget::onQueryButtonClicked()
         QString("Querying %1 key(s)...").arg(selectedKeys.size()));
     statusLabel->setStyleSheet("color: #4CAF50; font-style: italic;");
 
-    QMap<QString, QVariant> results = queryMobileGestalt(selectedKeys);
+    m_device->service_manager->query_mobilegestalt(selectedKeys);
+}
 
+void QueryMobileGestaltWidget::handleResults(
+    const QMap<QString, QVariant> &results)
+{
     displayResults(results);
 
     statusLabel->setText(
@@ -1143,41 +1150,4 @@ void QueryMobileGestaltWidget::displayResults(
     }
 
     outputTextEdit->setPlainText(output);
-}
-
-QMap<QString, QVariant>
-QueryMobileGestaltWidget::queryMobileGestalt(const QStringList &keys)
-{
-    char *xml = nullptr;
-    uint32_t xmlLength = 0;
-
-    std::vector<char *> keys_vector;
-    for (const QString &key : keys) {
-        keys_vector.push_back(key.toUtf8().data());
-    }
-
-    auto res = m_device->diagRelay->mobilegestalt(keys_vector);
-
-    if (!res.is_ok()) {
-        qDebug() << "MobileGestalt query failed.";
-        return {};
-    }
-
-    plist_t res_plist_raw = res.unwrap().unwrap();
-    // TODO: safety ?
-    auto res_plist = PlistNavigator(res_plist_raw)["MobileGestalt"];
-    plist_print(res_plist_raw);
-    QMap<QString, QVariant> results;
-    for (const QString &key : keys) {
-        // Use the new toQVariant method to get the value
-        QVariant value = res_plist[key.toStdString()].toQVariant();
-        qDebug() << "Key:" << key
-                 << "Value:" << value; // Print QVariant directly
-        if (!value.isNull()) { // Only insert if the QVariant is valid (key
-                               // exists and value could be parsed)
-            results.insert(key, value);
-        }
-    }
-    plist_free(res_plist_raw);
-    return results;
 }

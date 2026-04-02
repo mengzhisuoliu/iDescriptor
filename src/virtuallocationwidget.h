@@ -36,14 +36,11 @@ class VirtualLocation : public QWidget
     Q_OBJECT
 
 public:
-    explicit VirtualLocation(iDescriptorDevice *device,
+    explicit VirtualLocation(const std::shared_ptr<iDescriptorDevice> device,
                              QWidget *parent = nullptr);
 
-signals:
-    void locationChanged(double latitude, double longitude);
-
 public slots:
-    void updateInputsFromMap(double latitude, double longitude);
+    void updateInputsFromMap(const QString &latitude, const QString &longitude);
 
 private slots:
     void onQuickWidgetStatusChanged(QQuickWidget::Status status);
@@ -51,7 +48,8 @@ private slots:
     void onMapCenterChanged();
     void onApplyClicked();
     void updateMapFromInputs();
-    void onRecentLocationClicked(double latitude, double longitude);
+    void onRecentLocationClicked(const QString &latitude,
+                                 const QString &longitude);
 
 private:
     void loadRecentLocations(QVBoxLayout *layout);
@@ -59,13 +57,15 @@ private:
     void addLocationButtons(QLayout *layout,
                             QList<QVariantMap> recentLocations);
 
+    void handleEnable();
+
     QQuickWidget *m_quickWidget;
     QLineEdit *m_latitudeEdit;
     QLineEdit *m_longitudeEdit;
     QPushButton *m_applyButton;
     QTimer m_updateTimer;
     bool m_updatingFromInput = false;
-    iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
     QVBoxLayout *m_rightLayout = nullptr;
     QGroupBox *m_recentGroup = nullptr;
 };

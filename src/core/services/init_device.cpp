@@ -17,11 +17,9 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "../../appcontext.h"
 #include "../../devicedatabase.h"
 #include "../../iDescriptor.h"
-// #include "../../servicemanager.h"
-#include "../../appcontext.h"
-#include "../../heartbeat.h"
 #include <QDebug>
 
 #ifdef _WIN32
@@ -35,6 +33,7 @@
 
 #include <sstream>
 #include <string.h>
+#include <string>
 
 std::string safeGetXML(const char *key, pugi::xml_node dict)
 {
@@ -65,7 +64,7 @@ std::string safeGetXML(const char *key, pugi::xml_node dict)
     return "";
 }
 
-void parseOldDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d)
+void parseOldDeviceBattery(XmlPlistDict &ioreg, DeviceInfo &d)
 {
     d.batteryInfo.isCharging = ioreg["IsCharging"].getBool();
 
@@ -93,7 +92,7 @@ void parseOldDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d)
     d.batteryInfo.watts = ioreg["AdapterDetails"]["Watts"].getUInt();
 }
 
-void parseOldDevice(PlistNavigator &ioreg, DeviceInfo &d)
+void parseOldDevice(XmlPlistDict &ioreg, DeviceInfo &d)
 {
     uint64_t cycleCount = ioreg["CycleCount"].getUInt();
 
@@ -119,7 +118,7 @@ void parseOldDevice(PlistNavigator &ioreg, DeviceInfo &d)
     parseOldDeviceBattery(ioreg, d);
 }
 
-void parseDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d)
+void parseDeviceBattery(XmlPlistDict &ioreg, DeviceInfo &d)
 {
     d.batteryInfo.isCharging = ioreg["IsCharging"].getBool();
 
@@ -152,9 +151,7 @@ void parseDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d)
     d.batteryInfo.watts = ioreg["AppleRawAdapterDetails"][0]["Watts"].getUInt();
 }
 
-void fullDeviceInfo(const pugi::xml_document &doc, AfcClientHandle *afcClient,
-                    DiagnosticsRelay *diagRelay,
-                    iDescriptorInitDeviceResult &result)
+void fullDeviceInfo(const pugi::xml_document &doc, DeviceInfo &d)
 {
     pugi::xml_node dict = doc.child("plist").child("dict");
     auto safeGet = [&](const char *key) -> std::string {
@@ -184,7 +181,7 @@ void fullDeviceInfo(const pugi::xml_document &doc, AfcClientHandle *afcClient,
         }
         return false;
     };
-    DeviceInfo &d = result.deviceInfo;
+
     d.deviceName = safeGet("DeviceName");
     d.deviceClass = safeGet("DeviceClass");
     d.deviceColor = safeGet("DeviceColor");
@@ -240,21 +237,41 @@ void fullDeviceInfo(const pugi::xml_document &doc, AfcClientHandle *afcClient,
             // "FSTotalBytes: 63966400512"
             // "FSFreeBytes: 2867101696"
             // "FSBlockSize: 4096"
-            // FIXME: it's too slow on older devices?
-            AfcDeviceInfo *info = new AfcDeviceInfo();
-            qDebug() << "afc_get_device_info...";
-            IdeviceFfiError *err = afc_get_device_info(afcClient, info);
-            if (err) {
-                qDebug() << "AFC get device info error code: " << err->message;
-                return;
-            }
-            if (info) {
+            pugi::xml_node afc_info_node = dict.child("AFC_INFO");
 
-                qDebug() << "AFC Disk Info" << info->free_bytes;
-                d.diskInfo.totalDataAvailable = info->free_bytes;
+            if (afc_info_node) {
+                // FIXME: could be handled better
+                auto safeGetAfcString = [&](const char *key) -> std::string {
+                    for (pugi::xml_node child = afc_info_node.first_child();
+                         child; child = child.next_sibling()) {
+                        if (strcmp(child.name(), "key") == 0 &&
+                            strcmp(child.text().as_string(), key) == 0) {
+                            pugi::xml_node value = child.next_sibling();
+                            if (value) {
+                                return value.text().as_string();
+                            }
+                        }
+                    }
+                    return "";
+                };
+
+                // Lambda to parse uint64_t values from the afc_info_node
+                auto safeParseAfcU64 = [&](const char *key) -> uint64_t {
+                    std::string s = safeGetAfcString(key);
+                    if (s.empty())
+                        return 0;
+                    try {
+                        return std::stoull(s);
+                    } catch (...) {
+                        qDebug()
+                            << "Failed to parse AFC_INFO key to uint64_t:"
+                            << key << "value:" << QString::fromStdString(s);
+                        return 0;
+                    }
+                };
+
+                d.diskInfo.totalDataAvailable = safeParseAfcU64("FreeBytes");
             }
-            // FIXME: free
-            afc_device_info_free(info);
         } catch (const std::exception &e) {
             qDebug() << "Error parsing disk info: " << e.what();
         }
@@ -265,7 +282,8 @@ void fullDeviceInfo(const pugi::xml_document &doc, AfcClientHandle *afcClient,
 
     std::string _activationState = safeGet("ActivationState");
 
-    /* older devices dont have fusing status lets default to ProductionSOC for
+    /* older devices dont have fusing status lets default to ProductionSOC
+    for
      * now*/
     // std::string fStatus = safeGet("FusingStatus");
     // d.productionDevice = std::stoi(fStatus.empty() ? "0" : fStatus) == 3;
@@ -296,24 +314,24 @@ void fullDeviceInfo(const pugi::xml_document &doc, AfcClientHandle *afcClient,
              : "Unknown Device";
     d.marketingName = info ? info->marketingName : "Unknown Device";
     d.rawProductType = rawProductType;
-    d.jailbroken = detect_jailbroken(afcClient);
+    d.jailbroken = safeGet("Jailbroken") == "true";
     d.is_iPhone = safeGet("DeviceClass") == "iPhone";
     d.serialNumber = safeGet("SerialNumber");
     d.mobileEquipmentIdentifier = safeGet("MobileEquipmentIdentifier");
+    d.isWireless = safeGet("ConnectionType") == "Wireless";
 
     /*BatteryInfo*/
-    plist_t diagnostics = nullptr;
-    get_battery_info(diagRelay, diagnostics);
+    XmlPlistDict ioreg =
+        XmlPlistDict(doc.child("plist").child("dict"))["DIAG_INFO"];
 
-    if (!diagnostics) {
+    if (!ioreg.valid()) {
         qDebug() << "Failed to get diagnostics plist.";
         return;
     }
-    try {
-        PlistNavigator ioreg = PlistNavigator(diagnostics);
 
+    try {
         // old devices do not have "BatteryData"
-        d.oldDevice = !ioreg["BatteryData"];
+        d.oldDevice = ioreg["BatteryData"].valid() ? false : true;
         if (d.oldDevice) {
             parseOldDevice(ioreg, d);
             return;
@@ -356,224 +374,6 @@ void fullDeviceInfo(const pugi::xml_document &doc, AfcClientHandle *afcClient,
     } catch (const std::exception &e) {
         qDebug() << "Error occurred: " << e.what();
         return;
-    }
-}
-
-void init_idescriptor_device(const iDescriptor::Uniq &uniq,
-                             iDescriptorInitDeviceResult &result,
-                             const WirelessInitArgs &wirelessArgs)
-{
-    const bool isWireless =
-        !wirelessArgs.ip.isEmpty() && !wirelessArgs.pairing_file.isEmpty();
-
-    /* these should never happen but just to be safe and not to waste any
-     * resources return */
-    if (isWireless && uniq.isUdid())
-        return;
-    if (!isWireless && uniq.isMac())
-        return;
-
-    qDebug() << "Initializing iDescriptor device with"
-             << (uniq.isUdid() ? "UDID" : "MAC") << uniq
-             << (isWireless ? "over wireless" : "over USB");
-
-    if (isWireless) {
-        qDebug() << "Wireless args" << "IP:" << wirelessArgs.ip
-                 << "for mac address" << uniq;
-    }
-
-    UsbmuxdConnectionHandle *usbmuxd_conn = nullptr;
-    UsbmuxdAddrHandle *addr_handle = nullptr;
-    IdeviceProviderHandle *provider = nullptr;
-    LockdowndClientHandle *lockdown = nullptr;
-    IdeviceSocketHandle *socket = nullptr;
-    AfcClientHandle *afc_client = nullptr;
-    AfcClientHandle *afc2_client = nullptr;
-    pugi::xml_document infoXml;
-    uint32_t actual_device_id = 0;
-    IdevicePairingFile *pairing_file = nullptr;
-    IdeviceHandle *deviceHandle = nullptr;
-    HeartbeatClientHandle *heartbeat = nullptr;
-    HeartbeatThread *heartbeatThread = nullptr;
-    DiagnosticsRelayClientHandle *diagnostics_relay = nullptr;
-    plist_t val = nullptr;
-
-    IdeviceFfiError *err =
-        idevice_usbmuxd_new_default_connection(0, &usbmuxd_conn);
-    if (err) {
-        if (!isWireless) {
-            qDebug() << "Failed to connect to usbmuxd";
-            goto cleanup;
-        }
-    }
-
-    err = idevice_usbmuxd_default_addr_new(&addr_handle);
-    if (err) {
-        qDebug() << "Failed to create address handle";
-        goto cleanup;
-    }
-
-    if (isWireless) {
-        // Create IPv4 sockaddr
-        struct sockaddr_in addr_in;
-        memset(&addr_in, 0, sizeof(addr_in));
-        addr_in.sin_family = AF_INET;
-        addr_in.sin_port = htons(0);
-        inet_pton(AF_INET, wirelessArgs.ip.toUtf8().constData(),
-                  &addr_in.sin_addr);
-        qDebug() << "Reading pairing file from" << wirelessArgs.pairing_file
-                 << "for" << (uniq.isUdid() ? "UDID" : "MAC") << uniq;
-        err = idevice_pairing_file_read(
-            wirelessArgs.pairing_file.toUtf8().constData(), &pairing_file);
-        if (err) {
-            qDebug() << "Failed to read pairing file";
-            goto cleanup;
-        }
-
-        err = idevice_tcp_provider_new(
-            (const idevice_sockaddr *)&addr_in,
-            const_cast<IdevicePairingFile *>(pairing_file), APP_LABEL,
-            &provider);
-        if (err) {
-            qDebug() << "Failed to create wireless provider";
-            goto cleanup;
-        }
-        err = heartbeat_connect(provider, &heartbeat);
-        if (err) {
-            qDebug() << "Failed to start Heartbeat service";
-            goto cleanup;
-        }
-
-        heartbeatThread = new HeartbeatThread(heartbeat, uniq);
-    } else {
-
-        UsbmuxdDeviceHandle **devices;
-        int device_count;
-        err =
-            idevice_usbmuxd_get_devices(usbmuxd_conn, &devices, &device_count);
-
-        for (size_t i = 0; i < device_count; i++) {
-            const char *device_udid =
-                idevice_usbmuxd_device_get_udid(devices[i]);
-            if (strcmp(device_udid, uniq.get().toUtf8().constData()) == 0) {
-                actual_device_id =
-                    idevice_usbmuxd_device_get_device_id(devices[i]);
-                break;
-            }
-        }
-
-        err = usbmuxd_provider_new(addr_handle, 0,
-                                   uniq.get().toUtf8().constData(),
-                                   actual_device_id, APP_LABEL, &provider);
-    }
-
-    if (err) {
-        qDebug() << "Failed to create provider";
-        goto cleanup;
-    }
-
-    err = lockdownd_connect(provider, &lockdown);
-    if (err) {
-        qDebug() << "Failed to connect to lockdown";
-        goto cleanup;
-    }
-
-    err = idevice_provider_get_pairing_file(provider, &pairing_file);
-    if (err) {
-        // TODO: maybe unnecessary
-        err->code = PairingDialogResponsePending;
-
-        qDebug() << "Waiting for user to respond to pairing dialog on device";
-        goto cleanup;
-    }
-
-    err = lockdownd_start_session(lockdown, pairing_file);
-    if (err) {
-        qDebug() << "Failed to start lockdown session";
-        goto cleanup;
-    }
-
-    if (err) {
-        qDebug() << "Failed to connect to Heartbeat client";
-        goto cleanup;
-    }
-
-    err = afc_client_connect(provider, &afc_client);
-    if (err) {
-        qDebug() << "Failed to create AFC client";
-        goto cleanup;
-    }
-
-    err = diagnostics_relay_client_connect(provider, &diagnostics_relay);
-
-    if (err) {
-        qDebug() << "Failed to create Diagnostics Relay client";
-        goto cleanup;
-    }
-
-    err = afc2_client_connect(provider, &afc2_client);
-    if (err) {
-        qDebug() << "Failed to create AFC2 client";
-        // dont cleanup here, afc2 is optional
-    }
-
-    get_device_info_xml(uniq.get().toUtf8().constData(), lockdown, infoXml);
-
-    lockdownd_get_value(lockdown, "EnableWifiConnections",
-                        "com.apple.mobile.wireless_lockdown", &val);
-    if (val)
-        plist_print(val);
-
-    afc_client_set_timeout(afc_client,
-                           5000); // Set AFC client timeout to 5 seconds
-
-    result.provider = provider;
-    result.success = true;
-    result.afcClient = afc_client;
-    result.afc2Client = afc2_client;
-    result.lockdown = lockdown;
-    result.diagRelay = std::make_shared<DiagnosticsRelay>(
-        DiagnosticsRelay::adopt(diagnostics_relay));
-    result.heartbeatThread = heartbeatThread;
-    // TODO cache pairing file path
-    result.deviceInfo.isWireless = isWireless;
-    result.deviceInfo.ipAddress = wirelessArgs.ip.toStdString();
-    fullDeviceInfo(infoXml, afc_client, result.diagRelay.get(), result);
-    if (isWireless) {
-        ::QObject::connect(heartbeatThread, &HeartbeatThread::heartbeatFailed,
-                           AppContext::sharedInstance(),
-                           &AppContext::heartbeatFailed);
-        ::QObject::connect(heartbeatThread,
-                           &HeartbeatThread::heartbeatThreadExited,
-                           AppContext::sharedInstance(),
-                           &AppContext::removeDevice, Qt::SingleShotConnection);
-    }
-cleanup:
-    // Cleanup on error
-    result.error = err;
-    if (!result.success) {
-        qDebug() << "Initialization failed, cleaning up resources."
-                 << err->message;
-        if (heartbeatThread) {
-            heartbeatThread->requestInterruption();
-            heartbeatThread->wait();
-            delete heartbeatThread;
-            heartbeatThread = nullptr;
-        }
-        if (afc2_client)
-            afc_client_free(afc2_client);
-        if (afc_client)
-            afc_client_free(afc_client);
-        if (diagnostics_relay)
-            diagnostics_relay_client_free(diagnostics_relay);
-        if (lockdown)
-            lockdownd_client_free(lockdown);
-        if (addr_handle)
-            idevice_usbmuxd_addr_free(addr_handle);
-        if (usbmuxd_conn)
-            idevice_usbmuxd_connection_free(usbmuxd_conn);
-        if (provider)
-            idevice_provider_free(provider);
     }
 }
 

@@ -20,8 +20,6 @@
 #include "mainwindow.h"
 #include "appswidget.h"
 #include "devicemanagerwidget.h"
-#include "iDescriptor-ui.h"
-#include "iDescriptor.h"
 #include "ifusediskunmountbutton.h"
 #include "ifusemanager.h"
 #include "jailbrokenwidget.h"
@@ -73,16 +71,13 @@ void handleCallbackRecovery(const irecv_device_event_t *event, void *userData)
 irecv_device_event_context_t context;
 #endif
 
-void handleCallback(const IdeviceEvent *e)
+void handleCallback(int code, const QString &udid, const QString &info)
 {
-    QString udid = QString::fromUtf8(e->udid);
-    qDebug() << "Device event: "
-             << (e->kind == 1 ? "Connected" : "Disconnected")
+    qDebug() << "Device event: " << (code == 1 ? "Connected" : "Disconnected")
              << ", UDID: " << udid;
-    // free(e->udid);
     AddType addType;
 
-    switch (e->kind) {
+    switch (code) {
     case 1: { // fully connected
         addType = AddType::Regular;
         break;
@@ -109,7 +104,7 @@ void handleCallback(const IdeviceEvent *e)
         Q_ARG(iDescriptor::IdeviceConnectionType,
               static_cast<iDescriptor::IdeviceConnectionType>(
                   iDescriptor::CONNECTION_USB)),
-        Q_ARG(AddType, addType));
+        Q_ARG(AddType, addType), Q_ARG(QString, info));
 }
 
 MainWindow *MainWindow::sharedInstance()
@@ -128,6 +123,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     setCentralWidget(centralWidget);
     auto mainLayout = new QVBoxLayout(centralWidget);
     mainLayout->setContentsMargins(0, 0, 0, 0);
+
+    connect(AppContext::sharedInstance()->core, &CXX::Core::device_event, this,
+            [this](uint32_t code, const QString &udid, const QString &info) {
+                handleCallback(code, udid, info);
+            });
+
+    AppContext::sharedInstance()->core->init();
 
     m_ZTabWidget = new ZTabWidget(this);
 #ifdef __APPLE__
@@ -367,85 +369,72 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
             m_updater->checkForUpdates();
         });
 
-    /* If a device is connected before starting the app on slower machines ui
-     * takes a lot of time to render so delay the monitoring a bit  */
-    QTimer::singleShot(std::chrono::seconds(1), this,
-                       [this]() { idevice_event_subscribe(handleCallback); });
-
     // ═══════════════════════════════════════════════════════════════════════
     //  Upgrade to wireless when a "WIRED" device is removed
     // ═══════════════════════════════════════════════════════════════════════
-    connect(
-        AppContext::sharedInstance(), &AppContext::deviceRemoved, this,
-        [](const std::string &udid, const std::string &wifiMacAddress,
-           const std::string &ipAddress, bool wasWireless) {
-            if (wasWireless)
-                return;
-            qDebug() << "Upgrading device to wireless connection for UDID"
-                     << QString::fromStdString(udid);
-            // FIXME: ignore iOS 15 and lower
-            QMetaObject::invokeMethod(
-                AppContext::sharedInstance(), "addDevice", Qt::QueuedConnection,
-                Q_ARG(iDescriptor::Uniq, iDescriptor::Uniq(udid, wasWireless)),
-                Q_ARG(iDescriptor::IdeviceConnectionType,
-                      iDescriptor::CONNECTION_NETWORK),
-                Q_ARG(AddType, AddType::UpgradeToWireless),
-                Q_ARG(QString, QString::fromStdString(wifiMacAddress)),
-                Q_ARG(QString, QString::fromStdString(ipAddress)));
-        });
+    connect(AppContext::sharedInstance(), &AppContext::deviceRemoved, this,
+            [](const QString &udid, const std::string &wifiMacAddress,
+               const std::string &ipAddress, bool wasWireless) {
+                if (wasWireless)
+                    return;
+                qDebug() << "Upgrading device to wireless connection for UDID"
+                         << udid;
+                // FIXME: ignore iOS 15 and lower
+                NetworkDevice dev;
+                dev.macAddress = QString::fromStdString(wifiMacAddress);
+                dev.address = QString::fromStdString(ipAddress);
+                AppContext::sharedInstance()->tryToConnectToNetworkDevice(dev);
+            });
 
     // ═══════════════════════════════════════════════════════════════════════
     //  Add a wireless device
     // ═══════════════════════════════════════════════════════════════════════
-    connect(NetworkDeviceProvider::sharedInstance(),
-            &NetworkDeviceProvider::deviceAdded, this,
-            [this](const NetworkDevice &device) {
-                if (!SettingsManager::sharedInstance()
-                         ->autoConnectWirelessDevices())
-                    return;
-                if (auto existingDevice =
-                        AppContext::sharedInstance()->getDeviceByMacAddress(
-                            device.macAddress)) {
-                    if (existingDevice->deviceInfo.isWireless) {
-                        qDebug() << "Ignoring wireless device with MAC:"
-                                 << device.macAddress
-                                 << "as it's already initialized";
+    connect(
+        NetworkDeviceProvider::sharedInstance(),
+        &NetworkDeviceProvider::deviceAdded, this,
+        [this](const NetworkDevice &device) {
+            if (!SettingsManager::sharedInstance()
+                     ->autoConnectWirelessDevices())
+                return;
+            if (auto existingDevice =
+                    AppContext::sharedInstance()->getDeviceByMacAddress(
+                        device.macAddress)) {
+                if (existingDevice->deviceInfo.isWireless) {
+                    qDebug()
+                        << "Ignoring wireless device with MAC:"
+                        << device.macAddress << "as it's already initialized";
 
-                    } else {
-                        qDebug() << "Prefering wired connection on device MAC:"
-                                 << device.macAddress;
-                    }
-
-                    return;
+                } else {
+                    qDebug() << "Prefering wired connection on device with MAC:"
+                             << device.macAddress;
                 }
-                qDebug() << "Trying to add network device with MAC:"
-                         << device.macAddress;
 
-                QMetaObject::invokeMethod(
-                    AppContext::sharedInstance(), "addDevice",
-                    Q_ARG(iDescriptor::Uniq,
-                          iDescriptor::Uniq(device.macAddress, true)),
-                    Q_ARG(iDescriptor::IdeviceConnectionType,
-                          iDescriptor::CONNECTION_NETWORK),
-                    Q_ARG(AddType, AddType::Wireless),
-                    Q_ARG(QString, device.macAddress),
-                    Q_ARG(QString, device.address));
-            });
+                return;
+            }
+            qDebug() << "Trying to add network device with MAC:"
+                     << device.macAddress;
 
-    connect(AppContext::sharedInstance(), &AppContext::deviceHeartbeatFailed,
-            this, [this](const QString &macAddress, int tries) {
-                // Toast *toast = new Toast(this);
-                // toast->setAttribute(Qt::WA_DeleteOnClose);
-                // toast->setDuration(8000); // Hide after 8 seconds
-                // toast->setTitle("Heartbeat failed");
-                // toast->setText(
-                //     QString("Heartbeat failed for device with MAC %1. "
-                //             "Number of failed attempts: %2")
-                //         .arg(macAddress)
-                //         .arg(tries));
-                // toast->setPosition(ToastPosition::BOTTOM_MIDDLE);
-                // toast->show();
-            });
+            QString pairing_file =
+                AppContext::sharedInstance()->getCachedPairingFile(
+                    device.macAddress);
+
+            if (pairing_file.isEmpty()) {
+                qDebug() << "No pairing file cached for device with MAC:"
+                         << device.macAddress
+                         << "Emitting noPairingFileForWirelessDevice event";
+                AppContext::sharedInstance()
+                    ->emitNoPairingFileForWirelessDevice(device.macAddress);
+                return;
+            }
+
+            qDebug() << "Found cached pairing file for device with MAC:"
+                     << device.macAddress << "IP:" << device.address
+                     << "Initializing wireless connection";
+            AppContext::sharedInstance()->core->init_wireless_device(
+                device.address, LOCKDOWN_PATH + QString("/") + pairing_file,
+                device.macAddress);
+            AppContext::sharedInstance()->emitInitStarted(device.macAddress);
+        });
 }
 
 void MainWindow::createMenus()
@@ -492,8 +481,8 @@ void MainWindow::closeEvent(QCloseEvent *event)
             event->ignore();
             return;
         }
-
-        ExportManager::sharedInstance()->cancelAllJobs();
+        // FIXME
+        //  ExportManager::sharedInstance()->cancelAllJobs();
     }
 
     QMainWindow::closeEvent(event);

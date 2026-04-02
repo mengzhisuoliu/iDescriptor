@@ -22,6 +22,7 @@
 
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
+#include "idescriptor_rust_codebase/src/hause_arrest.cxxqt.h"
 #include "zlineedit.h"
 #include "zloadingwidget.h"
 #include <QAction>
@@ -107,15 +108,16 @@ class InstalledAppsWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit InstalledAppsWidget(const iDescriptorDevice *device,
-                                 QWidget *parent = nullptr);
+    explicit InstalledAppsWidget(
+        const std::shared_ptr<iDescriptorDevice> device,
+        QWidget *parent = nullptr);
     void init();
     ~InstalledAppsWidget();
 
 private slots:
-    void onAppsDataReady();
+    void onAppsDataReady(const QMap<QString, QVariant> &apps);
     void onAppTabClicked();
-    void onContainerDataReady();
+    void onContainerDataReady(bool success);
     void onFileSharingFilterChanged(bool enabled);
 
 private:
@@ -125,7 +127,6 @@ private:
     void createContentWidget();
     void createLeftPanel();
     void createRightPanel();
-    void fetchInstalledApps();
     void createAppTab(const QString &appName, const QString &bundleId,
                       const QString &version, const QPixmap &icon = QPixmap());
     void showLoadingState();
@@ -135,11 +136,11 @@ private:
     void loadAppContainer(const QString &bundleId);
     void cleanupHouseArrestClients();
     void disableTabs(bool disable);
-
     void enqueueIconLoad(const QString &bundleId);
     void startNextIconLoad();
+    void onAppIconLoaded(const QString &bundleId, const QByteArray &icon);
 
-    const iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
     QHBoxLayout *m_mainLayout;
     QStackedWidget *m_stackedWidget;
     QWidget *m_loadingWidget;
@@ -155,14 +156,12 @@ private:
     QScrollArea *m_containerScrollArea;
     QWidget *m_containerWidget;
     QVBoxLayout *m_containerLayout;
-    QFutureWatcher<QVariantMap> *m_watcher = nullptr;
-    QFutureWatcher<QVariantMap> *m_containerWatcher = nullptr;
     QSplitter *m_splitter;
     ZLoadingWidget *m_zloadingWidget;
 
-    AfcClientHandle *m_houseArrestAfcClient = nullptr;
+    std::shared_ptr<CXX::HauseArrest> m_houseArrestAfcClient = nullptr;
     // App data storage
-    QList<AppTabWidget *> m_appTabs;
+    QMap<QString, AppTabWidget *> m_appTabs;
     AppTabWidget *m_selectedTab = nullptr;
 
     QQueue<QString> m_iconLoadQueue;

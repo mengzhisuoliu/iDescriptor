@@ -542,37 +542,18 @@ void AppsWidget::createAppCard(
         QUrl url(logoUrl);
         QNetworkRequest request(url);
         QNetworkReply *reply = m_networkManager->get(request);
-        connect(
-            reply, &QNetworkReply::finished, this, [reply, safeIconLabel]() {
-                if (safeIconLabel) {
-                    if (reply->error() == QNetworkReply::NoError) {
-                        QByteArray data = reply->readAll();
-                        QPixmap pixmap;
-                        if (pixmap.loadFromData(data)) {
-                            QPixmap scaled = pixmap.scaled(
-                                64, 64, Qt::KeepAspectRatioByExpanding,
-                                Qt::SmoothTransformation);
-                            QPixmap rounded(64, 64);
-                            rounded.fill(Qt::transparent);
-
-                            QPainter painter(&rounded);
-                            painter.setRenderHint(QPainter::Antialiasing);
-                            QPainterPath path;
-                            path.addRoundedRect(QRectF(0, 0, 64, 64), 16, 16);
-                            painter.setClipPath(path);
-                            painter.drawPixmap(0, 0, scaled);
-                            painter.end();
-
-                            safeIconLabel->setLoadedPixmap(rounded);
+        connect(reply, &QNetworkReply::finished, this,
+                [reply, safeIconLabel]() {
+                    if (safeIconLabel) {
+                        if (reply->error() == QNetworkReply::NoError) {
+                            QByteArray data = reply->readAll();
+                            safeIconLabel->setLoadedPixmap(data);
                         } else {
                             safeIconLabel->setLoadFailed();
                         }
-                    } else {
-                        safeIconLabel->setLoadFailed();
                     }
-                }
-                reply->deleteLater();
-            });
+                    reply->deleteLater();
+                });
         connect(iconLabel, &QObject::destroyed, reply, &QNetworkReply::abort);
     } else if (!bundleId.isEmpty()) {
         fetchAppIconFromApple(
@@ -583,21 +564,7 @@ void AppsWidget::createAppCard(
                     return;
 
                 if (!pixmap.isNull()) {
-                    QPixmap scaled =
-                        pixmap.scaled(64, 64, Qt::KeepAspectRatioByExpanding,
-                                      Qt::SmoothTransformation);
-                    QPixmap rounded(64, 64);
-                    rounded.fill(Qt::transparent);
-
-                    QPainter painter(&rounded);
-                    painter.setRenderHint(QPainter::Antialiasing);
-                    QPainterPath path;
-                    path.addRoundedRect(QRectF(0, 0, 64, 64), 16, 16);
-                    painter.setClipPath(path);
-                    painter.drawPixmap(0, 0, scaled);
-                    painter.end();
-
-                    safeIconLabel->setLoadedPixmap(rounded);
+                    safeIconLabel->setLoadedPixmap(pixmap);
                 } else {
                     safeIconLabel->setLoadFailed();
                 }

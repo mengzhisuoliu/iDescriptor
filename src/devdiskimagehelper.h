@@ -33,7 +33,7 @@ class DevDiskImageHelper : public QDialog
 {
     Q_OBJECT
 public:
-    explicit DevDiskImageHelper(const iDescriptorDevice *device,
+    explicit DevDiskImageHelper(const std::shared_ptr<iDescriptorDevice> device,
                                 QWidget *parent = nullptr);
 
     // Start the mounting process
@@ -59,7 +59,7 @@ private:
     void finishWithSuccess(bool wait = false);
     void finishWithError(const QString &errorMessage);
 
-    const iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
 
     QLabel *m_statusLabel;
     ZLoadingWidget *m_loadingWidget;

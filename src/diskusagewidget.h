@@ -36,17 +36,18 @@ class DiskUsageWidget : public QWidget
 {
     Q_OBJECT
 public:
-    explicit DiskUsageWidget(const iDescriptorDevice *device,
+    explicit DiskUsageWidget(const std::shared_ptr<iDescriptorDevice> device,
                              QWidget *parent = nullptr);
 
 private:
-    void fetchData();
+    void onDiskUsageRetrieved(bool success, uint64_t apps_usage,
+                              uint64_t gallery_usage);
     void setupUI();
     void updateUI();
 
     enum State { Loading, Ready, Error };
 
-    const iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
     State m_state;
     QString m_errorMessage;
 

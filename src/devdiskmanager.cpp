@@ -19,7 +19,6 @@
 
 #include "devdiskmanager.h"
 #include "iDescriptor.h"
-#include "servicemanager.h"
 #include "settingsmanager.h"
 #include <QApplication>
 #include <QDebug>
@@ -322,8 +321,9 @@ bool DevDiskManager::isImageDownloaded(const QString &version,
     return QFile::exists(dmgPath) && QFile::exists(sigPath);
 }
 
-bool DevDiskManager::downloadCompatibleImage(const iDescriptorDevice *device,
-                                             std::function<void(bool)> callback)
+bool DevDiskManager::downloadCompatibleImage(
+    const std::shared_ptr<iDescriptorDevice> device,
+    std::function<void(bool)> callback)
 {
     QString path = SettingsManager::sharedInstance()->mkDevDiskImgPath();
     unsigned int deviceMajorVersion =
@@ -396,13 +396,13 @@ bool DevDiskManager::downloadCompatibleImage(const iDescriptorDevice *device,
         }
     }
 
-    qDebug() << "No compatible image found to mount on device:"
-             << device->udid.c_str();
+    // qDebug() << "No compatible image found to mount on device:"
+    //          << device->udid.c_str();
 
     return false;
 }
 
-// FIXME:DOES NOT CHECK IF THERE IS ALREADY AN IMAGE MOUNTED
+// FIXME: wire this up properly
 bool DevDiskManager::mountCompatibleImage(const iDescriptorDevice *device)
 {
     QString path = SettingsManager::sharedInstance()->mkDevDiskImgPath();
@@ -437,61 +437,64 @@ bool DevDiskManager::mountCompatibleImage(const iDescriptorDevice *device)
     //     }
     // }
 
-    // 2. If none are downloaded, download the newest compatible one
-    for (const ImageInfo &info : images) {
-        if (info.compatibility == ImageCompatibility::Compatible ||
-            info.compatibility == ImageCompatibility::MaybeCompatible) {
-            const QString versionToDownload = info.version;
-            qDebug()
-                << "No compatible image found locally. Downloading version:"
-                << versionToDownload;
+    // // 2. If none are downloaded, download the newest compatible one
+    // for (const ImageInfo &info : images) {
+    //     if (info.compatibility == ImageCompatibility::Compatible ||
+    //         info.compatibility == ImageCompatibility::MaybeCompatible) {
+    //         const QString versionToDownload = info.version;
+    //         qDebug()
+    //             << "No compatible image found locally. Downloading version:"
+    //             << versionToDownload;
 
-            connect(
-                this, &DevDiskManager::imageDownloadFinished, this,
-                [this, device, path,
-                 versionToDownload](const QString &finishedVersion,
-                                    bool success, const QString &errorMessage) {
-                    if (success && finishedVersion == versionToDownload) {
-                        qDebug() << "Download finished for" << finishedVersion
-                                 << ". Now attempting to mount.";
-                        mountImage(finishedVersion, device);
-                    } else if (!success) {
-                        qDebug() << "Failed to download" << finishedVersion
-                                 << ":" << errorMessage;
-                    }
-                },
-                Qt::SingleShotConnection);
+    //         connect(
+    //             this, &DevDiskManager::imageDownloadFinished, this,
+    //             [this, device, path,
+    //              versionToDownload](const QString &finishedVersion,
+    //                                 bool success, const QString
+    //                                 &errorMessage) {
+    //                 if (success && finishedVersion == versionToDownload) {
+    //                     qDebug() << "Download finished for" <<
+    //                     finishedVersion
+    //                              << ". Now attempting to mount.";
+    //                     mountImage(finishedVersion, device);
+    //                 } else if (!success) {
+    //                     qDebug() << "Failed to download" << finishedVersion
+    //                              << ":" << errorMessage;
+    //                 }
+    //             },
+    //             Qt::SingleShotConnection);
 
-            // Start the download
-            QPair<QNetworkReply *, QNetworkReply *> replies =
-                downloadImage(versionToDownload);
-            auto *downloadItem = new DownloadItem();
-            downloadItem->version = versionToDownload;
-            downloadItem->downloadPath = path;
-            downloadItem->dmgReply = replies.first;
-            downloadItem->sigReply = replies.second;
+    //         // Start the download
+    //         QPair<QNetworkReply *, QNetworkReply *> replies =
+    //             downloadImage(versionToDownload);
+    //         auto *downloadItem = new DownloadItem();
+    //         downloadItem->version = versionToDownload;
+    //         downloadItem->downloadPath = path;
+    //         downloadItem->dmgReply = replies.first;
+    //         downloadItem->sigReply = replies.second;
 
-            connect(downloadItem->dmgReply, &QNetworkReply::downloadProgress,
-                    this, &DevDiskManager::onDownloadProgress);
-            connect(downloadItem->dmgReply, &QNetworkReply::finished, this,
-                    &DevDiskManager::onFileDownloadFinished);
-            connect(downloadItem->sigReply, &QNetworkReply::downloadProgress,
-                    this, &DevDiskManager::onDownloadProgress);
-            connect(downloadItem->sigReply, &QNetworkReply::finished, this,
-                    &DevDiskManager::onFileDownloadFinished);
+    //         connect(downloadItem->dmgReply, &QNetworkReply::downloadProgress,
+    //                 this, &DevDiskManager::onDownloadProgress);
+    //         connect(downloadItem->dmgReply, &QNetworkReply::finished, this,
+    //                 &DevDiskManager::onFileDownloadFinished);
+    //         connect(downloadItem->sigReply, &QNetworkReply::downloadProgress,
+    //                 this, &DevDiskManager::onDownloadProgress);
+    //         connect(downloadItem->sigReply, &QNetworkReply::finished, this,
+    //                 &DevDiskManager::onFileDownloadFinished);
 
-            m_activeDownloads[downloadItem->dmgReply] = downloadItem;
-            m_activeDownloads[downloadItem->sigReply] = downloadItem;
-            return true; // Indicate that the async operation has started
-        }
-    }
+    //         m_activeDownloads[downloadItem->dmgReply] = downloadItem;
+    //         m_activeDownloads[downloadItem->sigReply] = downloadItem;
+    //         return true; // Indicate that the async operation has started
+    //     }
+    // }
 
-    qDebug() << "No compatible image found to mount on device:"
-             << device->udid.c_str();
+    // qDebug() << "No compatible image found to mount on device:"
+    //          << device->udid.c_str();
 
-    return false;
+    // return false;
 }
 
+// FIXME
 bool DevDiskManager::mountImage(const QString &version,
                                 const iDescriptorDevice *device)
 {
@@ -502,15 +505,16 @@ bool DevDiskManager::mountImage(const QString &version,
     }
 
     QString versionPath = QDir(downloadPath).filePath(version);
-    return mount_dev_image(device,
-                           QDir(versionPath)
-                               .filePath("DeveloperDiskImage.dmg")
-                               .toUtf8()
-                               .constData(),
-                           QDir(versionPath)
-                               .filePath("DeveloperDiskImage.dmg.signature")
-                               .toUtf8()
-                               .constData());
+    return false;
+    // return mount_dev_image(device,
+    //                        QDir(versionPath)
+    //                            .filePath("DeveloperDiskImage.dmg")
+    //                            .toUtf8()
+    //                            .constData(),
+    //                        QDir(versionPath)
+    //                            .filePath("DeveloperDiskImage.dmg.signature")
+    //                            .toUtf8()
+    //                            .constData());
 }
 
 std::pair<QString, QString>

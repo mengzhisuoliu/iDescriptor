@@ -26,21 +26,6 @@
 #include <QThread>
 #include <QtCore/QObject>
 
-#include <idevice++/bindings.hpp>
-#include <idevice++/core_device_proxy.hpp>
-#include <idevice++/diagnostics_relay.hpp>
-#include <idevice++/dvt/location_simulation.hpp>
-#include <idevice++/dvt/remote_server.hpp>
-#include <idevice++/dvt/screenshot.hpp>
-#include <idevice++/ffi.hpp>
-#include <idevice++/heartbeat.hpp>
-#include <idevice++/installation_proxy.hpp>
-#include <idevice++/lockdown.hpp>
-#include <idevice++/provider.hpp>
-#include <idevice++/readwrite.hpp>
-#include <idevice++/rsd.hpp>
-#include <idevice++/usbmuxd.hpp>
-
 #include <mutex>
 #include <pugixml.hpp>
 #include <string>
@@ -62,10 +47,6 @@
     "https://raw.githubusercontent.com/iDescriptor/iDescriptor/refs/heads/"    \
     "main/DeveloperDiskImages.json"
 
-// This is because afc_list_directory accepts  "/var/mobile/Media" as "/"
-#define POSSIBLE_ROOT "../../../../"
-#define IDEVICE_DEVICE_VERSION(maj, min, patch)                                \
-    ((((maj) & 0xFF) << 16) | (((min) & 0xFF) << 8) | ((patch) & 0xFF))
 #include "iDescriptor-utils.h"
 #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
 #include <libirecovery.h>
@@ -97,14 +78,17 @@
 #endif
 
 // rust codebase
-extern "C" {
-#include "idescriptor_rust.h"
-}
+#include "idescriptor_rust_codebase/src/afc_services.cxxqt.h"
+#include "idescriptor_rust_codebase/src/hause_arrest.cxxqt.h"
+#include "idescriptor_rust_codebase/src/io_manager.cxxqt.h"
+#include "idescriptor_rust_codebase/src/lib.cxxqt.h"
+#include "idescriptor_rust_codebase/src/screenshot.cxxqt.h"
+#include "idescriptor_rust_codebase/src/service_manager.cxxqt.h"
+
 namespace iDescriptor
 {
 enum IdeviceConnectionType { CONNECTION_USB = 1, CONNECTION_NETWORK = 2 };
 }
-using namespace IdeviceFFI;
 
 struct BatteryInfo {
     QString health;
@@ -235,34 +219,17 @@ struct DeviceInfo {
     std::string UniqueDeviceID;
 };
 
-class HeartbeatThread;
-
 struct iDescriptorDevice {
-    std::string udid;
+    QString udid;
     iDescriptor::IdeviceConnectionType conn_type;
-    IdeviceProviderHandle *provider;
     DeviceInfo deviceInfo;
-    AfcClientHandle *afcClient;
-    // nullptr if the device is not jailbroken or doesn't have AFC2 installed
-    AfcClientHandle *afc2Client;
-    LockdowndClientHandle *lockdown;
-    mutable std::recursive_mutex mutex;
-    std::shared_ptr<DiagnosticsRelay> diagRelay;
-    // nullptr on USB devices
-    HeartbeatThread *heartbeatThread;
+    unsigned int ios_version;
+    CXX::ServiceManager *service_manager;
+    CXX::AfcBackend *afc_backend;
 };
 
-struct iDescriptorInitDeviceResult {
-    bool success = false;
-    IdeviceFfiError *error;
-    IdeviceProviderHandle *provider;
-    DeviceInfo deviceInfo;
-    AfcClientHandle *afcClient;
-    AfcClientHandle *afc2Client;
-    LockdowndClientHandle *lockdown;
-    std::shared_ptr<DiagnosticsRelay> diagRelay;
-    HeartbeatThread *heartbeatThread;
-};
+void fullDeviceInfo(const pugi::xml_document &doc, DeviceInfo &d);
+
 #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
 struct iDescriptorRecoveryDevice {
     uint64_t ecid;
@@ -303,133 +270,6 @@ enum class AddType {
     UpgradeToWireless
 };
 
-class PlistNavigator
-{
-private:
-    plist_t current_node;
-
-public:
-    PlistNavigator(plist_t node) : current_node(node) {}
-
-    // dict key access
-    PlistNavigator operator[](const char *key)
-    {
-        if (!current_node || plist_get_node_type(current_node) != PLIST_DICT) {
-            return PlistNavigator(nullptr);
-        }
-        plist_t next = plist_dict_get_item(current_node, key);
-        return PlistNavigator(next);
-    }
-
-    PlistNavigator operator[](const std::string &key)
-    {
-        if (!current_node || plist_get_node_type(current_node) != PLIST_DICT) {
-            return PlistNavigator(nullptr);
-        }
-        plist_t next = plist_dict_get_item(current_node, key.c_str());
-        return PlistNavigator(next);
-    }
-
-    PlistNavigator operator[](const QString &key)
-    {
-        if (!current_node || plist_get_node_type(current_node) != PLIST_DICT) {
-            return PlistNavigator(nullptr);
-        }
-        plist_t next =
-            plist_dict_get_item(current_node, key.toUtf8().constData());
-        return PlistNavigator(next);
-    }
-
-    // array index access
-    PlistNavigator operator[](int index)
-    {
-        if (!current_node || plist_get_node_type(current_node) != PLIST_ARRAY) {
-            return PlistNavigator(nullptr);
-        }
-        if (index < 0 ||
-            index >= static_cast<int>(plist_array_get_size(current_node))) {
-            return PlistNavigator(nullptr);
-        }
-        plist_t next = plist_array_get_item(current_node, index);
-        return PlistNavigator(next);
-    }
-
-    operator plist_t() const { return current_node; }
-    bool valid() const { return current_node != nullptr; }
-
-    bool getBool() const
-    {
-        if (!current_node)
-            return false;
-        uint8_t value = false;
-        plist_get_bool_val(current_node, &value);
-        return value;
-    }
-
-    uint64_t getUInt() const
-    {
-        if (!current_node)
-            return 0;
-        uint64_t value = 0;
-        plist_get_uint_val(current_node, &value);
-        return value;
-    }
-
-    std::string getString() const
-    {
-        if (!current_node)
-            return "";
-        char *value = nullptr;
-        plist_get_string_val(current_node, &value);
-        std::string result = value ? value : "";
-        if (value)
-            plist_mem_free(value);
-        return result;
-    }
-    plist_t getNode() const { return current_node; }
-
-    QVariant toQVariant() const
-    {
-        if (!current_node) {
-            return QVariant();
-        }
-        // TODO: free
-        plist_type type = plist_get_node_type(current_node);
-        switch (type) {
-        case PLIST_BOOLEAN: {
-            uint8_t val;
-            plist_get_bool_val(current_node, &val);
-            return QVariant(static_cast<bool>(val));
-        }
-        case PLIST_UINT: {
-            uint64_t val;
-            plist_get_uint_val(current_node, &val);
-            return QVariant(static_cast<qulonglong>(val));
-        }
-        case PLIST_STRING: {
-            char *val = nullptr;
-            plist_get_string_val(current_node, &val);
-            QString str_val = QString::fromUtf8(val);
-            if (val)
-                free(val);
-            return QVariant(str_val);
-        }
-        case PLIST_REAL: {
-            double val;
-            plist_get_real_val(current_node, &val);
-            return QVariant(val);
-        }
-        case PLIST_DICT:
-        case PLIST_ARRAY:
-        case PLIST_DATA:
-        case PLIST_DATE:
-        default: {
-            return QVariant("Unsupported Type");
-        }
-        }
-    }
-};
-
 std::string parse_product_type(const std::string &productType);
 
 struct MediaEntry {
@@ -443,42 +283,10 @@ struct AFCFileTree {
     std::string currentPath;
 };
 
-AFCFileTree
-get_file_tree(const iDescriptorDevice *device, bool checkDir,
-              const std::string &path = "/",
-              std::optional<AfcClientHandle *> altAfc = std::nullopt);
-
-bool detect_jailbroken(AfcClientHandle *afc);
-
-void get_device_info_xml(const char *udid, LockdowndClientHandle *client,
-                         pugi::xml_document &infoXml);
-
 struct WirelessInitArgs {
     const QString ip;
     const QString pairing_file;
 };
-void init_idescriptor_device(const iDescriptor::Uniq &uniq,
-                             iDescriptorInitDeviceResult &result,
-                             const WirelessInitArgs &wirelessArgs = {"", ""});
-
-IdeviceFfiError *mount_dev_image(const iDescriptorDevice *device,
-                                 const char *image_file,
-                                 const char *signature_file);
-
-struct MountedImageInfo {
-    IdeviceFfiError *err;
-    uint8_t *signature;
-    size_t signature_len;
-};
-
-struct MountedImageResult {
-    bool success;
-    IdeviceFfiError *err;
-};
-
-MountedImageInfo _get_mounted_image(const iDescriptorDevice *device);
-
-void mounted_image_info_free(MountedImageInfo &info);
 
 enum class ImageCompatibility {
     Compatible,      // Exact match or known compatible version
@@ -495,18 +303,9 @@ struct ImageInfo {
     bool isMounted = false;
 };
 
-// std::string safeGetXML(const char *key, pugi::xml_node dict);
-
-void get_battery_info(DiagnosticsRelay *diagRelay, plist_t &diagnostics);
-
-void parseOldDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d);
-void parseDeviceBattery(PlistNavigator &ioreg, DeviceInfo &d);
-
 void fetchAppIconFromApple(
     QNetworkAccessManager *manager, const QString &bundleId,
     std::function<void(const QPixmap &, const QJsonObject &)> callback);
-
-void _get_cable_info(const iDescriptorDevice *device, plist_t &response);
 
 struct NetworkDevice {
     QString name;                           // service name
@@ -522,11 +321,6 @@ struct NetworkDevice {
 };
 
 QPixmap load_heic(const QByteArray &data);
-
-QByteArray read_afc_file_to_byte_array(AfcClientHandle *afc, const char *path);
-
-IdeviceFfiError *_install_IPA(const iDescriptorDevice *device,
-                              const char *filePath, const char *ipaName);
 
 // Helper struct for semantic version comparison
 struct AppVersion {
@@ -677,12 +471,12 @@ template <typename ResultT> class PItem
 public:
     QString sourcePathOnDevice;
     QString suggestedFileName;
-    std::string d_udid;
+    QString d_udid;
     std::function<void(const ResultT &)> callback;
 
     PItem() = default;
     PItem(const QString &sourcePath, const QString &fileName,
-          std::string d_udid,
+          const QString &d_udid,
           std::function<void(const ResultT &)> callback = nullptr)
         : sourcePathOnDevice(sourcePath), suggestedFileName(fileName),
           d_udid(std::move(d_udid)), callback(std::move(callback))
@@ -703,11 +497,11 @@ class JobBase
 public:
     QUuid jobId;
     QString destinationPath;
-    std::optional<AfcClientHandle *> altAfc;
+    std::optional<bool> altAfc;
     std::atomic<bool> cancelRequested{false};
     QUuid statusBalloonProcessId;
     // device udid
-    std::string d_udid;
+    QString d_udid;
 
     virtual ~JobBase() = default;
 };
@@ -715,7 +509,7 @@ public:
 template <typename ItemT> class Job : public JobBase
 {
 public:
-    QList<ItemT> items;
+    QList<QString> items;
 };
 
 // Concrete aliases
@@ -740,27 +534,119 @@ struct ImportJobSummary {
     bool wasCancelled = false;
 };
 
-inline QString formatFileSize(qint64 bytes)
-{
-    const qint64 KB = 1024;
-    const qint64 MB = KB * 1024;
-    const qint64 GB = MB * 1024;
+struct XmlPlistDict {
+    pugi::xml_node current_node;
 
-    if (bytes >= GB) {
-        return QString("%1 GB").arg(
-            QString::number(bytes / double(GB), 'f', 2));
-    } else if (bytes >= MB) {
-        return QString("%1 MB").arg(
-            QString::number(bytes / double(MB), 'f', 1));
-    } else if (bytes >= KB) {
-        return QString("%1 KB").arg(
-            QString::number(bytes / double(KB), 'f', 0));
-    } else {
-        return QString("%1 B").arg(bytes);
+    XmlPlistDict() = default;
+    explicit XmlPlistDict(pugi::xml_node n) : current_node(n) {}
+
+    bool valid() const { return current_node; }
+
+    bool isDict() const
+    {
+        return current_node && std::strcmp(current_node.name(), "dict") == 0;
     }
-}
 
-inline QString formatTransferRate(qint64 bytesPerSecond)
-{
-    return formatFileSize(bytesPerSecond) + "/s";
-}
+    bool isArray() const
+    {
+        return current_node && std::strcmp(current_node.name(), "array") == 0;
+    }
+
+private:
+    // helper: for dict lookups
+    pugi::xml_node findValueNode(const char *key) const
+    {
+        if (!isDict())
+            return {};
+
+        for (pugi::xml_node child = current_node.first_child(); child;
+             child = child.next_sibling()) {
+            if (std::strcmp(child.name(), "key") == 0 &&
+                std::strcmp(child.text().as_string(), key) == 0) {
+                return child.next_sibling(); // the value node
+            }
+        }
+        return {};
+    }
+
+public:
+    // dict key access
+    XmlPlistDict operator[](const char *key) const
+    {
+        return XmlPlistDict(findValueNode(key));
+    }
+
+    XmlPlistDict operator[](const std::string &key) const
+    {
+        return (*this)[key.c_str()];
+    }
+
+    XmlPlistDict operator[](const QString &key) const
+    {
+        return (*this)[key.toUtf8().constData()];
+    }
+
+    // array index access
+    XmlPlistDict operator[](int index) const
+    {
+        if (!isArray() || index < 0)
+            return XmlPlistDict();
+
+        int i = 0;
+        for (pugi::xml_node child = current_node.first_child(); child;
+             child = child.next_sibling()) {
+            if (!child.name() || !*child.name())
+                continue; // skip text/whitespace
+            if (i == index)
+                return XmlPlistDict(child);
+            ++i;
+        }
+        return XmlPlistDict();
+    }
+
+    // getters on current node (like PlistNavigator)
+    bool getBool(bool def = false) const
+    {
+        if (!current_node)
+            return def;
+
+        const char *name = current_node.name();
+        if (!std::strcmp(name, "true"))
+            return true;
+        if (!std::strcmp(name, "false"))
+            return false;
+
+        std::string s = current_node.text().as_string();
+        if (s == "true" || s == "1")
+            return true;
+        if (s == "false" || s == "0")
+            return false;
+        return def;
+    }
+
+    uint64_t getUInt(uint64_t def = 0) const
+    {
+        if (!current_node)
+            return def;
+        std::string s = current_node.text().as_string();
+        if (s.empty())
+            return def;
+        try {
+            return std::stoull(s);
+        } catch (...) {
+            return def;
+        }
+    }
+
+    std::string getString(const std::string &def = std::string()) const
+    {
+        if (!current_node)
+            return def;
+        return current_node.text().as_string();
+    }
+
+    pugi::xml_node getNode() const { return current_node; }
+};
+
+void parseOldDeviceBattery(XmlPlistDict &ioreg, DeviceInfo &d);
+void parseDeviceBattery(XmlPlistDict &ioreg, DeviceInfo &d);

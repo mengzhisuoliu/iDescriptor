@@ -22,7 +22,6 @@
 #include "devdiskimagehelper.h"
 #include "devdiskmanager.h"
 #include "iDescriptor.h"
-#include "servicemanager.h"
 #include "settingsmanager.h"
 #include <QDebug>
 #include <QDoubleValidator>
@@ -42,9 +41,11 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
+
 // FIXME: on macOS setupToolFrame in Tool widget does nothing
 // probably because we are using a QQuickWidget
-VirtualLocation::VirtualLocation(iDescriptorDevice *device, QWidget *parent)
+VirtualLocation::VirtualLocation(
+    const std::shared_ptr<iDescriptorDevice> device, QWidget *parent)
     : QWidget(parent), m_device(device)
 {
     setWindowTitle("Virtual Location - iDescriptor");
@@ -151,7 +152,7 @@ VirtualLocation::VirtualLocation(iDescriptorDevice *device, QWidget *parent)
     m_quickWidget->rootContext()->setContextProperty("cppHandler", this);
 
     connect(AppContext::sharedInstance(), &AppContext::deviceRemoved, this,
-            [this](const std::string &udid) {
+            [this](const QString &udid) {
                 if (m_device->udid == udid) {
                     this->close();
                     this->deleteLater();
@@ -264,8 +265,9 @@ void VirtualLocation::onMapCenterChanged()
     }
 }
 
-// Add this new slot that QML can call directly
-void VirtualLocation::updateInputsFromMap(double latitude, double longitude)
+// called from QML
+void VirtualLocation::updateInputsFromMap(const QString &latitude,
+                                          const QString &longitude)
 {
     if (m_updatingFromInput) {
         return; // Prevent feedback loop
@@ -279,8 +281,8 @@ void VirtualLocation::updateInputsFromMap(double latitude, double longitude)
     m_longitudeEdit->blockSignals(true);
 
     // Update input fields
-    m_latitudeEdit->setText(QString::number(latitude, 'f', 6));
-    m_longitudeEdit->setText(QString::number(longitude, 'f', 6));
+    m_latitudeEdit->setText(latitude);
+    m_longitudeEdit->setText(longitude);
 
     // Restore signals
     m_latitudeEdit->blockSignals(false);
@@ -289,14 +291,21 @@ void VirtualLocation::updateInputsFromMap(double latitude, double longitude)
     qDebug() << "Updated inputs from map:" << latitude << "," << longitude;
 }
 
+void VirtualLocation::handleEnable()
+{
+    QTimer::singleShot(1000, this, [this]() {
+        m_applyButton->setText("Apply Location");
+        m_applyButton->setEnabled(true);
+    });
+}
+
 void VirtualLocation::onApplyClicked()
 {
     m_applyButton->setEnabled(false);
-    bool latOk, lonOk;
-    double latitude = m_latitudeEdit->text().toDouble(&latOk);
-    double longitude = m_longitudeEdit->text().toDouble(&lonOk);
+    QString latitude = m_latitudeEdit->text();
+    QString longitude = m_longitudeEdit->text();
 
-    if (!latOk || !lonOk) {
+    if (longitude.isEmpty() || latitude.isEmpty()) {
         QMessageBox::warning(
             this, "Invalid Input",
             "Please enter valid latitude and longitude values.");
@@ -306,265 +315,73 @@ void VirtualLocation::onApplyClicked()
 
     int major = m_device->deviceInfo.parsedDeviceVersion.major;
 
-    if (major < 17) {
-        LocationSimulationServiceHandle *locationSim = nullptr;
-        IdeviceFfiError *err = nullptr;
-        err = lockdown_location_simulation_connect(m_device->provider,
-                                                   &locationSim);
-        if (err != NULL) {
-            qDebug() << "Failed to connect to location simulation service:"
-                     << err->code << err->message;
-            if (err->code != InvalidServiceErrorCode) {
-                QMessageBox::warning(
-                    this, "Error",
-                    QString(
-                        "Failed to connect to location simulation service: %1")
-                        .arg(err->message));
-                idevice_error_free(err);
-                m_applyButton->setEnabled(true);
-                return;
-            }
+    qDebug() << "Setting location to:" << latitude << "," << longitude;
 
-            idevice_error_free(err);
-            DevDiskImageHelper *devDiskImageHelper =
-                new DevDiskImageHelper(m_device, this);
-            connect(
-                devDiskImageHelper, &DevDiskImageHelper::mountingCompleted,
+    if (major < 17) {
+        DevDiskImageHelper *devDiskImageHelper =
+            new DevDiskImageHelper(m_device, this);
+        connect(devDiskImageHelper, &DevDiskImageHelper::mountingCompleted,
                 this,
                 [this, latitude, longitude, devDiskImageHelper](bool success) {
-                    if (devDiskImageHelper) {
-                        devDiskImageHelper->deleteLater();
-                    }
-
                     if (!success) {
                         // mounter will show its own error message, just
                         // re-enable the button here
-                        m_applyButton->setEnabled(true);
-                        return;
+                        return handleEnable();
                     }
-                    IdeviceFfiError *err = nullptr;
-                    LocationSimulationServiceHandle *locationSim = nullptr;
-                    err = lockdown_location_simulation_connect(
-                        m_device->provider, &locationSim);
 
-                    if (err != NULL) {
-                        qDebug() << "Failed to connect to location simulation "
-                                    "service after mounting disk image:"
-                                 << err->code << err->message;
+                    u_int32_t set_location_success =
+                        m_device->service_manager->set_location(latitude,
+                                                                longitude);
+
+                    if (set_location_success != 0) {
+                        qDebug() << "Failed to set location simulation";
                         QMessageBox::warning(
                             this, "Error",
-                            QString("Failed to connect to location simulation "
-                                    "service after mounting disk image: %1")
-                                .arg(err->message));
-                        idevice_error_free(err);
-                        m_applyButton->setEnabled(true);
-                        return;
+                            QString("Failed to set location simulation"));
+
+                    } else {
+
+                        QMessageBox::information(
+                            this, "Success", "Location applied successfully!");
+
+                        // SettingsManager::sharedInstance()->saveRecentLocation(
+                        //     latitude, longitude);
                     }
-
-                    err = lockdown_location_simulation_set(
-                        locationSim,
-                        m_latitudeEdit->text().toStdString().c_str(),
-                        m_longitudeEdit->text().toStdString().c_str());
-                    if (err != NULL) {
-                        qDebug()
-                            << "Failed to set location simulation:" << err->code
-                            << err->message;
-                        QMessageBox::warning(
-                            this, "Error",
-                            QString("Failed to set location simulation: %1")
-                                .arg(err->message));
-                        idevice_error_free(err);
-                    }
-
-                    lockdown_location_simulation_free(locationSim);
-                    QMessageBox::information(this, "Success",
-                                             "Location applied successfully!");
-
-                    SettingsManager::sharedInstance()->saveRecentLocation(
-                        latitude, longitude);
-                    m_applyButton->setEnabled(true);
-                    return;
+                    return handleEnable();
                 });
-            connect(
-                devDiskImageHelper, &DevDiskImageHelper::destroyed, this,
-                [this]() {
-                    QTimer::singleShot(1000, this, [this]() {
-                        m_applyButton->setText("Apply Location");
-                        m_applyButton->setEnabled(true);
-                    });
-                },
-                Qt::SingleShotConnection);
-            return devDiskImageHelper->start();
-        }
+        connect(devDiskImageHelper, &DevDiskImageHelper::destroyed, this,
+                &VirtualLocation::handleEnable, Qt::SingleShotConnection);
+        return devDiskImageHelper->start();
+    }
 
-        err = lockdown_location_simulation_set(
-            locationSim, m_latitudeEdit->text().toStdString().c_str(),
-            m_longitudeEdit->text().toStdString().c_str());
-        if (err != NULL) {
-            qDebug() << "Failed to set location simulation:" << err->code
-                     << err->message;
-            QMessageBox::warning(
-                this, "Error",
-                QString("Failed to set location simulation: %1")
-                    .arg(err->message));
-            idevice_error_free(err);
-        }
+    // /* iOS 17 and above */
+    int32_t set_location_res =
+        m_device->service_manager->set_location(latitude, longitude);
 
-        lockdown_location_simulation_free(locationSim);
+    switch (set_location_res) {
+    case 0:
         QMessageBox::information(this, "Success",
-                                 "Location applied successfully!");
-        m_applyButton->setEnabled(true);
-        return;
-    }
-
-    /* iOS 17 and above */
-    auto tmpProvider = IdeviceFFI::Provider::adopt(m_device->provider);
-
-    auto cdp_res = IdeviceFFI::CoreDeviceProxy::connect(tmpProvider);
-
-    // provider shouldn't be freed
-    tmpProvider.release();
-
-    if (cdp_res.is_err()) {
-        auto err = cdp_res.unwrap_err();
-        qDebug() << "Failed to connect to CoreDeviceProxy:" << err.code
-                 << QString::fromStdString(err.message);
+                                 "Location applied successfully");
+        break;
+    case ServiceNotFoundErrorCode:
+        // TODO: create a widget for this
+        qDebug() << "Failed to set location simulation: service not found";
         QMessageBox::warning(this, "Error",
-                             QString("Failed to connect to CoreDeviceProxy: %1")
-                                 .arg(QString::fromStdString(err.message)));
-        m_applyButton->setEnabled(true);
-        return;
-    }
-
-    auto &cdp = cdp_res.unwrap();
-
-    auto rsd_port_res = cdp.get_server_rsd_port();
-    if (rsd_port_res.is_err()) {
-        auto err = rsd_port_res.unwrap_err();
-        qDebug() << "Failed to get server RSD port:" << err.code
-                 << QString::fromStdString(err.message);
+                             "Developer Mode is not enabled on the device.");
+        break;
+    case TimeoutErrorCode:
+        qDebug() << "Failed to set location simulation: timed out";
         QMessageBox::warning(this, "Error",
-                             QString("Failed to get server RSD port: %1")
-                                 .arg(QString::fromStdString(err.message)));
-        m_applyButton->setEnabled(true);
-        return;
-    }
-
-    uint16_t rsd_port = rsd_port_res.unwrap();
-
-    auto adapter_res = std::move(cdp).create_tcp_adapter();
-    if (adapter_res.is_err()) {
-        auto err = adapter_res.unwrap_err();
-        qDebug() << "Failed to create software tunnel adapter:" << err.code
-                 << QString::fromStdString(err.message);
-        QMessageBox::warning(
-            this, "Error",
-            QString("Failed to create software tunnel adapter: %1")
-                .arg(QString::fromStdString(err.message)));
-        m_applyButton->setEnabled(true);
-        return;
-    }
-
-    auto &adapter = adapter_res.unwrap();
-
-    auto stream_res = adapter.connect(rsd_port);
-    if (stream_res.is_err()) {
-        auto err = stream_res.unwrap_err();
-        qDebug() << "Failed to connect RSD stream:" << err.code
-                 << QString::fromStdString(err.message);
+                             "Failed to set location simulation: timed out");
+        break;
+    default:
+        qDebug() << "Failed to set location simulation: device not found";
         QMessageBox::warning(this, "Error",
-                             QString("Failed to connect RSD stream: %1")
-                                 .arg(QString::fromStdString(err.message)));
-        m_applyButton->setEnabled(true);
-        return;
+                             "Failed to set location simulation: Error code: " +
+                                 QString::number(set_location_res));
     }
 
-    auto &stream = stream_res.unwrap();
-
-    auto rsd_res = IdeviceFFI::RsdHandshake::from_socket(std::move(stream));
-    if (rsd_res.is_err()) {
-        auto err = rsd_res.unwrap_err();
-        qDebug() << "Failed RSD handshake:" << err.code
-                 << QString::fromStdString(err.message);
-        QMessageBox::warning(this, "Error",
-                             QString("Failed RSD handshake: %1")
-                                 .arg(QString::fromStdString(err.message)));
-        m_applyButton->setEnabled(true);
-        return;
-    }
-
-    auto &rsd = rsd_res.unwrap();
-
-    auto rs_res = IdeviceFFI::RemoteServer::connect_rsd(adapter, rsd);
-    if (rs_res.is_err()) {
-        auto err = rs_res.unwrap_err();
-        qDebug() << "Failed to connect to RemoteServer:" << err.code
-                 << QString::fromStdString(err.message);
-
-        IdeviceFfiError *err_reveal = nullptr;
-        if (err.code == ServiceNotFoundErrorCode) {
-            err_reveal =
-                ServiceManager::revealDeveloperModeOptionInUI(m_device);
-            if (err_reveal != NULL) {
-                qDebug() << "Failed to reveal developer mode option in UI:"
-                         << err_reveal->code << err_reveal->message;
-                QMessageBox::warning(
-                    this, "Error",
-                    "Developer Mode Not Enabled and failed to "
-                    "reveal developer mode option in UI:\n" +
-                        QString::fromStdString(err_reveal->message));
-                idevice_error_free(err_reveal);
-            }
-            // TODO: create a widget showing instructions on how to enable dev
-            // mode,
-            QMessageBox::information(this, "Developer Mode Not Enabled",
-                                     "Please enable Developer "
-                                     "Mode on the device to use this "
-                                     "feature.");
-
-            m_applyButton->setEnabled(true);
-            return;
-        }
-
-        QMessageBox::warning(this, "Error",
-                             QString("Failed to connect to RemoteServer: %1")
-                                 .arg(QString::fromStdString(err.message)));
-        m_applyButton->setEnabled(true);
-        return;
-    }
-
-    auto &rs = rs_res.unwrap();
-
-    auto sim_res = IdeviceFFI::LocationSimulation::create(rs);
-    if (sim_res.is_err()) {
-        auto err = sim_res.unwrap_err();
-        qDebug() << "Failed to create LocationSimulation client:" << err.code
-                 << QString::fromStdString(err.message);
-        QMessageBox::warning(
-            this, "Error",
-            QString("Failed to create LocationSimulation client: %1")
-                .arg(QString::fromStdString(err.message)));
-        m_applyButton->setEnabled(true);
-        return;
-    }
-
-    auto &sim = sim_res.unwrap();
-
-    auto set_res = sim.set(latitude, longitude);
-    if (set_res.is_err()) {
-        auto err = set_res.unwrap_err();
-        qDebug() << "Failed to set location simulation:" << err.code
-                 << QString::fromStdString(err.message);
-        QMessageBox::warning(this, "Error",
-                             QString("Failed to set location simulation: %1")
-                                 .arg(QString::fromStdString(err.message)));
-        m_applyButton->setEnabled(true);
-        return;
-    }
-
-    SettingsManager::sharedInstance()->saveRecentLocation(latitude, longitude);
-    m_applyButton->setEnabled(true);
-    QMessageBox::information(this, "Success", "Location applied successfully");
+    handleEnable();
 }
 
 void VirtualLocation::loadRecentLocations(QVBoxLayout *layout)
@@ -599,12 +416,12 @@ void VirtualLocation::loadRecentLocations(QVBoxLayout *layout)
     addLocationButtons(recentLayout, recentLocations);
 }
 
-void VirtualLocation::onRecentLocationClicked(double latitude, double longitude)
+void VirtualLocation::onRecentLocationClicked(const QString &latitude,
+                                              const QString &longitude)
 {
     // Update input fields
-    m_latitudeEdit->setText(QString::number(latitude, 'f', 6));
-    m_longitudeEdit->setText(QString::number(longitude, 'f', 6));
-
+    m_latitudeEdit->setText(latitude);
+    m_longitudeEdit->setText(longitude);
     // Update map
     updateMapFromInputs();
 
@@ -677,13 +494,11 @@ void VirtualLocation::addLocationButtons(QLayout *layout,
                                          QList<QVariantMap> recentLocations)
 {
     for (const QVariantMap &location : recentLocations) {
-        double latitude = location["latitude"].toDouble();
-        double longitude = location["longitude"].toDouble();
+        QString latitude = location["latitude"].toString();
+        QString longitude = location["longitude"].toString();
 
-        QPushButton *locationBtn =
-            new QPushButton(QString("Lat: %1\nLon: %2")
-                                .arg(latitude, 0, 'f', 4)
-                                .arg(longitude, 0, 'f', 4));
+        QPushButton *locationBtn = new QPushButton(
+            QString("Lat: %1\nLon: %2").arg(latitude).arg(longitude));
 
         connect(locationBtn, &QPushButton::clicked, this,
                 [this, latitude, longitude]() {

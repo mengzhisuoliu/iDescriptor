@@ -63,7 +63,7 @@ public:
     void showSettingsDialog();
 
     // Recently used locations
-    void saveRecentLocation(double latitude, double longitude,
+    void saveRecentLocation(const QString &latitude, const QString &longitude,
                             const QString &name = QString());
     QList<QVariantMap> getRecentLocations() const;
     void clearRecentLocations();

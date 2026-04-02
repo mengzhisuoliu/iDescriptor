@@ -26,8 +26,8 @@
 #include "privateinfolabel.h"
 #include "toolboxwidget.h"
 
-DeviceInfoWidget::DeviceInfoWidget(const iDescriptorDevice *device,
-                                   QWidget *parent)
+DeviceInfoWidget::DeviceInfoWidget(
+    const std::shared_ptr<iDescriptorDevice> device, QWidget *parent)
     : QWidget(parent), m_device(device)
 {
     // Main layout with horizontal orientation
@@ -328,8 +328,7 @@ DeviceInfoWidget::DeviceInfoWidget(const iDescriptorDevice *device,
     infoLayout->addStretch(); // Pushes footer to the bottom
 
     // Footer
-    QLabel *footerLabel =
-        new QLabel("UDID: " + QString::fromStdString(device->udid));
+    QLabel *footerLabel = new QLabel("UDID: " + device->udid);
     footerLabel->setToolTip("Unique Device Identifier");
     footerLabel->setStyleSheet(
         "font-size: 10px; color: #666; margin-top: 5px; ");
@@ -348,10 +347,9 @@ DeviceInfoWidget::DeviceInfoWidget(const iDescriptorDevice *device,
     mainLayout->addLayout(rightSideLayout);
     mainLayout->addStretch();
 
-    m_updateTimer = new QTimer(this);
-    connect(m_updateTimer, &QTimer::timeout, this,
+    connect(m_device->service_manager,
+            &CXX::ServiceManager::battery_info_updated, this,
             &DeviceInfoWidget::updateBatteryInfo);
-    m_updateTimer->start(30000); // Update every 30 seconds
 }
 
 DeviceInfoWidget::~DeviceInfoWidget() {}
@@ -369,44 +367,32 @@ void DeviceInfoWidget::onBatteryMoreClicked()
     msgBox.exec();
 }
 
-void DeviceInfoWidget::updateBatteryInfo()
+void DeviceInfoWidget::updateBatteryInfo(const QString &diagnostics)
 {
-    qDebug() << "Updating battery info...";
-    QThreadPool::globalInstance()->start([this]() {
-        std::lock_guard<std::recursive_mutex> lock(m_device->mutex);
-        if (!m_device || QCoreApplication::closingDown())
-            return;
+    /*DATA*/
+    DeviceInfo &d = const_cast<DeviceInfo &>(m_device->deviceInfo);
+    pugi::xml_document doc;
+    auto res = doc.load_string(diagnostics.toUtf8().constData());
+    if (!res) {
+        qDebug() << "Failed to parse battery info XML:";
+        return;
+    }
+    auto xml_doc = XmlPlistDict(doc.child("plist").child("dict"));
+    if (d.oldDevice)
+        parseOldDeviceBattery(xml_doc, d);
+    else
+        parseDeviceBattery(xml_doc, d);
+    /*UI*/
+    updateChargingStatusIcon();
+    m_chargingWattsWithCableTypeLabel->setText(
+        QString::number(d.batteryInfo.watts) + "W" + "/" +
+        (d.batteryInfo.usbConnectionType == BatteryInfo::ConnectionType::USB
+             ? "USB"
+             : "USB-C"));
 
-        /* diagnostics will be freed by c++ wrapper */
-        plist_t diagnostics = nullptr;
-        get_battery_info(m_device->diagRelay.get(), diagnostics);
-        QMetaObject::invokeMethod(this, [this, diagnostics]() {
-            if (!diagnostics) {
-                qDebug() << "Failed to get diagnostics plist.";
-                return;
-            }
-            /*DATA*/
-            DeviceInfo &d = const_cast<DeviceInfo &>(m_device->deviceInfo);
-            qDebug() << "old device" << d.oldDevice;
-            PlistNavigator ioreg = PlistNavigator(diagnostics);
-            if (d.oldDevice)
-                ServiceManager::safeParseOldDeviceBattery(m_device, ioreg, d);
-            else
-                ServiceManager::safeParseDeviceBattery(m_device, ioreg, d);
-            /*UI*/
-            updateChargingStatusIcon();
-            m_chargingWattsWithCableTypeLabel->setText(
-                QString::number(d.batteryInfo.watts) + "W" + "/" +
-                (d.batteryInfo.usbConnectionType ==
-                         BatteryInfo::ConnectionType::USB
-                     ? "USB"
-                     : "USB-C"));
-
-            m_batteryWidget->updateContext(
-                d.batteryInfo.isCharging,
-                qBound<int>(1, d.batteryInfo.currentBatteryLevel, 100));
-        });
-    });
+    m_batteryWidget->updateContext(
+        d.batteryInfo.isCharging,
+        qBound<int>(1, d.batteryInfo.currentBatteryLevel, 100));
 }
 
 void DeviceInfoWidget::updateChargingStatusIcon()

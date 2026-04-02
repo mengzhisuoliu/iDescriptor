@@ -26,7 +26,7 @@ DeviceManagerWidget::DeviceManagerWidget(QWidget *parent)
 
     connect(
         AppContext::sharedInstance(), &AppContext::deviceAdded, this,
-        [this](const iDescriptorDevice *device) {
+        [this](const std::shared_ptr<iDescriptorDevice> device) {
             addDevice(device);
 
             SettingsManager::sharedInstance()->doIfEnabled(
@@ -46,7 +46,7 @@ DeviceManagerWidget::DeviceManagerWidget(QWidget *parent)
         });
 
     connect(AppContext::sharedInstance(), &AppContext::deviceRemoved, this,
-            [this](const std::string &uuid) {
+            [this](const QString &uuid) {
                 removeDevice(uuid);
                 auto devices = AppContext::sharedInstance()->getAllDevices();
                 if (!devices.isEmpty())
@@ -68,7 +68,7 @@ DeviceManagerWidget::DeviceManagerWidget(QWidget *parent)
             });
 
     connect(AppContext::sharedInstance(), &AppContext::devicePaired, this,
-            [this](const iDescriptorDevice *device) {
+            [this](const std::shared_ptr<iDescriptorDevice> device) {
                 addPairedDevice(device);
                 // SettingsManager::sharedInstance()->doIfEnabled(
                 //     SettingsManager::Setting::SwitchToNewDevice,
@@ -130,16 +130,14 @@ void DeviceManagerWidget::setupUI()
             &DeviceManagerWidget::onDeviceSelectionChanged);
 }
 
-void DeviceManagerWidget::addDevice(const iDescriptorDevice *device)
+void DeviceManagerWidget::addDevice(
+    const std::shared_ptr<iDescriptorDevice> device)
 {
     if (m_deviceWidgets.contains(device->udid)) {
-        qWarning() << "Device already exists:"
-                   << QString::fromStdString(device->udid);
+        qWarning() << "Device already exists:" << device->udid;
         return;
     }
-    qDebug() << "Connect ::deviceAdded Adding:"
-             << QString::fromStdString(device->udid);
-
+    qDebug() << "Connect ::deviceAdded Adding:" << device->udid;
     DeviceMenuWidget *deviceWidget = new DeviceMenuWidget(device, this);
 
     QString tabTitle = QString::fromStdString(device->deviceInfo.productType);
@@ -199,12 +197,12 @@ void DeviceManagerWidget::removeRecoveryDevice(uint64_t ecid)
 void DeviceManagerWidget::addPendingDevice(const QString &uniq, bool locked)
 {
     qDebug() << "Adding pending device:" << uniq;
-    if (m_pendingDeviceWidgets.contains(uniq.toStdString()) && !locked) {
+    if (m_pendingDeviceWidgets.contains(uniq) && !locked) {
         qDebug() << "Pending device already exists, moving to next state:"
                  << uniq;
-        m_pendingDeviceWidgets[uniq.toStdString()].first->next();
+        m_pendingDeviceWidgets[uniq].first->next();
         return;
-    } else if (m_pendingDeviceWidgets.contains(uniq.toStdString()) && locked) {
+    } else if (m_pendingDeviceWidgets.contains(uniq) && locked) {
         // Already exists and still locked, do nothing
         qDebug()
             << "Pending device already exists and is locked, doing nothing:"
@@ -215,34 +213,33 @@ void DeviceManagerWidget::addPendingDevice(const QString &uniq, bool locked)
     qDebug() << "Created pending widget for:" << uniq << "Locked:" << locked;
     DevicePendingWidget *pendingWidget = new DevicePendingWidget(locked, this);
     m_stackedWidget->addWidget(pendingWidget);
-    m_pendingDeviceWidgets[uniq.toStdString()] =
+    m_pendingDeviceWidgets[uniq] =
         std::pair{pendingWidget, m_sidebar->addPendingDevice(uniq)};
 }
 
 void DeviceManagerWidget::removePendingDevice(const QString &udid)
 {
     qDebug() << "Removing pending device:" << udid;
-    if (!m_pendingDeviceWidgets.contains(udid.toStdString())) {
+    if (!m_pendingDeviceWidgets.contains(udid)) {
         qDebug() << "Pending device not found:" << udid;
         return;
     }
-    std::string udidStr = udid.toStdString();
-    DevicePendingWidget *deviceWidget = m_pendingDeviceWidgets[udidStr].first;
-    DevicePendingSidebarItem *sidebarItem =
-        m_pendingDeviceWidgets[udidStr].second;
+    DevicePendingWidget *deviceWidget = m_pendingDeviceWidgets[udid].first;
+    DevicePendingSidebarItem *sidebarItem = m_pendingDeviceWidgets[udid].second;
 
     if (deviceWidget != nullptr && sidebarItem != nullptr) {
         qDebug() << "Pending device exists removing:" << udid;
-        m_pendingDeviceWidgets.remove(udidStr);
+        m_pendingDeviceWidgets.remove(udid);
         m_stackedWidget->removeWidget(deviceWidget);
-        m_sidebar->removePendingDevice(udidStr);
+        m_sidebar->removePendingDevice(udid);
         deviceWidget->deleteLater();
     }
 }
 
-void DeviceManagerWidget::addPairedDevice(const iDescriptorDevice *device)
+void DeviceManagerWidget::addPairedDevice(
+    const std::shared_ptr<iDescriptorDevice> device)
 {
-    qDebug() << "Device paired:" << QString::fromStdString(device->udid);
+    qDebug() << "Device paired:" << device->udid;
 
     // Check if pending device exists
     if (m_pendingDeviceWidgets.contains(device->udid)) {
@@ -251,15 +248,13 @@ void DeviceManagerWidget::addPairedDevice(const iDescriptorDevice *device)
 
         // Remove from sidebar if it exists
         if (pair.second) {
-            qDebug() << "Removing pending device from sidebar:"
-                     << QString::fromStdString(device->udid);
+            qDebug() << "Removing pending device from sidebar:" << device->udid;
             m_sidebar->removePendingDevice(device->udid);
         }
 
         // Clean up widget if it exists
         if (pair.first) {
-            qDebug() << "Removing pending device widget:"
-                     << QString::fromStdString(device->udid);
+            qDebug() << "Removing pending device widget:" << device->udid;
             m_stackedWidget->removeWidget(pair.first);
             pair.first->deleteLater();
         }
@@ -270,16 +265,16 @@ void DeviceManagerWidget::addPairedDevice(const iDescriptorDevice *device)
     addDevice(device);
 }
 
-void DeviceManagerWidget::removeDevice(const std::string &uuid)
+void DeviceManagerWidget::removeDevice(const QString &uuid)
 {
 
-    qDebug() << "Removing:" << QString::fromStdString(uuid);
+    qDebug() << "Removing:" << uuid;
     DeviceMenuWidget *deviceWidget = m_deviceWidgets[uuid].first;
     DeviceSidebarItem *sidebarItem = m_deviceWidgets[uuid].second;
 
     if (deviceWidget != nullptr && sidebarItem != nullptr) {
-        qDebug() << "Device exists removing:" << QString::fromStdString(uuid);
-        // TODO: cleanups
+        qDebug() << "Device exists removing:" << uuid;
+        // FIXME: cleanups
         m_deviceWidgets.remove(uuid);
         m_stackedWidget->removeWidget(deviceWidget);
         m_sidebar->removeDevice(uuid);
@@ -287,14 +282,14 @@ void DeviceManagerWidget::removeDevice(const std::string &uuid)
     }
 }
 
-void DeviceManagerWidget::setCurrentDevice(const std::string &uuid)
+void DeviceManagerWidget::setCurrentDevice(const QString &uuid)
 {
-    qDebug() << "Setting current device to:" << QString::fromStdString(uuid);
+    qDebug() << "Setting current device to:" << uuid;
     if (m_currentDeviceUuid == uuid)
         return;
 
     if (!m_deviceWidgets.contains(uuid)) {
-        qWarning() << "Device UUID not found:" << QString::fromStdString(uuid);
+        qWarning() << "Device UUID not found:" << uuid;
         return;
     }
 
@@ -304,7 +299,7 @@ void DeviceManagerWidget::setCurrentDevice(const std::string &uuid)
     m_stackedWidget->setCurrentWidget(widget);
 }
 
-std::string DeviceManagerWidget::getCurrentDevice() const
+QString DeviceManagerWidget::getCurrentDevice() const
 {
     return m_currentDeviceUuid;
 }

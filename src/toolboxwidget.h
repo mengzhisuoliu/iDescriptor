@@ -44,9 +44,10 @@ class ToolboxWidget : public QWidget
     Q_OBJECT
 public:
     explicit ToolboxWidget(QWidget *parent = nullptr);
-    static void restartDevice(const iDescriptorDevice *device);
-    static void shutdownDevice(const iDescriptorDevice *device);
-    static void enterRecoveryMode(const iDescriptorDevice *device);
+    static void restartDevice(const std::shared_ptr<iDescriptorDevice> device);
+    static void shutdownDevice(const std::shared_ptr<iDescriptorDevice> device);
+    static void
+    enterRecoveryMode(const std::shared_ptr<iDescriptorDevice> device);
     static ToolboxWidget *sharedInstance();
     void restartAirPlayWidget();
 private slots:
@@ -68,7 +69,7 @@ private:
     QWidget *m_contentWidget;
     QGridLayout *m_gridLayout;
     QList<QWidget *> m_toolboxes;
-    std::string m_uuid;
+    QString m_uuid;
     DevDiskImagesWidget *m_devDiskImagesWidget = nullptr;
     NetworkDevicesWidget *m_networkDevicesWidget = nullptr;
     AirPlayWidget *m_airplayWidget = nullptr;

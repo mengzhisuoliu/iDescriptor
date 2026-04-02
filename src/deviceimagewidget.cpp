@@ -26,8 +26,8 @@
 #include <QPainterPath>
 #include <QVBoxLayout>
 
-DeviceImageWidget::DeviceImageWidget(const iDescriptorDevice *device,
-                                     QWidget *parent)
+DeviceImageWidget::DeviceImageWidget(
+    const std::shared_ptr<iDescriptorDevice> device, QWidget *parent)
     : QWidget(parent), m_device(device)
 {
     QVBoxLayout *layout = new QVBoxLayout(this);

@@ -22,7 +22,6 @@
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
 #include "qprocessindicator.h"
-#include "servicemanager.h"
 #include "zlineedit.h"
 
 AppTabWidget::AppTabWidget(const QString &appName, const QString &bundleId,
@@ -142,8 +141,8 @@ void AppTabWidget::updateStyles()
     }
 }
 
-InstalledAppsWidget::InstalledAppsWidget(const iDescriptorDevice *device,
-                                         QWidget *parent)
+InstalledAppsWidget::InstalledAppsWidget(
+    const std::shared_ptr<iDescriptorDevice> device, QWidget *parent)
     : QWidget(parent), m_device(device)
 {
     QVBoxLayout *rootLayout = new QVBoxLayout(this);
@@ -162,30 +161,16 @@ void InstalledAppsWidget::init()
     }
     m_loaded = true;
 
-    m_watcher = new QFutureWatcher<QVariantMap>(this);
-    m_containerWatcher = new QFutureWatcher<QVariantMap>(this);
     setupUI();
 
-    connect(m_watcher, &QFutureWatcher<QVariantMap>::finished, this,
+    connect(m_device->service_manager,
+            &CXX::ServiceManager::installed_apps_retrieved, this,
             &InstalledAppsWidget::onAppsDataReady);
-    connect(m_containerWatcher, &QFutureWatcher<QVariantMap>::finished, this,
-            &InstalledAppsWidget::onContainerDataReady);
     setStyleSheet("InstalledAppsWidget { background: transparent; }");
-    fetchInstalledApps();
+    m_device->service_manager->fetch_installed_apps();
 }
 
-InstalledAppsWidget::~InstalledAppsWidget()
-{
-    if (m_watcher) {
-        m_watcher->cancel();
-        m_watcher->waitForFinished();
-    }
-    if (m_containerWatcher) {
-        m_containerWatcher->cancel();
-        m_containerWatcher->waitForFinished();
-    }
-    cleanupHouseArrestClients();
-}
+InstalledAppsWidget::~InstalledAppsWidget() { cleanupHouseArrestClients(); }
 
 void InstalledAppsWidget::setupUI()
 {
@@ -260,8 +245,9 @@ void InstalledAppsWidget::createErrorWidget()
 
     QPushButton *retryButton = new QPushButton("Retry");
     retryButton->setFixedSize(100, 30);
-    connect(retryButton, &QPushButton::clicked, this,
-            &InstalledAppsWidget::fetchInstalledApps);
+    // FIXME:
+    // connect(retryButton, &QPushButton::clicked, this,
+    //         &InstalledAppsWidget::fetchInstalledApps);
     errorLayout->addWidget(retryButton, 0, Qt::AlignCenter);
 
     m_stackedWidget->addWidget(m_errorWidget);
@@ -297,174 +283,16 @@ void InstalledAppsWidget::createContentWidget()
     m_stackedWidget->addWidget(m_contentWidget);
 }
 
-// todo: move to services
-void InstalledAppsWidget::fetchInstalledApps()
+void InstalledAppsWidget::onAppsDataReady(const QMap<QString, QVariant> &result)
 {
-    if (!m_device) {
-        showErrorState("Invalid device");
-        return;
-    }
-    // todo maybe clear m_watcher ?
-    QFuture<QVariantMap> future = QtConcurrent::run([this]() -> QVariantMap {
-        QVariantMap result;
 
-        if (QCoreApplication::closingDown() || !m_device) {
-            return result;
-        }
-        std::lock_guard<std::recursive_mutex> lock(m_device->mutex);
-
-        QVariantList apps;
-
-        try {
-            InstallationProxyClientHandle *installationProxyClientHandle =
-                nullptr;
-            installation_proxy_connect(m_device->provider,
-                                       &installationProxyClientHandle);
-            auto instproxy = IdeviceFFI::InstallationProxy::adopt(
-                installationProxyClientHandle);
-
-            // Get both User and System apps
-            QStringList appTypes = {"User", "System"};
-
-            for (const QString &appType : appTypes) {
-                plist_t client_opts = plist_new_dict();
-                plist_dict_set_item(
-                    client_opts, "ApplicationType",
-                    plist_new_string(appType.toUtf8().constData()));
-
-                plist_t return_attrs = plist_new_array();
-                plist_array_append_item(return_attrs,
-                                        plist_new_string("CFBundleIdentifier"));
-                plist_array_append_item(
-                    return_attrs, plist_new_string("CFBundleDisplayName"));
-                plist_array_append_item(
-                    return_attrs,
-                    plist_new_string("CFBundleShortVersionString"));
-                plist_array_append_item(return_attrs,
-                                        plist_new_string("CFBundleVersion"));
-                plist_array_append_item(
-                    return_attrs, plist_new_string("UIFileSharingEnabled"));
-
-                plist_dict_set_item(client_opts, "ReturnAttributes",
-                                    return_attrs);
-
-                auto installedApps = instproxy.browse(client_opts);
-                if (installedApps.is_ok()) {
-                    installedApps.unwrap();
-
-                    for (const auto &app_info : installedApps.unwrap()) {
-                        if (!app_info)
-                            continue;
-
-                        QVariantMap appData;
-
-                        // Get bundle identifier
-                        plist_t bundle_id =
-                            plist_dict_get_item(app_info, "CFBundleIdentifier");
-                        if (bundle_id &&
-                            plist_get_node_type(bundle_id) == PLIST_STRING) {
-                            char *bundle_id_str = nullptr;
-                            plist_get_string_val(bundle_id, &bundle_id_str);
-                            if (bundle_id_str) {
-                                appData["bundleId"] = QString(bundle_id_str);
-                                plist_mem_free(bundle_id_str);
-                            }
-                        }
-
-                        // Get display name
-                        plist_t display_name = plist_dict_get_item(
-                            app_info, "CFBundleDisplayName");
-                        if (display_name &&
-                            plist_get_node_type(display_name) == PLIST_STRING) {
-                            char *display_name_str = nullptr;
-                            plist_get_string_val(display_name,
-                                                 &display_name_str);
-                            if (display_name_str) {
-                                appData["displayName"] =
-                                    QString(display_name_str);
-                                plist_mem_free(display_name_str);
-                            }
-                        }
-
-                        // Get version
-                        plist_t version = plist_dict_get_item(
-                            app_info, "CFBundleShortVersionString");
-                        if (version &&
-                            plist_get_node_type(version) == PLIST_STRING) {
-                            char *version_str = nullptr;
-                            plist_get_string_val(version, &version_str);
-                            if (version_str) {
-                                appData["version"] = QString(version_str);
-                                plist_mem_free(version_str);
-                            }
-                        }
-
-                        // Get file sharing enabled status
-                        plist_t file_sharing = plist_dict_get_item(
-                            app_info, "UIFileSharingEnabled");
-                        if (file_sharing && plist_get_node_type(file_sharing) ==
-                                                PLIST_BOOLEAN) {
-                            uint8_t file_sharing_enabled = 0;
-                            plist_get_bool_val(file_sharing,
-                                               &file_sharing_enabled);
-                            appData["fileSharingEnabled"] =
-                                (file_sharing_enabled != 0);
-                        } else {
-                            appData["fileSharingEnabled"] = false;
-                        }
-
-                        appData["type"] = appType;
-
-                        QString bundleId = appData["bundleId"].toString();
-                        if (!bundleId.isEmpty()) {
-                            apps.append(appData);
-                        }
-                    }
-                }
-                plist_free(client_opts);
-            }
-            result["apps"] = apps;
-            result["success"] = true;
-        } catch (const std::exception &e) {
-            result["error"] = QString("Exception: %1").arg(e.what());
-        }
-
-        return result;
-    });
-
-    m_watcher->setFuture(future);
-}
-
-void InstalledAppsWidget::onAppsDataReady()
-{
-    QVariantMap result = m_watcher->result();
-
-    if (!result.value("success", false).toBool()) {
-        showErrorState(result.value("error", "Unknown error").toString());
+    if (result.isEmpty()) {
+        showErrorState("No apps found or failed to retrieve apps.");
         return;
     }
 
-    QVariantList apps = result.value("apps").toList();
-    if (apps.isEmpty()) {
-        showErrorState("No apps found");
-        return;
-    }
-
-    // Switch to content view once data is loaded
     m_stackedWidget->setCurrentWidget(m_contentWidget);
     m_zloadingWidget->stop(true);
-
-    // Sort apps by display name
-    std::sort(apps.begin(), apps.end(),
-              [](const QVariant &a, const QVariant &b) {
-                  QString nameA = a.toMap().value("displayName").toString();
-                  QString nameB = b.toMap().value("displayName").toString();
-                  if (nameA.isEmpty())
-                      nameA = a.toMap().value("bundleId").toString();
-                  if (nameB.isEmpty())
-                      nameB = b.toMap().value("bundleId").toString();
-                  return nameA.compare(nameB, Qt::CaseInsensitive) < 0;
-              });
 
     // Clear existing tabs
     qDeleteAll(m_appTabs);
@@ -473,18 +301,38 @@ void InstalledAppsWidget::onAppsDataReady()
     m_iconLoadQueue.clear();
     m_iconLoading = false;
 
+    connect(m_device->service_manager, &CXX::ServiceManager::app_icon_loaded,
+            this, &InstalledAppsWidget::onAppIconLoaded);
     // Create tabs for each app
-    for (const QVariant &appVariant : apps) {
-        QVariantMap appData = appVariant.toMap();
-        QString displayName = appData.value("displayName").toString();
-        QString bundleId = appData.value("bundleId").toString();
-        QString version = appData.value("version").toString();
-        QString appType = appData.value("type").toString();
+    for (const QVariant &appVariant : result) {
+        // variant is json object
 
-        bool fileSharingEnabled =
-            appData.value("fileSharingEnabled", false).toBool();
+        // Step 3: Parse JSON
+        QJsonParseError error;
+        QJsonDocument doc =
+            QJsonDocument::fromJson(appVariant.toString().toUtf8(), &error);
 
-        // Filter by file sharing status if checkbox is checked
+        if (error.error != QJsonParseError::NoError) {
+            qDebug() << "JSON parse error:" << error.errorString();
+            // return;
+            continue;
+        }
+
+        QString displayName = doc["CFBundleDisplayName"].toString();
+        QString bundleId = doc["bundle_id"].toString();
+        QString version = doc["CFBundleShortVersionString"].toString();
+        QString appType = doc["app_type"].toString();
+        bool fileSharingEnabled = doc["UIFileSharingEnabled"].toBool();
+
+        /*
+            Always fails to load Fitness app container
+            even though file sharing is enabled
+        */
+        if (bundleId == "com.apple.Fitness") {
+            continue;
+        }
+
+        // // Filter by file sharing status if checkbox is checked
         if (m_fileSharingCheckBox->isChecked() && !fileSharingEnabled) {
             continue;
         }
@@ -504,9 +352,11 @@ void InstalledAppsWidget::onAppsDataReady()
         enqueueIconLoad(bundleId);
 
         // Select first tab if available
-        if (!m_appTabs.isEmpty()) {
-            selectAppTab(m_appTabs.first());
-        }
+        m_device->service_manager->fetch_app_icon(bundleId);
+    }
+
+    if (!m_appTabs.isEmpty()) {
+        selectAppTab(m_appTabs.first());
     }
 }
 
@@ -526,7 +376,7 @@ void InstalledAppsWidget::createAppTab(const QString &appName,
     m_tabLayout->addWidget(tabWidget);
     m_tabLayout->addStretch(); // Add stretch back at the end
 
-    m_appTabs.append(tabWidget);
+    m_appTabs[bundleId] = tabWidget;
 }
 
 void InstalledAppsWidget::onAppTabClicked()
@@ -576,10 +426,6 @@ void InstalledAppsWidget::filterApps(const QString &searchText)
     }
 }
 
-/*
-    FIXME: maybe we better have this in servicemanager,
-    for now it's ok as it's only used here
-*/
 void InstalledAppsWidget::loadAppContainer(const QString &bundleId)
 {
     if (!m_device || m_loadingContainer) {
@@ -613,70 +459,19 @@ void InstalledAppsWidget::loadAppContainer(const QString &bundleId)
 
     m_containerLayout->addWidget(loadingWidget);
 
-    QFuture<QVariantMap> future =
-        QtConcurrent::run([this, bundleId]() -> QVariantMap {
-            QVariantMap result;
-            IdeviceFfiError *err = nullptr;
-            HouseArrestClientHandle *houseArrestClient = nullptr;
-            AfcClientHandle *afcClient = nullptr;
+    m_houseArrestAfcClient =
+        std::make_shared<CXX::HauseArrest>(m_device->udid, bundleId);
 
-            try {
-                err = house_arrest_client_connect(m_device->provider,
-                                                  &houseArrestClient);
+    connect(m_houseArrestAfcClient.get(),
+            &CXX::HauseArrest::init_session_finished, this,
+            &InstalledAppsWidget::onContainerDataReady,
+            Qt::SingleShotConnection);
 
-                if (err != nullptr) {
-                    qDebug()
-                        << "Error connecting to House Arrest for" << bundleId
-                        << ":" << QString::fromUtf8(err->message);
-                    result["error"] =
-                        QString("Error connecting to House Arrest: %1")
-                            .arg(QString::fromUtf8(err->message));
-                    return result;
-                }
-
-                err = house_arrest_vend_documents(houseArrestClient,
-                                                  bundleId.toUtf8().constData(),
-                                                  &afcClient);
-                if (err != nullptr) {
-                    qDebug() << "Error vending documents for" << bundleId << ":"
-                             << QString::fromUtf8(err->message);
-                    result["error"] = QString("Error vending documents: %1")
-                                          .arg(QString::fromUtf8(err->message));
-                    // DO NOT call house_arrest_client_free(houseArrestClient)
-                    // here: vend_documents already took ownership and freed it.
-                    return result;
-                }
-
-                char **dirs = nullptr;
-                size_t count = 0;
-
-                // vend_documents takes ownership of the house arrest client, so
-                // we don't free it here
-                houseArrestClient = nullptr;
-
-                result["afcClient"] =
-                    QVariant::fromValue(reinterpret_cast<void *>(afcClient));
-                result["success"] = true;
-
-            } catch (const std::exception &e) {
-                qDebug() << "Exception while loading app container:"
-                         << e.what();
-                if (afcClient)
-                    afc_client_free(afcClient);
-
-                result["error"] = QString("Exception: %1").arg(e.what());
-            }
-
-            return result;
-        });
-
-    m_containerWatcher->setFuture(future);
+    m_houseArrestAfcClient->init_session();
 }
 
-void InstalledAppsWidget::onContainerDataReady()
+void InstalledAppsWidget::onContainerDataReady(bool success)
 {
-    QVariantMap result = m_containerWatcher->result();
-
     QLayoutItem *item;
     while ((item = m_containerLayout->takeAt(0)) != nullptr) {
         if (item->widget()) {
@@ -688,23 +483,10 @@ void InstalledAppsWidget::onContainerDataReady()
     m_loadingContainer = false;
     disableTabs(false);
 
-    if (!result.value("success", false).toBool()) {
-        qDebug() << "Error loading app container:"
-                 << result.value("error").toString();
+    if (!success) {
+        qDebug() << "Error loading app container:";
         QLabel *errorLabel = new QLabel("No data available for this app");
         errorLabel->setAlignment(Qt::AlignCenter);
-        m_containerLayout->addWidget(errorLabel);
-        return;
-    }
-
-    // Get the AFC clients from the result and store them as member
-    // variables
-    m_houseArrestAfcClient = reinterpret_cast<AfcClientHandle *>(
-        result.value("afcClient").value<void *>());
-
-    if (!m_houseArrestAfcClient) {
-        QLabel *errorLabel =
-            new QLabel("Failed to get AFC client for app container");
         m_containerLayout->addWidget(errorLabel);
         return;
     }
@@ -716,18 +498,33 @@ void InstalledAppsWidget::onContainerDataReady()
     m_containerLayout->addWidget(explorer);
 }
 
+void InstalledAppsWidget::onAppIconLoaded(const QString &bundleId,
+                                          const QByteArray &icon)
+{
+    qDebug() << "Icon loaded for bundle ID:" << bundleId;
+    AppTabWidget *tab = m_appTabs.value(bundleId, nullptr);
+    if (tab) {
+        qDebug() << "Setting icon for bundle ID:" << bundleId;
+        QPixmap pixmap;
+        pixmap.loadFromData(icon);
+        tab->setIcon(pixmap);
+    }
+
+    // startNextIconLoad();
+}
+
 void InstalledAppsWidget::onFileSharingFilterChanged(bool enabled)
 {
     Q_UNUSED(enabled)
     // Refresh the apps list when filter changes
-    fetchInstalledApps();
+    // fetchInstalledApps();
 }
 
 void InstalledAppsWidget::cleanupHouseArrestClients()
 {
     if (m_houseArrestAfcClient) {
-        afc_client_free(m_houseArrestAfcClient);
         m_houseArrestAfcClient = nullptr;
+        // delete m_houseArrestAfcClient;
     }
 }
 
@@ -825,82 +622,83 @@ void InstalledAppsWidget::enqueueIconLoad(const QString &bundleId)
     }
 }
 
+// FIXME: we better use this
 void InstalledAppsWidget::startNextIconLoad()
 {
-    if (!m_device || QCoreApplication::closingDown()) {
-        m_iconLoading = false;
-        return;
-    }
+    // if (!m_device || QCoreApplication::closingDown()) {
+    //     m_iconLoading = false;
+    //     return;
+    // }
 
-    if (m_iconLoadQueue.isEmpty()) {
-        m_iconLoading = false;
-        return;
-    }
+    // if (m_iconLoadQueue.isEmpty()) {
+    //     m_iconLoading = false;
+    //     return;
+    // }
 
-    m_iconLoading = true;
-    const QString bundleId = m_iconLoadQueue.dequeue();
+    // m_iconLoading = true;
+    // const QString bundleId = m_iconLoadQueue.dequeue();
 
-    QtConcurrent::run([this, bundleId]() {
-        if (QCoreApplication::closingDown() || !m_device)
-            return;
+    // QtConcurrent::run([this, bundleId]() {
+    //     if (QCoreApplication::closingDown() || !m_device)
+    //         return;
 
-        QPixmap iconPixmap;
+    //     QPixmap iconPixmap;
 
-        {
-            std::lock_guard<std::recursive_mutex> lock(m_device->mutex);
+    //     {
+    //         std::lock_guard<std::recursive_mutex> lock(m_device->mutex);
 
-            IdeviceFfiError *err = nullptr;
-            SpringBoardServicesClientHandle *springboardClient = nullptr;
+    //         IdeviceFfiError *err = nullptr;
+    //         SpringBoardServicesClientHandle *springboardClient = nullptr;
 
-            err = springboard_services_connect(m_device->provider,
-                                               &springboardClient);
-            if (err != nullptr) {
-                qWarning() << "Error connecting to SpringBoard services for"
-                           << bundleId << ":"
-                           << QString::fromUtf8(err->message);
-                idevice_error_free(err);
-            } else {
-                void *out_result = nullptr;
-                size_t out_result_len = 0;
+    //         err = springboard_services_connect(m_device->provider,
+    //                                            &springboardClient);
+    //         if (err != nullptr) {
+    //             qWarning() << "Error connecting to SpringBoard services for"
+    //                        << bundleId << ":"
+    //                        << QString::fromUtf8(err->message);
+    //             idevice_error_free(err);
+    //         } else {
+    //             void *out_result = nullptr;
+    //             size_t out_result_len = 0;
 
-                err = springboard_services_get_icon(
-                    springboardClient, bundleId.toUtf8().constData(),
-                    &out_result, &out_result_len);
-                if (err != nullptr) {
-                    qWarning() << "Error getting icon for" << bundleId << ":"
-                               << QString::fromUtf8(err->message);
-                    idevice_error_free(err);
-                } else if (out_result && out_result_len > 0) {
-                    QByteArray byteArray(
-                        reinterpret_cast<const char *>(out_result),
-                        static_cast<int>(out_result_len));
-                    QImage image;
-                    image.loadFromData(byteArray);
-                    iconPixmap = QPixmap::fromImage(image);
-                    springboard_services_free_icon_result(out_result,
-                                                          out_result_len);
-                }
+    //             err = springboard_services_get_icon(
+    //                 springboardClient, bundleId.toUtf8().constData(),
+    //                 &out_result, &out_result_len);
+    //             if (err != nullptr) {
+    //                 qWarning() << "Error getting icon for" << bundleId << ":"
+    //                            << QString::fromUtf8(err->message);
+    //                 idevice_error_free(err);
+    //             } else if (out_result && out_result_len > 0) {
+    //                 QByteArray byteArray(
+    //                     reinterpret_cast<const char *>(out_result),
+    //                     static_cast<int>(out_result_len));
+    //                 QImage image;
+    //                 image.loadFromData(byteArray);
+    //                 iconPixmap = QPixmap::fromImage(image);
+    //                 springboard_services_free_icon_result(out_result,
+    //                                                       out_result_len);
+    //             }
 
-                springboard_services_free(springboardClient);
-            }
-        }
+    //             springboard_services_free(springboardClient);
+    //         }
+    //     }
 
-        QMetaObject::invokeMethod(
-            this,
-            [this, bundleId, iconPixmap]() {
-                if (QCoreApplication::closingDown())
-                    return;
+    //     QMetaObject::invokeMethod(
+    //         this,
+    //         [this, bundleId, iconPixmap]() {
+    //             if (QCoreApplication::closingDown())
+    //                 return;
 
-                for (AppTabWidget *tab : m_appTabs) {
-                    if (tab->getBundleId() == bundleId) {
-                        tab->setIcon(iconPixmap);
-                        break;
-                    }
-                }
+    //             for (AppTabWidget *tab : m_appTabs) {
+    //                 if (tab->getBundleId() == bundleId) {
+    //                     tab->setIcon(iconPixmap);
+    //                     break;
+    //                 }
+    //             }
 
-                m_iconLoading = false;
-                startNextIconLoad();
-            },
-            Qt::QueuedConnection);
-    });
+    //             m_iconLoading = false;
+    //             startNextIconLoad();
+    //         },
+    //         Qt::QueuedConnection);
+    // });
 }

@@ -2,12 +2,10 @@
 #define EXPORTALBUM_H
 
 #include "appcontext.h"
-#include "dirpickerlabel.h"
-#include "exportmanager.h"
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
+#include "iomanagerclient.h"
 #include "qprocessindicator.h"
-#include "servicemanager.h"
 #include "zloadingwidget.h"
 #include <QDialog>
 #include <QMessageBox>
@@ -20,16 +18,16 @@ class ExportAlbum : public QDialog
 {
     Q_OBJECT
 public:
-    explicit ExportAlbum(const iDescriptorDevice *device,
+    explicit ExportAlbum(const std::shared_ptr<iDescriptorDevice> device,
                          const QStringList &paths, QWidget *parent = nullptr);
 
 private:
     ZLoadingWidget *m_loadingWidget;
-    const iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
     QLabel *m_infoLabel;
     size_t m_listCount;
-    QList<ExportItem> m_exportItems;
-    DirPickerLabel *m_dirPickerLabel;
+    QList<QString> m_exportItems;
+    ZDirPickerLabel *m_dirPickerLabel;
     QLabel *m_totalSizeExportLabel;
     QProcessIndicator *m_loadingIndicator = nullptr;
     std::atomic<uint64_t> m_totalExportSize{0};

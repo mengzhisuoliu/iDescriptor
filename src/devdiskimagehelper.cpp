@@ -20,7 +20,6 @@
 #include "devdiskimagehelper.h"
 #include "appcontext.h"
 #include "devdiskmanager.h"
-#include "servicemanager.h"
 #include "settingsmanager.h"
 #include "zloadingwidget.h"
 #include <QDebug>
@@ -29,8 +28,8 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
-DevDiskImageHelper::DevDiskImageHelper(const iDescriptorDevice *device,
-                                       QWidget *parent)
+DevDiskImageHelper::DevDiskImageHelper(
+    const std::shared_ptr<iDescriptorDevice> device, QWidget *parent)
     : QDialog(parent), m_device(device)
 {
     setAttribute(Qt::WA_DeleteOnClose);
@@ -131,20 +130,21 @@ void DevDiskImageHelper::start()
 
 void DevDiskImageHelper::checkAndMount()
 {
-    MountedImageInfo info = ServiceManager::getMountedImage(
-        AppContext::sharedInstance()->getDevice(m_device->udid));
-    if (info.err && info.err->code != NotFoundErrorCode) {
-        onMountButtonClicked();
-        return;
-    }
-
-    // If image is already mounted
-    if (info.signature && info.signature_len) {
-        finishWithSuccess();
-        return;
-    }
-
-    onMountButtonClicked();
+    connect(
+        m_device->service_manager,
+        &CXX::ServiceManager::mounted_image_retrieved, this,
+        [this](QByteArray signature, u_int64_t sig_length) {
+            if (!signature.isEmpty() || sig_length > 0) {
+                qDebug()
+                    << "Developer disk image already mounted with signature:"
+                    << "length:" << sig_length << "signature:" << signature;
+                finishWithSuccess();
+            } else {
+                onMountButtonClicked();
+            }
+        },
+        Qt::SingleShotConnection);
+    m_device->service_manager->get_mounted_image();
 }
 
 void DevDiskImageHelper::onMountButtonClicked()
@@ -225,28 +225,34 @@ void DevDiskImageHelper::onImageDownloadFinished(const QString &version,
     showStatus("Download complete. Mounting...");
 
     auto paths = DevDiskManager::sharedInstance()->getPathsForVersion(version);
+    qDebug() << "Mounting image with paths:" << paths.first << paths.second;
 
-    IdeviceFfiError *err =
-        ServiceManager::mountImage(m_device, paths.first.toStdString().c_str(),
-                                   paths.second.toStdString().c_str());
+    // FIXME
+    // err->code == DeviceLockedMountErrorCode
+    // check for error code
+    connect(
+        m_device->service_manager, &CXX::ServiceManager::dev_image_mounted,
+        this,
+        [this](bool success) {
+            qDebug() << "[devdiskimagehelper] : Developer disk image "
+                        "mount result:"
+                     << success;
+            if (success) {
+                qDebug() << "[devdiskimagehelper] : Developer disk image "
+                            "mounted successfully.";
+                finishWithSuccess(true);
+            } else {
+                qDebug() << "[devdiskimagehelper] : Failed to mount developer "
+                            "disk image.";
+                showRetryUI(
+                    "Failed to mount developer disk image.\n"
+                    "Please ensure the device is unlocked and using a genuine "
+                    "cable.");
+            }
+        },
+        Qt::SingleShotConnection);
 
-    if (err == nullptr) {
-        return finishWithSuccess(true);
-    }
-
-    qDebug() << "onImageDownloadFinished:" << err->code
-             << QString::fromStdString(err->message);
-
-    if (err->code == DeviceLockedMountErrorCode) {
-        showRetryUI(
-            "Device is locked. Please unlock your device and try again.");
-
-    } else {
-        showRetryUI(
-            "Failed to mount developer disk image.\n"
-            "Please ensure the device is unlocked and using a genuine cable.");
-    }
-    idevice_error_free(err);
+    m_device->service_manager->mount_dev_image(paths.first, paths.second);
 }
 
 void DevDiskImageHelper::showRetryUI(const QString &errorMessage)
@@ -293,6 +299,7 @@ void DevDiskImageHelper::showStatus(const QString &message, bool isError)
 */
 void DevDiskImageHelper::finishWithSuccess(bool wait)
 {
+    qDebug() << "finishWithSuccess called with wait =" << wait;
     auto handler = [this]() {
         if (m_loadingWidget) {
             m_loadingWidget->stop(false);

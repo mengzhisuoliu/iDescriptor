@@ -37,7 +37,7 @@ class CableInfoWidget : public Tool
     Q_OBJECT
 
 public:
-    explicit CableInfoWidget(iDescriptorDevice *device,
+    explicit CableInfoWidget(const std::shared_ptr<iDescriptorDevice> device,
                              QWidget *parent = nullptr);
 
 private slots:
@@ -78,9 +78,9 @@ private:
     ZLoadingWidget *m_loadingWidget;
 
     // Data
-    iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
     CableInfo m_cableInfo;
-    plist_t m_response;
+    QString m_response;
 };
 
 #endif // CABLEINFOWIDGET_H

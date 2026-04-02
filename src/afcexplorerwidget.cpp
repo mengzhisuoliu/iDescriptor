@@ -18,11 +18,10 @@
  */
 
 #include "afcexplorerwidget.h"
-#include "exportmanager.h"
+// #include "exportmanager.h"
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
 #include "mediapreviewdialog.h"
-#include "servicemanager.h"
 #include "settingsmanager.h"
 #include <QDebug>
 #include <QDesktopServices>
@@ -44,27 +43,47 @@
 #include <QTreeWidget>
 #include <QVariant>
 
-AfcExplorerWidget::AfcExplorerWidget(const iDescriptorDevice *device,
-                                     bool favEnabled,
-                                     AfcClientHandle *afcClient, QString root,
-                                     QWidget *parent)
+AfcExplorerWidget::AfcExplorerWidget(
+    const std::shared_ptr<iDescriptorDevice> device, bool favEnabled,
+    std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest, QString root,
+    QWidget *parent)
     : QWidget(parent), m_device(device), m_favEnabled(favEnabled),
-      m_afc(afcClient), m_errorMessage("Failed to load directory"), m_root(root)
+      m_hauseArrest(hause_arrest), m_errorMessage("Failed to load directory"),
+      m_root(root)
 {
+
+    QVBoxLayout *rootLayout = new QVBoxLayout(this);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
+
     // Setup file explorer
     setupFileExplorer();
 
     // Main layout
-    QHBoxLayout *mainLayout = new QHBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-    setLayout(mainLayout);
+    QWidget *contentContainer = new QWidget();
+    QHBoxLayout *contentLayout = new QHBoxLayout(contentContainer);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
 
-    mainLayout->addWidget(m_explorer);
+    contentLayout->addWidget(m_explorer);
 
     // Initialize
     m_history.push(m_root);
     m_currentHistoryIndex = 0;
     m_forwardHistory.clear();
+
+    m_loadingWidget = new ZLoadingWidget(true, this);
+    rootLayout->addWidget(m_loadingWidget);
+    m_loadingWidget->setupContentWidget(contentContainer);
+
+    if (m_hauseArrest.has_value() && m_hauseArrest.value() != nullptr) {
+        connect(m_hauseArrest.value().get(),
+                &CXX::HauseArrest::check_is_dir_and_list_finished, this,
+                &AfcExplorerWidget::onLoadPathFinished);
+    } else {
+        connect(m_device->afc_backend,
+                &CXX::AfcBackend::check_is_dir_and_list_finished, this,
+                &AfcExplorerWidget::onLoadPathFinished);
+    }
+
     loadPath(m_root);
 
     setupContextMenu();
@@ -115,7 +134,7 @@ void AfcExplorerWidget::onItemDoubleClicked(QListWidgetItem *item)
         const bool isPreviewable = iDescriptor::Utils::isPreviewableFile(name);
         if (isPreviewable) {
             auto *previewDialog =
-                new MediaPreviewDialog(m_device, m_afc, nextPath, this);
+                new MediaPreviewDialog(m_device, nextPath, m_hauseArrest);
             previewDialog->setAttribute(Qt::WA_DeleteOnClose);
             previewDialog->show();
         } else {
@@ -183,25 +202,30 @@ void AfcExplorerWidget::updateAddressBar(const QString &path)
 
 void AfcExplorerWidget::loadPath(const QString &path)
 {
+    m_loadingWidget->showLoading();
     updateAddressBar(path);
     updateNavigationButtons();
 
-    AFCFileTree tree = ServiceManager::safeGetFileTree(
-        m_device, path.toStdString(), true, m_afc);
-    if (!tree.success) {
-        showErrorState();
-        return;
+    /* use the correct afc client */
+    if (m_hauseArrest.has_value() && m_hauseArrest.value() != nullptr) {
+        m_hauseArrest.value()->check_is_dir_and_list(path);
+    } else {
+        m_device->afc_backend->check_is_dir_and_list(path);
     }
+}
 
-    // Clear the file list and show file list state
+void AfcExplorerWidget::onLoadPathFinished(bool success,
+                                           const QMap<QString, QVariant> &tree)
+{
     m_fileList->clear();
     showFileListState();
 
-    for (const auto &entry : tree.entries) {
-        QListWidgetItem *item =
-            new QListWidgetItem(QString::fromStdString(entry.name));
-        item->setData(Qt::UserRole, entry.isDir);
-        if (entry.isDir) {
+    for (auto it = tree.constBegin(); it != tree.constEnd(); ++it) {
+        bool is_dir = it.value().toBool();
+
+        QListWidgetItem *item = new QListWidgetItem(it.key());
+        item->setData(Qt::UserRole, is_dir);
+        if (is_dir) {
             QIcon folderIcon = QIcon::fromTheme("folder");
             if (folderIcon.isNull()) {
                 item->setIcon(
@@ -220,6 +244,8 @@ void AfcExplorerWidget::loadPath(const QString &path)
         }
         m_fileList->addItem(item);
     }
+
+    m_loadingWidget->stop();
 }
 
 void AfcExplorerWidget::setupContextMenu()
@@ -265,24 +291,26 @@ void AfcExplorerWidget::onFileListContextMenu(const QPoint &pos)
         if (dir.isEmpty())
             return;
 
+        // FIXME
         // Convert to ExportItem list
-        QList<ExportItem> exportItems;
-        QString currPath = "/";
-        if (!m_history.isEmpty())
-            currPath = m_history.top();
-        if (!currPath.endsWith("/"))
-            currPath += "/";
+        // QList<ExportItem> exportItems;
+        // QString currPath = "/";
+        // if (!m_history.isEmpty())
+        //     currPath = m_history.top();
+        // if (!currPath.endsWith("/"))
+        //     currPath += "/";
 
-        for (QListWidgetItem *selItem : filesToExport) {
-            QString fileName = selItem->text();
-            QString devicePath =
-                currPath == "/" ? "/" + fileName : currPath + fileName;
-            exportItems.append(
-                ExportItem(devicePath, fileName, m_device->udid));
-        }
+        // for (QListWidgetItem *selItem : filesToExport) {
+        //     QString fileName = selItem->text();
+        //     QString devicePath =
+        //         currPath == "/" ? "/" + fileName : currPath + fileName;
+        //     exportItems.append(
+        //         ExportItem(devicePath, fileName, m_device->udid));
+        // }
 
-        ExportManager::sharedInstance()->startExport(
-            m_device, exportItems, dir, "Exporting from file Explorer", m_afc);
+        // ExportManager::sharedInstance()->startExport(
+        //     m_device, exportItems, dir, "Exporting from file Explorer",
+        //     m_afc);
     } else if (selectedAction == openAction) {
         onItemDoubleClicked(item);
     } else if (selectedAction == openNativeAction) {
@@ -311,24 +339,25 @@ void AfcExplorerWidget::onExportClicked()
     if (dir.isEmpty())
         return;
 
-    // Convert to ExportItem list
-    QList<ExportItem> exportItems;
-    QString currPath = "/";
-    if (!m_history.isEmpty())
-        currPath = m_history.top();
-    if (!currPath.endsWith("/"))
-        currPath += "/";
+    // FIXME
+    //  // Convert to ExportItem list
+    //  QList<ExportItem> exportItems;
+    //  QString currPath = "/";
+    //  if (!m_history.isEmpty())
+    //      currPath = m_history.top();
+    //  if (!currPath.endsWith("/"))
+    //      currPath += "/";
 
-    for (QListWidgetItem *item : filesToExport) {
-        QString fileName = item->text();
-        QString devicePath =
-            currPath == "/" ? "/" + fileName : currPath + fileName;
-        exportItems.append(ExportItem(devicePath, fileName, m_device->udid));
-    }
+    // for (QListWidgetItem *item : filesToExport) {
+    //     QString fileName = item->text();
+    //     QString devicePath =
+    //         currPath == "/" ? "/" + fileName : currPath + fileName;
+    //     exportItems.append(ExportItem(devicePath, fileName, m_device->udid));
+    // }
 
-    // Start export
-    ExportManager::sharedInstance()->startExport(
-        m_device, exportItems, dir, "Exporting from file Explorer", m_afc);
+    // // Start export
+    // ExportManager::sharedInstance()->startExport(
+    //     m_device, exportItems, dir, "Exporting from file Explorer", m_afc);
 }
 
 void AfcExplorerWidget::exportAndOpenSelectedFile(QListWidgetItem *item,
@@ -349,53 +378,55 @@ void AfcExplorerWidget::exportAndOpenSelectedFile(QListWidgetItem *item,
     QString devicePath = currPath == "/" ? "/" + fileName : currPath + fileName;
     qDebug() << "Exporting file:" << devicePath;
 
-    // Start export
-    QList<ExportItem> exportItems;
-    exportItems.append(ExportItem(
-        devicePath, fileName, m_device->udid,
-        [this, fileName, directory](const ExportResult &result) {
-            if (result.success) {
-                QString localPath = QDir(directory).filePath(fileName);
-                QDesktopServices::openUrl(QUrl::fromLocalFile(localPath));
-            } else {
-                QMessageBox::critical(this, "Error",
-                                      "Failed to export file for opening.");
-            }
-        }));
-    ExportManager::sharedInstance()->startExport(
-        m_device, exportItems, directory, "Exporting to open file", m_afc);
+    // FIXME
+    //  // Start export
+    //  QList<ExportItem> exportItems;
+    //  exportItems.append(ExportItem(
+    //      devicePath, fileName, m_device->udid,
+    //      [this, fileName, directory](const ExportResult &result) {
+    //          if (result.success) {
+    //              QString localPath = QDir(directory).filePath(fileName);
+    //              QDesktopServices::openUrl(QUrl::fromLocalFile(localPath));
+    //          } else {
+    //              QMessageBox::critical(this, "Error",
+    //                                    "Failed to export file for opening.");
+    //          }
+    //      }));
+    //  ExportManager::sharedInstance()->startExport(
+    //      m_device, exportItems, directory, "Exporting to open file", m_afc);
 }
 
 // FIXME: should be disabled if there is an error loading afc
 void AfcExplorerWidget::onImportClicked()
 {
-    QStringList fileNames = QFileDialog::getOpenFileNames(this, "Import Files");
-    if (fileNames.isEmpty())
-        return;
+    // FIXME
+    //  QStringList fileNames = QFileDialog::getOpenFileNames(this, "Import
+    //  Files"); if (fileNames.isEmpty())
+    //      return;
 
-    QString currPath = "/";
-    if (!m_history.isEmpty())
-        currPath = m_history.top();
-    if (!currPath.endsWith("/"))
-        currPath += "/";
+    // QString currPath = "/";
+    // if (!m_history.isEmpty())
+    //     currPath = m_history.top();
+    // if (!currPath.endsWith("/"))
+    //     currPath += "/";
 
-    QList<ImportItem> importItems;
+    // QList<ImportItem> importItems;
 
-    for (const QString &localPath : fileNames) {
-        importItems.append(
-            ImportItem(localPath, currPath + QFileInfo(localPath).fileName(),
-                       m_device->udid, [this](const ImportResult &result) {
-                           if (result.success) {
-                               // Refresh file list
-                               QTimer::singleShot(100, this, [this]() {
-                                   if (!m_history.isEmpty())
-                                       loadPath(m_history.top());
-                               });
-                           }
-                       }));
-    }
-    ExportManager::sharedInstance()->startImport(
-        m_device, importItems, currPath, "Importing Files", m_afc);
+    // for (const QString &localPath : fileNames) {
+    //     importItems.append(
+    //         ImportItem(localPath, currPath + QFileInfo(localPath).fileName(),
+    //                    m_device->udid, [this](const ImportResult &result) {
+    //                        if (result.success) {
+    //                            // Refresh file list
+    //                            QTimer::singleShot(100, this, [this]() {
+    //                                if (!m_history.isEmpty())
+    //                                    loadPath(m_history.top());
+    //                            });
+    //                        }
+    //                    }));
+    // }
+    // ExportManager::sharedInstance()->startImport(
+    //     m_device, importItems, currPath, "Importing Files", m_afc);
 }
 
 void AfcExplorerWidget::setupFileExplorer()
@@ -767,24 +798,26 @@ void AfcExplorerWidget::onDeleteClicked()
         QMessageBox::Yes | QMessageBox::No);
 
     bool errorOccurred = false;
-    IdeviceFfiError *err = nullptr;
-    if (reply == QMessageBox::Yes) {
-        for (const QString &path : pathsToDelete) {
-            err = ServiceManager::deletePath(m_device,
-                                             path.toStdString().c_str(), m_afc);
-            if (err) {
-                errorOccurred = true;
-                qWarning() << "Failed to delete path:" << path
-                           << "Error:" << err->message;
-                idevice_error_free(err);
-            }
-        }
-        if (errorOccurred) {
-            QMessageBox::warning(
-                this, "Deletion Error",
-                "Some items could not be deleted. Check logs for details.");
-        }
-        QTimer::singleShot(100, this,
-                           [this, currPath]() { loadPath(currPath); });
-    }
+    // FIXME
+    // IdeviceFfiError *err = nullptr;
+    // if (reply == QMessageBox::Yes) {
+    //     for (const QString &path : pathsToDelete) {
+    //         err = ServiceManager::deletePath(m_device,
+    //                                          path.toStdString().c_str(),
+    //                                          m_afc);
+    //         if (err) {
+    //             errorOccurred = true;
+    //             qWarning() << "Failed to delete path:" << path
+    //                        << "Error:" << err->message;
+    //             idevice_error_free(err);
+    //         }
+    //     }
+    //     if (errorOccurred) {
+    //         QMessageBox::warning(
+    //             this, "Deletion Error",
+    //             "Some items could not be deleted. Check logs for details.");
+    //     }
+    //     QTimer::singleShot(100, this,
+    //                        [this, currPath]() { loadPath(currPath); });
+    // }
 }

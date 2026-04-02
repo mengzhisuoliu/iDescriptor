@@ -141,9 +141,9 @@ void SSHTerminalTool::updateDeviceList()
     clearDeviceButtons();
 
     // Add wired devices
-    QList<iDescriptorDevice *> wiredDevices =
+    QList<std::shared_ptr<iDescriptorDevice>> wiredDevices =
         AppContext::sharedInstance()->getAllDevices();
-    for (iDescriptorDevice *device : wiredDevices) {
+    for (const std::shared_ptr<iDescriptorDevice> &device : wiredDevices) {
         addDevice(device);
     }
 
@@ -190,10 +190,10 @@ void SSHTerminalTool::clearDeviceButtons()
 }
 
 // FIXME: should not add already exiting devices
-void SSHTerminalTool::addDevice(const iDescriptorDevice *device)
+void SSHTerminalTool::addDevice(const std::shared_ptr<iDescriptorDevice> device)
 {
     QString deviceName = QString::fromStdString(device->deviceInfo.deviceName);
-    QString udid = QString::fromStdString(device->udid);
+    QString udid = device->udid;
     QString displayText = QString("%1\n%2").arg(deviceName, udid);
 
     QRadioButton *radioButton = new QRadioButton(displayText);
@@ -206,7 +206,7 @@ void SSHTerminalTool::addDevice(const iDescriptorDevice *device)
         radioButton->setProperty(
             "ip", QString::fromStdString(device->deviceInfo.ipAddress));
         // workaround
-        radioButton->setProperty("udid", QString::fromStdString(device->udid));
+        radioButton->setProperty("udid", device->udid);
 
         radioButton->setProperty("deviceType", "wireless");
     } else {
@@ -232,18 +232,17 @@ void SSHTerminalTool::addWirelessDevice(const NetworkDevice &device)
     m_networkDevicesLayout->addWidget(radioButton);
 }
 // m_selectedUniq
-void SSHTerminalTool::On_iDeviceAdded(const iDescriptorDevice *device)
+void SSHTerminalTool::On_iDeviceAdded(
+    const std::shared_ptr<iDescriptorDevice> device)
 {
     addDevice(device);
 }
 
-void SSHTerminalTool::On_iDeviceRemoved(const std::string &udid)
+void SSHTerminalTool::On_iDeviceRemoved(const QString &udid)
 {
-    QString qudid = QString::fromStdString(udid);
-
     // Find and remove the corresponding radio button
     for (QAbstractButton *button : m_deviceButtonGroup->buttons()) {
-        if (button->property("udid").toString() == qudid) {
+        if (button->property("udid").toString() == udid) {
             m_deviceButtonGroup->removeButton(button);
             button->deleteLater();
             break;
@@ -294,14 +293,13 @@ void SSHTerminalTool::onDeviceSelected(QAbstractButton *button)
         m_selectedUniq.setIP(ip);
     }
 
-    iDescriptorDevice *selectedDevice =
+    auto selectedDevice =
         AppContext::sharedInstance()->getDevice(m_selectedUniq);
 
     if (!selectedDevice) {
         QString udid = button->property("udid").toString();
         if (!udid.isEmpty()) {
-            iDescriptorDevice *selectedDevice =
-                AppContext::sharedInstance()->getDevice(udid.toStdString());
+            auto selectedDevice = AppContext::sharedInstance()->getDevice(udid);
             if (selectedDevice) {
                 if (selectedDevice->deviceInfo.jailbroken) {
                     m_infoLabel->setText(
@@ -378,7 +376,7 @@ void SSHTerminalTool::onOpenSSHTerminal()
     }
 
     // Warn if known device is not jailbroken
-    iDescriptorDevice *selectedDevice =
+    auto selectedDevice =
         AppContext::sharedInstance()->getDevice(m_selectedUniq);
     if (selectedDevice && !selectedDevice->deviceInfo.jailbroken) {
         auto reply = QMessageBox::question(

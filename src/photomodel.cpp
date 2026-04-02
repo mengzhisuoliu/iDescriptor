@@ -19,9 +19,7 @@
 
 #include "photomodel.h"
 #include "iDescriptor.h"
-// #include "mediastreamermanager.h"
 #include "imageloader.h"
-#include "servicemanager.h"
 #include <QDebug>
 #include <QEventLoop>
 #include <QIcon>
@@ -35,8 +33,8 @@
 #include <QVideoFrame>
 #include <QVideoSink>
 
-PhotoModel::PhotoModel(const iDescriptorDevice *device, FilterType filterType,
-                       QObject *parent)
+PhotoModel::PhotoModel(const std::shared_ptr<iDescriptorDevice> device,
+                       FilterType filterType, QObject *parent)
     : QAbstractListModel(parent), m_device(device), m_sortOrder(NewestFirst),
       m_filterType(filterType)
 {
@@ -54,7 +52,10 @@ void PhotoModel::clear()
     endResetModel();
 
     qDebug() << "Cleared PhotoModel data";
-    ImageLoader::sharedInstance().clear();
+    // FIXME: we shouldn't do this
+    // QHashPrivate::Span<QHashPrivate::Node<QString, ImageTask *>>::hasNode
+    // qhash.h         310  0x5555559d50e1
+    // ImageLoader::sharedInstance().clear();
 }
 
 PhotoModel::~PhotoModel()
@@ -133,11 +134,6 @@ void PhotoModel::onThumbnailReady(const QString &path, const QPixmap &pixmap,
     }
 }
 
-bool isTimeoutError(IdeviceFfiError *err)
-{
-    return err && err->code == TimeoutErrorCode;
-}
-
 bool PhotoModel::populatePhotoPaths()
 {
     // FIXME:DEADLOCK?
@@ -150,66 +146,21 @@ bool PhotoModel::populatePhotoPaths()
     }
 
     m_allPhotos.clear();
+    QList<QString> photoPaths = m_device->afc_backend->list_dir(m_albumPath);
 
-    QByteArray albumPathBytes = m_albumPath.toUtf8();
-    const char *albumPathCStr = albumPathBytes.constData();
-
-    AfcFileInfo albumInfo = {};
-
-    IdeviceFfiError *err =
-        ServiceManager::safeAfcGetFileInfo(m_device, albumPathCStr, &albumInfo);
-    if (err) {
-        qDebug() << "Album path does not exist or cannot be accessed:"
-                 << m_albumPath << "Error:" << err->message
-                 << "Code:" << err->code;
-        if (isTimeoutError(err)) {
-            emit timedOut();
+    for (const QString &fileName : photoPaths) {
+        if (iDescriptor::Utils::isGalleryFile(fileName)) {
+            PhotoInfo info;
+            info.filePath = m_albumPath + "/" + fileName;
+            info.fileName = fileName;
+            info.thumbnailRequested = false;
+            info.fileType = determineFileType(fileName);
+            info.dateTime = extractDateTimeFromFile(info.filePath);
+            m_allPhotos.append(info);
         }
-        idevice_error_free(err);
-        return false;
-    }
-    // FIXME: should we continue if albumInfo is null?
-    if (albumInfo.size) {
-        afc_file_info_free(&albumInfo);
     }
 
-    // Fix: Store the QByteArray to keep the C string valid
-    QByteArray photoDirBytes = m_albumPath.toUtf8();
-    const char *photoDir = photoDirBytes.constData();
-    qDebug() << "Photo directory:" << m_albumPath;
-    qDebug() << "Photo directory C string:" << photoDir;
-
-    char **files = nullptr;
-    size_t count = 0;
-    err =
-        ServiceManager::safeAfcReadDirectory(m_device, photoDir, &files, &count);
-    if (err) {
-        qDebug() << "Failed to read photo directory:" << photoDir
-                 << "Error:" << err->message;
-        if (isTimeoutError(err)) {
-            emit timedOut();
-        }
-        idevice_error_free(err);
-        return false;
-    }
-
-    if (files) {
-        for (int i = 0; files[i]; i++) {
-            QString fileName = QString::fromUtf8(files[i]);
-            if (iDescriptor::Utils::isGalleryFile(fileName)) {
-                PhotoInfo info;
-                info.filePath = m_albumPath + "/" + fileName;
-                info.fileName = fileName;
-                info.thumbnailRequested = false;
-                info.fileType = determineFileType(fileName);
-                info.dateTime = extractDateTimeFromFile(info.filePath);
-                m_allPhotos.append(info);
-            }
-        }
-        free_directory_listing(files, count);
-    }
-
-    // Apply initial filtering and sorting, which will also reset the model
+    // // Apply initial filtering and sorting, which will also reset the model
     applyFilterAndSort();
 
     qDebug() << "Loaded" << m_allPhotos.size() << "media files from device";
@@ -329,22 +280,23 @@ QStringList PhotoModel::getFilteredFilePaths() const
     return paths;
 }
 
+// FIXME:
 // Helper methods
 QDateTime PhotoModel::extractDateTimeFromFile(const QString &filePath) const
 {
-    AfcFileInfo info = {};
-    IdeviceFfiError *err = ServiceManager::safeAfcGetFileInfo(
-        m_device, filePath.toUtf8().constData(), &info);
-    if (!err && info.creation) {
-        uint64_t creation_seconds = info.creation;
-        QDateTime dateTime =
-            QDateTime::fromSecsSinceEpoch(creation_seconds, Qt::UTC);
+    // AfcFileInfo info = {};
+    // IdeviceFfiError *err = ServiceManager::safeAfcGetFileInfo(
+    //     m_device, filePath.toUtf8().constData(), &info);
+    // if (!err && info.creation) {
+    //     uint64_t creation_seconds = info.creation;
+    //     QDateTime dateTime =
+    //         QDateTime::fromSecsSinceEpoch(creation_seconds, Qt::UTC);
 
-        afc_file_info_free(&info);
-        if (dateTime.isValid()) {
-            return dateTime;
-        }
-    }
+    //     afc_file_info_free(&info);
+    //     if (dateTime.isValid()) {
+    //         return dateTime;
+    //     }
+    // }
 
     return QDateTime::currentDateTime();
 }

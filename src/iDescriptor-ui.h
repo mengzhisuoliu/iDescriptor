@@ -21,9 +21,12 @@
 #include "settingsmanager.h"
 #include <QAbstractButton>
 #include <QApplication>
+#include <QDesktopServices>
 #include <QEvent>
+#include <QFileDialog>
 #include <QGraphicsView>
 #include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMouseEvent>
@@ -31,10 +34,12 @@
 #include <QPainterPath>
 #include <QPalette>
 #include <QPropertyAnimation>
+#include <QPushButton>
 #include <QScreen>
 #include <QSlider>
 #include <QSplitter>
 #include <QSplitterHandle>
+#include <QStandardPaths>
 #include <QStyleHints>
 #include <QStyleOption>
 #include <QWheelEvent>
@@ -528,7 +533,56 @@ public:
     void setLoadedPixmap(const QPixmap &pixmap)
     {
         stopLoading();
-        setPixmap(pixmap);
+
+        if (pixmap.isNull()) {
+            m_failed = true;
+            setPixmap(QPixmap());
+            update();
+            return;
+        }
+
+        QPixmap scaled = pixmap.scaled(64, 64, Qt::KeepAspectRatioByExpanding,
+                                       Qt::SmoothTransformation);
+        QPixmap rounded(64, 64);
+        rounded.fill(Qt::transparent);
+
+        QPainter painter(&rounded);
+        painter.setRenderHint(QPainter::Antialiasing);
+        QPainterPath path;
+        path.addRoundedRect(QRectF(0, 0, 64, 64), 16, 16);
+        painter.setClipPath(path);
+        painter.drawPixmap(0, 0, scaled);
+        painter.end();
+
+        setPixmap(rounded);
+        update();
+    }
+
+    void setLoadedPixmap(const QByteArray &bytes)
+    {
+        stopLoading();
+        QPixmap pixmap;
+        if (pixmap.loadFromData(bytes)) {
+            QPixmap scaled =
+                pixmap.scaled(64, 64, Qt::KeepAspectRatioByExpanding,
+                              Qt::SmoothTransformation);
+            QPixmap rounded(64, 64);
+            rounded.fill(Qt::transparent);
+
+            QPainter painter(&rounded);
+            painter.setRenderHint(QPainter::Antialiasing);
+            QPainterPath path;
+            path.addRoundedRect(QRectF(0, 0, 64, 64), 16, 16);
+            painter.setClipPath(path);
+            painter.drawPixmap(0, 0, scaled);
+            painter.end();
+
+            setPixmap(rounded);
+        } else {
+            m_failed = true;
+            setPixmap(QPixmap());
+        }
+
         update();
     }
 
@@ -555,15 +609,11 @@ protected:
 
         const bool dark = isDarkMode();
 
-        // shadcn-like neutral palette
-        const QColor base = dark ? QColor("#27272a")       // zinc-900
-                                 : QColor("#e5e7eb");      // zinc-200
-        const QColor highlight = dark ? QColor("#3f3f46")  // zinc-800
-                                      : QColor("#f4f4f5"); // zinc-100
+        const QColor base = dark ? QColor("#27272a") : QColor("#e5e7eb");
+        const QColor highlight = dark ? QColor("#3f3f46") : QColor("#f4f4f5");
 
         if (m_animation &&
             m_animation->state() == QAbstractAnimation::Running) {
-            // Skeleton shimmer background
             QLinearGradient grad(r.topLeft(), r.topRight());
 
             const qreal center = m_shimmerOffset;
@@ -595,12 +645,9 @@ protected:
 
         QColor textColor;
         if (m_failed) {
-            // shadcn red-500
             textColor = QColor("#ef4444");
         } else {
-            // shadcn foreground-ish
-            textColor = dark ? QColor("#f9fafb")  // zinc-50
-                             : QColor("#18181b"); // zinc-900
+            textColor = dark ? QColor("#f9fafb") : QColor("#18181b");
         }
 
         painter.setPen(textColor);
@@ -638,4 +685,61 @@ private:
     QPropertyAnimation *m_animation = nullptr;
     qreal m_shimmerOffset = 0.0;
     bool m_failed = false;
+};
+
+class ZDirPickerLabel : public QWidget
+{
+public:
+    ZDirPickerLabel(const QString &calloutString = "Export to:",
+                    QStandardPaths::StandardLocation defaultLocation =
+                        QStandardPaths::DownloadLocation,
+                    QWidget *parent = nullptr)
+        : QWidget{parent},
+          m_outputDir(QStandardPaths::writableLocation(defaultLocation))
+    {
+        QHBoxLayout *dirLayout = new QHBoxLayout();
+        QLabel *dirTextLabel = new QLabel(calloutString);
+        dirTextLabel->setStyleSheet("font-size: 14px;");
+        dirLayout->addWidget(dirTextLabel);
+
+        m_dirLabel = new ZLabel(this);
+        m_dirLabel->setText(m_outputDir);
+        m_dirLabel->setStyleSheet("font-size: 14px; color: #007AFF;");
+        connect(m_dirLabel, &ZLabel::clicked, this, [this]() {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(m_outputDir));
+        });
+        m_dirLabel->setCursor(Qt::PointingHandCursor);
+        dirLayout->addWidget(m_dirLabel, 1);
+
+        m_dirButton = new QPushButton("Choose...");
+        connect(m_dirButton, &QPushButton::clicked, this, [this]() {
+            QString dir = QFileDialog::getExistingDirectory(
+                this, "Select Directory to Save IPA", m_outputDir);
+            if (!dir.isEmpty()) {
+                m_outputDir = dir;
+                m_dirLabel->setText(m_outputDir);
+            }
+        });
+        dirLayout->addWidget(m_dirButton);
+
+        setLayout(dirLayout);
+    }
+
+    QString getOutputDir() const { return m_outputDir; }
+
+    void disableDirSelection()
+    {
+        m_dirButton->setEnabled(false);
+        m_dirLabel->setEnabled(false);
+    }
+    void enableDirSelection()
+    {
+        m_dirButton->setEnabled(true);
+        m_dirLabel->setEnabled(true);
+    }
+
+private:
+    ZLabel *m_dirLabel;
+    QPushButton *m_dirButton;
+    QString m_outputDir;
 };

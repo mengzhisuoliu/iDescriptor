@@ -59,8 +59,8 @@ AppDownloadDialog::AppDownloadDialog(const QString &appName,
     cardLayout->setContentsMargins(20, 20, 20, 20);
     contentLayout->addLayout(cardLayout);
 
-    m_appIcon = new QLabel();
-    m_appIcon->setFixedSize(64, 64);
+    m_appIcon = new IDLoadingIconLabel();
+
     cardLayout->addWidget(m_appIcon);
     cardLayout->addSpacing(5);
     QVBoxLayout *textLayout = new QVBoxLayout();
@@ -70,6 +70,11 @@ AppDownloadDialog::AppDownloadDialog(const QString &appName,
     nameLabel->setWordWrap(true);
     textLayout->addWidget(nameLabel);
 
+    QLabel *bundleIdLabel = new QLabel(bundleId);
+    bundleIdLabel->setStyleSheet("font-size: 12px; color: #666;");
+    bundleIdLabel->setWordWrap(true);
+    textLayout->addWidget(bundleIdLabel);
+
     textLayout->addSpacing(5);
 
     QLabel *descLabel = new QLabel(description);
@@ -78,67 +83,29 @@ AppDownloadDialog::AppDownloadDialog(const QString &appName,
     textLayout->addWidget(descLabel);
 
     cardLayout->addLayout(textLayout);
-
     QPointer<AppDownloadDialog> safeThis = this;
     fetchAppIconFromApple(
         m_manager, bundleId,
-        [safeThis](const QPixmap &icon, const QJsonObject &appInfo) {
+        [safeThis](const QPixmap &pixmap, const QJsonObject &appInfo) {
             if (auto dialog = safeThis.data()) {
-                if (!icon.isNull()) {
-                    dialog->m_appIcon->setPixmap(icon.scaled(
-                        64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-                    // QPixmap blurred = BackDrop::blurPixmap(icon, 30);
-                    // dialog->m_bgLabel->setPixmap(blurred.scaled(
-                    //     dialog->size(), Qt::KeepAspectRatioByExpanding,
-                    //     Qt::SmoothTransformation));
-                }
+                dialog->m_appIcon->setLoadedPixmap(pixmap);
                 dialog->m_loadingWidget->stop(true);
             }
         });
 
-    // Directory selection UI
-    QHBoxLayout *dirLayout = new QHBoxLayout();
-    QLabel *dirTextLabel = new QLabel("Save to:");
-    dirTextLabel->setStyleSheet("font-size: 14px;");
-    dirLayout->addWidget(dirTextLabel);
+    m_dirPickerLabel = new ZDirPickerLabel("Save to:");
 
-    m_dirLabel = new ZLabel(this);
-    m_dirLabel->setText(m_outputDir);
-    m_dirLabel->setStyleSheet("font-size: 14px; color: #007AFF;");
-    connect(m_dirLabel, &ZLabel::clicked, this, [this]() {
-        QDesktopServices::openUrl(QUrl::fromLocalFile(m_outputDir));
-    });
-    m_dirLabel->setCursor(Qt::PointingHandCursor);
-    dirLayout->addWidget(m_dirLabel, 1);
-
-    m_dirButton = new QPushButton("Choose...");
-    // m_dirButton->setStyleSheet("font-size: 14px; padding: 4px 12px;");
-    connect(m_dirButton, &QPushButton::clicked, this, [this]() {
-        QString dir = QFileDialog::getExistingDirectory(
-            this, "Select Directory to Save IPA", m_outputDir);
-        if (!dir.isEmpty()) {
-            m_outputDir = dir;
-            m_dirLabel->setText(m_outputDir);
-        }
-    });
-    dirLayout->addWidget(m_dirButton);
-
-    contentLayout->addLayout(dirLayout);
+    contentLayout->addWidget(m_dirPickerLabel);
 
     QHBoxLayout *buttonLayout = new QHBoxLayout();
 
     m_actionButton = new QPushButton("Download IPA");
-    // m_actionButton->setFixedHeight(40);
     m_actionButton->setDefault(true);
     connect(m_actionButton, &QPushButton::clicked, this,
             &AppDownloadDialog::onDownloadClicked);
     buttonLayout->addWidget(m_actionButton);
 
     QPushButton *cancelButton = new QPushButton("Cancel");
-    // cancelButton->setFixedHeight(40);
-    // cancelButton->setStyleSheet(
-    //     "background-color: #f0f0f0; color: #333; border: 1px solid #ddd; "
-    //     "border-radius: 6px; font-size: 16px;");
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
     buttonLayout->addWidget(cancelButton);
 
@@ -149,8 +116,7 @@ AppDownloadDialog::AppDownloadDialog(const QString &appName,
 
 void AppDownloadDialog::onDownloadClicked()
 {
-    // Disable directory selection once download starts
-    m_dirButton->setEnabled(false);
+    m_dirPickerLabel->disableDirSelection();
     m_actionButton->setEnabled(false);
 
     int buttonIndex = m_layout->indexOf(m_actionButton);

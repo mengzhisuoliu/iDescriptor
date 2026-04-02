@@ -18,7 +18,6 @@
  */
 
 #include "mediastreamermanager.h"
-#include "mediastreamer.h"
 #include <QDebug>
 #include <QMutexLocker>
 
@@ -30,52 +29,41 @@ MediaStreamerManager *MediaStreamerManager::sharedInstance()
     return &instance;
 }
 
-QUrl MediaStreamerManager::getStreamUrl(const iDescriptorDevice *device,
-                                        AfcClientHandle *afcClient,
-                                        const QString &filePath)
+QUrl MediaStreamerManager::getStreamUrl(
+    const std::shared_ptr<iDescriptorDevice> device,
+    std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest,
+    const QString &filePath)
 {
-    QMutexLocker locker(&m_streamersMutex);
+    QString rustUrl;
 
-    // Check if we already have a streamer for this file
+    if (hause_arrest.has_value() && hause_arrest.value()) {
+        qDebug() << "Requesting stream URL using HauseArrest for:" << filePath;
+        rustUrl = hause_arrest.value()->start_video_stream(filePath);
+    } else {
+        qDebug() << "Requesting stream URL using AfcBackend for:" << filePath;
+        rustUrl = device->afc_backend->start_video_stream(filePath);
+    }
+
+    if (rustUrl.isEmpty()) {
+        qWarning() << "MediaStreamerManager: start_video_stream failed for"
+                   << filePath;
+        return {};
+    }
+
+    QMutexLocker locker(&m_streamersMutex);
     auto it = m_streamers.find(filePath);
     if (it != m_streamers.end()) {
-        // Verify the streamer is still valid and listening
-        if (it->streamer && it->streamer->isListening()) {
-            it->refCount++;
-            qDebug() << "MediaStreamerManager: Reusing existing streamer for"
-                     << filePath << "refCount:" << it->refCount;
-            return it->streamer->getUrl();
-        } else {
-            // Clean up invalid streamer
-            qDebug() << "MediaStreamerManager: Cleaning up invalid streamer for"
-                     << filePath;
-            if (it->streamer) {
-                it->streamer->deleteLater();
-            }
-            m_streamers.erase(it);
-        }
+        it->refCount++;
+        qDebug() << "MediaStreamerManager: Reusing existing streamer for"
+                 << filePath << "refCount:" << it->refCount;
+    } else {
+        qDebug() << "MediaStreamerManager: Creating new streamer for"
+                 << filePath;
+        StreamerInfo info{rustUrl, 1};
+        m_streamers.insert(filePath, info);
     }
 
-    // Create new streamer without a QObject parent
-    auto *streamer = new MediaStreamer(device, afcClient, filePath, nullptr);
-    if (!streamer->isListening()) {
-        qWarning() << "MediaStreamerManager: Failed to create streamer for"
-                   << filePath;
-        delete streamer;
-        return QUrl();
-    }
-
-    // FIXME: device pointer can become dangling if device is disconnected
-    StreamerInfo info;
-    info.streamer = streamer;
-    info.device = device;
-    info.refCount = 1;
-    m_streamers[filePath] = info;
-
-    qDebug() << "MediaStreamerManager: Created new streamer for" << filePath
-             << "at" << streamer->getUrl().toString();
-
-    return streamer->getUrl();
+    return QUrl(rustUrl);
 }
 
 void MediaStreamerManager::releaseStreamer(const QString &filePath)
@@ -87,12 +75,12 @@ void MediaStreamerManager::releaseStreamer(const QString &filePath)
         qDebug() << "MediaStreamerManager: Released streamer for" << filePath
                  << "refCount:" << it->refCount;
 
-        // If no more references, delete it immediately.
-        // deleteLater() will not work in a thread without an event loop.
         if (it->refCount <= 0) {
             qDebug() << "MediaStreamerManager: Deleting streamer for"
                      << filePath;
-            delete it->streamer;
+            // delete it->streamer;
+            AppContext::sharedInstance()->ioManager->release_video_streamer(
+                it.value().rustUrl);
             m_streamers.erase(it);
         }
     }
@@ -105,9 +93,11 @@ void MediaStreamerManager::cleanup()
     while (it != m_streamers.end()) {
         qDebug() << "MediaStreamerManager: Cleaning up streamer for"
                  << it.key();
-        if (it->streamer) {
-            delete it->streamer;
-        }
+        // FIXME: what to do here?
+        // if (it->streamer) {
+        //     delete it->streamer;
+        // }
+        // release_streamer(it.value().rustUrl);
         it = m_streamers.erase(it);
     }
 }

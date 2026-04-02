@@ -22,7 +22,6 @@
 #include "devdiskmanager.h"
 #include "iDescriptor.h"
 #include "qprocessindicator.h"
-#include "servicemanager.h"
 #include "settingsmanager.h"
 #include <QCloseEvent>
 #include <QComboBox>
@@ -49,11 +48,9 @@
 #include <QVBoxLayout>
 #include <string>
 
-DevDiskImagesWidget::DevDiskImagesWidget(iDescriptorDevice *device,
+DevDiskImagesWidget::DevDiskImagesWidget(const QString &deviceUdid,
                                          QWidget *parent)
-    : Tool(parent),
-      m_currentDeviceUdid(
-          device != nullptr ? QString::fromStdString(device->udid) : QString())
+    : Tool(parent), m_currentDeviceUdid(deviceUdid)
 {
     setMinimumSize(400, 400);
     resize(800, 600);
@@ -171,11 +168,12 @@ void DevDiskImagesWidget::onDeviceSelectionChanged(int index)
         index >= AppContext::sharedInstance()->getAllDevices().size())
         return;
 
-    auto device = AppContext::sharedInstance()->getAllDevices()[index];
-    if (device == nullptr)
-        return;
+    return;
+    // auto device = AppContext::sharedInstance()->getAllDevices()[index];
+    // if (device == nullptr)
+    //     return;
 
-    m_currentDeviceUdid = QString::fromStdString(device->udid);
+    // m_currentDeviceUdid = QString::fromStdString(device->udid);
     displayImages();
 }
 
@@ -185,10 +183,10 @@ void DevDiskImagesWidget::displayImages()
     m_imageListWidget->clear();
 
     // Look up device by UDID
-    iDescriptorDevice *currentDevice = nullptr;
+    std::shared_ptr<iDescriptorDevice> currentDevice = nullptr;
     if (!m_currentDeviceUdid.isEmpty()) {
-        currentDevice = AppContext::sharedInstance()->getDevice(
-            m_currentDeviceUdid.toStdString());
+        currentDevice =
+            AppContext::sharedInstance()->getDevice(m_currentDeviceUdid);
     }
     bool hasConnectedDevice = (currentDevice != nullptr);
 
@@ -309,7 +307,7 @@ void DevDiskImagesWidget::displayImages()
                 auto *separatorLabel = new QLabel("Other versions");
                 separatorLabel->setStyleSheet(
                     "QLabel { font-weight: bold; color: #757575; margin: 10px "
-                    "0; }");
+                    "0;}");
                 separatorLayout->addWidget(separatorLabel);
                 separatorItem->setSizeHint(separatorWidget->sizeHint());
                 m_imageListWidget->addItem(separatorItem);
@@ -535,13 +533,13 @@ void DevDiskImagesWidget::updateDeviceList()
 
     int newIndex = -1;
     for (int i = 0; i < devices.size(); ++i) {
-        auto *device = devices.at(i);
+        std::shared_ptr<iDescriptorDevice> device = devices.at(i);
         m_deviceComboBox->addItem(
             QString("%1 / (%2)")
                 .arg(QString::fromStdString(device->deviceInfo.deviceName))
                 .arg(QString::fromStdString(device->deviceInfo.productType)),
-            QString::fromStdString(device->udid));
-        if (QString().fromStdString((device->udid)) == currentUdid) {
+            device->udid);
+        if (device->udid == currentUdid) {
             newIndex = i;
         }
     }
@@ -580,101 +578,106 @@ void DevDiskImagesWidget::onMountButtonClicked()
 
 void DevDiskImagesWidget::mountImage(const QString &version)
 {
-    QString udid = m_deviceComboBox->currentData().toString();
-    m_deviceComboBox->setEnabled(false);
-    if (udid.isEmpty()) {
-        QMessageBox::warning(this, "No Device", "Please select a device.");
-        return;
-    }
+    // FIXME: wireup
+    // QString udid = m_deviceComboBox->currentData().toString();
+    // m_deviceComboBox->setEnabled(false);
+    // if (udid.isEmpty()) {
+    //     QMessageBox::warning(this, "No Device", "Please select a device.");
+    //     return;
+    // }
 
-    if (!DevDiskManager::sharedInstance()->isImageDownloaded(
-            version, SettingsManager::sharedInstance()->devdiskimgpath())) {
-        QMessageBox::warning(
-            this, "Image Not Found",
-            QString("The selected disk image for version %1 is not downloaded. "
-                    "Please download it first.")
-                .arg(version));
-        return;
-    }
+    // if (!DevDiskManager::sharedInstance()->isImageDownloaded(
+    //         version, SettingsManager::sharedInstance()->devdiskimgpath())) {
+    //     QMessageBox::warning(
+    //         this, "Image Not Found",
+    //         QString("The selected disk image for version %1 is not
+    //         downloaded. "
+    //                 "Please download it first.")
+    //             .arg(version));
+    //     return;
+    // }
 
-    m_mountButton->setEnabled(false);
-    m_mountButton->setText("Mounting...");
+    // m_mountButton->setEnabled(false);
+    // m_mountButton->setText("Mounting...");
 
-    auto updateUI = [&]() {
-        m_mountButton->setEnabled(true);
-        m_mountButton->setText("Mount");
-        m_deviceComboBox->setEnabled(true);
-    };
+    // auto updateUI = [&]() {
+    //     m_mountButton->setEnabled(true);
+    //     m_mountButton->setText("Mount");
+    //     m_deviceComboBox->setEnabled(true);
+    // };
 
-    auto paths = DevDiskManager::sharedInstance()->getPathsForVersion(version);
+    // auto paths =
+    // DevDiskManager::sharedInstance()->getPathsForVersion(version);
 
-    MountedImageInfo info = ServiceManager::getMountedImage(
-        AppContext::sharedInstance()->getDevice(udid.toStdString()));
+    // MountedImageInfo info = ServiceManager::getMountedImage(
+    //     AppContext::sharedInstance()->getDevice(udid.toStdString()));
 
-    if (info.err == nullptr && info.signature && info.signature_len) {
-        qDebug() << "Mount image: already mounted sig found"
-                 << QString::fromStdString(std::string((char *)info.signature,
-                                                       info.signature_len));
-        QMessageBox::information(this, "Already Mounted",
-                                 QString("A developer disk image is already "
-                                         "mounted on %1.")
-                                     .arg(m_deviceComboBox->currentText()));
-        return updateUI();
-    } else if (info.err->code == DeviceLockedMountErrorCode) {
-        /* Never returns DeviceLockedMountErrorCode when doing
-         image_mounter_lookup_image but maybe used in future */
-    } else if (info.err->code == NotFoundErrorCode) {
-        // OK, no image mounted
-        qDebug() << "Mount image: no  mounted image found";
-    } else {
-        QMessageBox::critical(
-            this, "Mount Check Failed",
-            QString("Failed to check mounted image on %1. Try with a "
-                    "genuine cable.")
-                .arg(m_deviceComboBox->currentText()));
-        mounted_image_info_free(info);
-        return updateUI();
-    }
+    // if (info.err == nullptr && info.signature && info.signature_len) {
+    //     qDebug() << "Mount image: already mounted sig found"
+    //              << QString::fromStdString(std::string((char
+    //              *)info.signature,
+    //                                                    info.signature_len));
+    //     QMessageBox::information(this, "Already Mounted",
+    //                              QString("A developer disk image is already "
+    //                                      "mounted on %1.")
+    //                                  .arg(m_deviceComboBox->currentText()));
+    //     return updateUI();
+    // } else if (info.err->code == DeviceLockedMountErrorCode) {
+    //     /* Never returns DeviceLockedMountErrorCode when doing
+    //      image_mounter_lookup_image but maybe used in future */
+    // } else if (info.err->code == NotFoundErrorCode) {
+    //     // OK, no image mounted
+    //     qDebug() << "Mount image: no  mounted image found";
+    // } else {
+    //     QMessageBox::critical(
+    //         this, "Mount Check Failed",
+    //         QString("Failed to check mounted image on %1. Try with a "
+    //                 "genuine cable.")
+    //             .arg(m_deviceComboBox->currentText()));
+    //     mounted_image_info_free(info);
+    //     return updateUI();
+    // }
 
-    mounted_image_info_free(info);
+    // mounted_image_info_free(info);
 
-    iDescriptorDevice *currentDevice =
-        m_currentDeviceUdid.isEmpty() ? nullptr
-                                      : AppContext::sharedInstance()->getDevice(
-                                            m_currentDeviceUdid.toStdString());
+    // iDescriptorDevice *currentDevice =
+    //     m_currentDeviceUdid.isEmpty() ? nullptr
+    //                                   :
+    //                                   AppContext::sharedInstance()->getDevice(
+    //                                         m_currentDeviceUdid.toStdString());
 
-    if (!currentDevice) {
-        QMessageBox::warning(this, "No Device",
-                             "Device is no longer connected.");
-        return updateUI();
-    }
+    // if (!currentDevice) {
+    //     QMessageBox::warning(this, "No Device",
+    //                          "Device is no longer connected.");
+    //     return updateUI();
+    // }
 
-    IdeviceFfiError *err = ServiceManager::mountImage(
-        currentDevice, paths.first.toStdString().c_str(),
-        paths.second.toStdString().c_str());
+    // IdeviceFfiError *err = ServiceManager::mountImage(
+    //     currentDevice, paths.first.toStdString().c_str(),
+    //     paths.second.toStdString().c_str());
 
-    if (err == nullptr) {
-        QMessageBox::information(this, "Success",
-                                 QString("Image mounted successfully on %1.")
-                                     .arg(m_deviceComboBox->currentText()));
-        return updateUI();
-    }
+    // if (err == nullptr) {
+    //     QMessageBox::information(this, "Success",
+    //                              QString("Image mounted successfully on %1.")
+    //                                  .arg(m_deviceComboBox->currentText()));
+    //     return updateUI();
+    // }
 
-    qDebug() << "Mount image result:" << err->code
-             << QString::fromStdString(err->message);
+    // qDebug() << "Mount image result:" << err->code
+    //          << QString::fromStdString(err->message);
 
-    if (err->code == DeviceLockedMountErrorCode) {
-        QMessageBox::critical(this, "Mount Failed",
-                              "The device is locked. Please unlock it and try"
-                              " again.");
-    } else {
-        QMessageBox::critical(
-            this, "Mount Failed",
-            QString("Failed to mount image on %1. Try with a genuine cable.")
-                .arg(m_deviceComboBox->currentText()));
-    }
-    idevice_error_free(err);
-    updateUI();
+    // if (err->code == DeviceLockedMountErrorCode) {
+    //     QMessageBox::critical(this, "Mount Failed",
+    //                           "The device is locked. Please unlock it and
+    //                           try" " again.");
+    // } else {
+    //     QMessageBox::critical(
+    //         this, "Mount Failed",
+    //         QString("Failed to mount image on %1. Try with a genuine cable.")
+    //             .arg(m_deviceComboBox->currentText()));
+    // }
+    // idevice_error_free(err);
+    // updateUI();
 }
 
 void DevDiskImagesWidget::closeEvent(QCloseEvent *event)
@@ -708,63 +711,67 @@ void DevDiskImagesWidget::closeEvent(QCloseEvent *event)
 
 void DevDiskImagesWidget::checkMountedImage()
 {
-    iDescriptorDevice *currentDevice =
-        m_currentDeviceUdid.isEmpty() ? nullptr
-                                      : AppContext::sharedInstance()->getDevice(
-                                            m_currentDeviceUdid.toStdString());
+    // FIXME: wireup
+    // iDescriptorDevice *currentDevice =
+    //     m_currentDeviceUdid.isEmpty() ? nullptr
+    //                                   :
+    //                                   AppContext::sharedInstance()->getDevice(
+    //                                         m_currentDeviceUdid.toStdString());
 
-    if (!currentDevice) {
-        qDebug() << "No device selected";
-        auto devices = AppContext::sharedInstance()->getAllDevices();
-        for (const auto &dev : devices) {
-            qDebug() << "Device:"
-                     << QString::fromStdString(dev->deviceInfo.deviceName)
-                     << "UDID:" << QString::fromStdString(dev->udid);
-        }
-        return;
-    }
-    if (m_deviceComboBox->currentIndex() < 0) {
-        qDebug() << "No device selected in combo box";
-        return;
-    }
+    // if (!currentDevice) {
+    //     qDebug() << "No device selected";
+    //     auto devices = AppContext::sharedInstance()->getAllDevices();
+    //     for (const auto &dev : devices) {
+    //         qDebug() << "Device:"
+    //                  << QString::fromStdString(dev->deviceInfo.deviceName)
+    //                  << "UDID:" << QString::fromStdString(dev->udid);
+    //     }
+    //     return;
+    // }
+    // if (m_deviceComboBox->currentIndex() < 0) {
+    //     qDebug() << "No device selected in combo box";
+    //     return;
+    // }
 
-    /*
-        older devices return something like this:
-        {
-        "ImagePresent": true,
-        "ImageSignature": <7b16200b 2ead1830 a59809d1 51e9060b ... 8a 9844eb07
-        e0b8e0>, "Status": "Complete"
-        }
-    */
-    MountedImageInfo info = ServiceManager::getMountedImage(currentDevice);
+    // /*
+    //     older devices return something like this:
+    //     {
+    //     "ImagePresent": true,
+    //     "ImageSignature": <7b16200b 2ead1830 a59809d1 51e9060b ... 8a
+    //     9844eb07 e0b8e0>, "Status": "Complete"
+    //     }
+    // */
+    // MountedImageInfo info = ServiceManager::getMountedImage(currentDevice);
 
-    if (info.err == nullptr && info.signature != nullptr &&
-        info.signature_len > 0) {
-        m_mounted_sig = std::string(
-            reinterpret_cast<const char *>(info.signature), info.signature_len);
-        m_mounted_sig_len = info.signature_len;
-        displayImages(); // Refresh to show mounted status
-        QMessageBox::information(
-            this, "Check Mounted Image",
-            "There is already a developer disk image mounted on the device.");
-        mounted_image_info_free(info);
-    } else if (info.err->code == DeviceLockedMountErrorCode) {
-        QMessageBox::critical(this, "Device Locked",
-                              "The device is locked. Please unlock it and try"
-                              " again.");
-        mounted_image_info_free(info);
-    } else if (info.err->code == NotFoundErrorCode) {
-        QMessageBox::critical(
-            this, "No Mounted Image",
-            "No developer disk image is mounted on the device.");
-        mounted_image_info_free(info);
-    } else {
-        QMessageBox::critical(
-            this, "Check Mounted Image Failed",
-            QString("Failed to check mounted image on %1. Try with a "
-                    "genuine cable. Error message: %2")
-                .arg(m_deviceComboBox->currentText())
-                .arg(QString::fromStdString(info.err->message)));
-        mounted_image_info_free(info);
-    }
+    // if (info.err == nullptr && info.signature != nullptr &&
+    //     info.signature_len > 0) {
+    //     m_mounted_sig = std::string(
+    //         reinterpret_cast<const char *>(info.signature),
+    //         info.signature_len);
+    //     m_mounted_sig_len = info.signature_len;
+    //     displayImages(); // Refresh to show mounted status
+    //     QMessageBox::information(
+    //         this, "Check Mounted Image",
+    //         "There is already a developer disk image mounted on the
+    //         device.");
+    //     mounted_image_info_free(info);
+    // } else if (info.err->code == DeviceLockedMountErrorCode) {
+    //     QMessageBox::critical(this, "Device Locked",
+    //                           "The device is locked. Please unlock it and
+    //                           try" " again.");
+    //     mounted_image_info_free(info);
+    // } else if (info.err->code == NotFoundErrorCode) {
+    //     QMessageBox::critical(
+    //         this, "No Mounted Image",
+    //         "No developer disk image is mounted on the device.");
+    //     mounted_image_info_free(info);
+    // } else {
+    //     QMessageBox::critical(
+    //         this, "Check Mounted Image Failed",
+    //         QString("Failed to check mounted image on %1. Try with a "
+    //                 "genuine cable. Error message: %2")
+    //             .arg(m_deviceComboBox->currentText())
+    //             .arg(QString::fromStdString(info.err->message)));
+    //     mounted_image_info_free(info);
+    // }
 }

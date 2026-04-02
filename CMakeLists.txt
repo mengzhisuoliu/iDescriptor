@@ -81,114 +81,62 @@ if(WIN32)
     message(STATUS "Found Qt bin directory: ${QT_BIN_PATH}")
 endif()
 
-#------------- IDEVICE-RS INTEGRATION -------------
+#------------- CXX-QT INTEGRATION -------------
 
-find_program(CARGO_EXECUTABLE cargo REQUIRED)
-message(STATUS "Using idevice-rs Rust implementation")
+# Rust always links against non-debug Windows runtime on *-msvc targets
+# Note it is best to set this on the command line to ensure all targets are consistent
+# https://github.com/corrosion-rs/corrosion/blob/master/doc/src/common_issues.md#linking-debug-cc-libraries-into-rust-fails-on-windows-msvc-targets
+# https://github.com/rust-lang/rust/issues/39016
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+endif()
 
-set(IDEVICE_RS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/idevice-rs)
-set(IDEVICE_RS_LIB_PATH ${IDEVICE_RS_SOURCE_DIR}/target/debug/libidevice_ffi.a)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# FIXME: update env elsewhere so cargo gets detected
-if(APPLE)
-add_custom_command(
-    OUTPUT ${IDEVICE_RS_LIB_PATH}
-    COMMAND ${CMAKE_COMMAND} -E env
-            "PATH=$ENV{HOME}/.cargo/bin:/usr/local/bin:$ENV{PATH}"
-            "RUSTC=/usr/local/bin/rustc"
-            ${CARGO_EXECUTABLE} build --manifest-path ${IDEVICE_RS_SOURCE_DIR}/Cargo.toml
-    WORKING_DIRECTORY ${IDEVICE_RS_SOURCE_DIR}
-    COMMENT "Building idevice-rs FFI libraryy"
-    VERBATIM
-)
-# We must use +stable-x86_64-pc-windows-gnu on Windows
-elseif(WIN32)
-add_custom_command(
-    OUTPUT ${IDEVICE_RS_LIB_PATH}
-    COMMAND ${CARGO_EXECUTABLE} +stable-x86_64-pc-windows-gnu build --manifest-path ${IDEVICE_RS_SOURCE_DIR}/Cargo.toml
-    WORKING_DIRECTORY ${IDEVICE_RS_SOURCE_DIR}
-    COMMENT "Building idevice-rs FFI libraryy"
-    VERBATIM
-)
-# Linux
-else()
-add_custom_command(
-    OUTPUT ${IDEVICE_RS_LIB_PATH}
-    COMMAND ${CARGO_EXECUTABLE} build --manifest-path ${IDEVICE_RS_SOURCE_DIR}/Cargo.toml
-    WORKING_DIRECTORY ${IDEVICE_RS_SOURCE_DIR}
-    COMMENT "Building idevice-rs FFI libraryy"
-    VERBATIM
-)
+set(CXXQT_QTCOMPONENTS Core Gui Qml QuickControls2 QuickTest Widgets Test)
+if(NOT BUILD_WASM)
+    set(CXXQT_QTCOMPONENTS ${CXXQT_QTCOMPONENTS})
+endif()
+
+if(NOT USE_QT5)
+    find_package(Qt6 COMPONENTS ${CXXQT_QTCOMPONENTS})
+    set(Qt "Qt6")
+endif()
+if(NOT Qt6_FOUND)
+    find_package(Qt5 5.15 COMPONENTS ${CXXQT_QTCOMPONENTS} REQUIRED)
+    set(Qt "Qt5")
+endif()
+
+if(MSVC)
+    # Qt also needs to link against the non-debug version of the MSVC Runtime libraries.
+    # Note: The Qt:: targets are ALIAS targets that do not support setting properties directly.
+    # We therefore need to resolve the target names to either Qt5 or Qt6 directly.
+    set_property(
+        TARGET ${Qt}::Core ${Qt}::Gui ${Qt}::Qml ${Qt}::QuickControls2 ${Qt}::QuickTest ${Qt}::Test
+        PROPERTY MAP_IMPORTED_CONFIG_DEBUG "RELEASE")
 endif()
 
 
-# This custom target provides a name to build the Rust library explicitly.
-# It depends on the output file, ensuring the custom command is run.
-add_custom_target(idevice_rs_build DEPENDS ${IDEVICE_RS_LIB_PATH})
-
-# Create an imported target for the Rust static library
-add_library(idevice_ffi STATIC IMPORTED GLOBAL)
-set_target_properties(idevice_ffi PROPERTIES
-    IMPORTED_LOCATION "${IDEVICE_RS_LIB_PATH}"
-)
-
-# ---- Build the idevice-rs C++ wrapper library ------------------------------
-set(IDEVICE_CPP_SRC_DIR     ${IDEVICE_RS_SOURCE_DIR}/cpp/src)
-set(IDEVICE_CPP_INCLUDE_DIR ${IDEVICE_RS_SOURCE_DIR}/cpp/include)
-set(IDEVICE_FFI_INCLUDE_DIR ${IDEVICE_RS_SOURCE_DIR}/ffi)
-set(PLIST_CPP_INCLUDE_DIR   ${IDEVICE_RS_SOURCE_DIR}/plist_ffi/cpp/include)
-set(PLIST_CPP_SRC_DIR       ${IDEVICE_RS_SOURCE_DIR}/plist_ffi/cpp/src)
-
-# Collect C++ sources for the wrapper library
-file(GLOB_RECURSE IDEVICE_CPP_SOURCES
-  "${IDEVICE_CPP_SRC_DIR}/*.cpp"
-  "${IDEVICE_CPP_INCLUDE_DIR}/diagnostics_relay.cpp"
-)
-file(GLOB PLIST_CPP_SOURCES
-  "${PLIST_CPP_SRC_DIR}/*.cpp"
-)
-
-add_library(idevice_cpp STATIC ${IDEVICE_CPP_SOURCES} ${PLIST_CPP_SOURCES})
-add_dependencies(idevice_cpp idevice_rs_build)
-
-if(WIN32)
-# Define LIBPLIST_STATIC to prevent functions from being marked as DLL imports
-target_compile_definitions(idevice_cpp PUBLIC LIBPLIST_STATIC)
-endif()
-
-target_include_directories(idevice_cpp PUBLIC
-    ${IDEVICE_CPP_INCLUDE_DIR}
-    ${PLIST_CPP_INCLUDE_DIR}
-  PRIVATE
-    ${IDEVICE_FFI_INCLUDE_DIR}
-)
-
-# Link idevice_cpp to idevice_ffi and add platform-specific dependencies
-find_package(Threads REQUIRED)
-target_link_libraries(idevice_cpp PUBLIC idevice_ffi Threads::Threads)
-
-if (UNIX AND NOT APPLE)
-    pkg_check_modules(UDEV REQUIRED IMPORTED_TARGET libudev)
-    target_link_libraries(idevice_cpp PUBLIC PkgConfig::UDEV dl m)
-elseif(APPLE)
-    find_library(COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
-    find_library(IOKIT_FRAMEWORK IOKit REQUIRED)
-    target_link_libraries(idevice_cpp PUBLIC
-        ${COREFOUNDATION_FRAMEWORK}
-        ${IOKIT_FRAMEWORK}
-        "-framework Security"
-        "-framework SystemConfiguration"
-        "-framework CoreServices"
-        "-framework CFNetwork"
+find_package(CxxQt QUIET)
+if(NOT CxxQt_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+        CxxQt
+        GIT_REPOSITORY https://github.com/kdab/cxx-qt-cmake.git
+        GIT_TAG 0.8.1
     )
-elseif(WIN32)
-    target_link_libraries(idevice_cpp PUBLIC ws2_32 userenv.lib ntdll bcrypt)
+
+    FetchContent_MakeAvailable(CxxQt)
 endif()
 
-# Set up variables for linking and includes for the main iDescriptor target
-set(IDEVICE_IMPLEMENTATION_LIBS idevice_cpp)
-# The C header file generated by cbindgen lives here
-set(IDEVICE_IMPLEMENTATION_INCLUDES ${IDEVICE_RS_SOURCE_DIR}/ffi/include)
+cxx_qt_import_crate(
+    MANIFEST_PATH src/rust/Cargo.toml 
+    CRATES idescriptor_rust_codebase 
+    LOCKED
+    QT_MODULES Qt::Core Qt::Gui Qt::Qml Qt::QuickControls2
+)
 
 #--------------------------------------------------------------------------------
 
@@ -245,6 +193,7 @@ src/base/*.h
 resources.qrc
 )
 
+
 if (NOT ENABLE_RECOVERY_DEVICE_SUPPORT)
     list(REMOVE_ITEM PROJECT_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/src/recoverydeviceinfowidget.cpp
@@ -280,7 +229,6 @@ endif()
 add_subdirectory(lib/uxplay)
 add_subdirectory(lib/ipatool-go)
 add_subdirectory(lib/zupdater)
-# add_subdirectory(lib/ztoast)
 
 if (WIN32)
     set(NO_DEPLOY_WIN_IFUSE ON)
@@ -314,10 +262,6 @@ else()
 )
 endif()
 
-# Make sure idevice_cpp depends on the Rust library being built
-add_dependencies(idevice_cpp idevice_rs_build)
-
-
 set(RUST_CODEBASE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/rust)
 
 target_link_libraries(iDescriptor PRIVATE
@@ -334,8 +278,6 @@ target_link_libraries(iDescriptor PRIVATE
     PkgConfig::SSH
     ${SSH_LIBRARY}
     PkgConfig::PUGIXML
-    # PkgConfig::USB
-    # PkgConfig::PLIST
     PkgConfig::QRENCODE
     qtermwidget6
     PkgConfig::HEIF
@@ -347,9 +289,8 @@ target_link_libraries(iDescriptor PRIVATE
     uxplay
     ipatool-go
     ZUpdater
-    # ZToast
-    ${IDEVICE_IMPLEMENTATION_LIBS}
     SQLite3::SQLite3
+    idescriptor_rust_codebase
 )
 
 if(ENABLE_RECOVERY_DEVICE_SUPPORT)
@@ -359,14 +300,8 @@ endif()
 
 target_include_directories(iDescriptor PRIVATE
     # Put idevice-rs includes FIRST
-    ${IDEVICE_CPP_INCLUDE_DIR}
-    ${IDEVICE_FFI_INCLUDE_DIR}
-    ${PLIST_CPP_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/zupdater/src
-    # System includes last
-    ${IDEVICE_IMPLEMENTATION_INCLUDES}
-    ${RUST_CODEBASE_SOURCE_DIR}/include
 )
 
 

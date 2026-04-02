@@ -21,19 +21,7 @@
 #define FILEEXPLORERWIDGET_H
 
 #include "iDescriptor.h"
-#include <QHBoxLayout>
-#include <QInputDialog>
-#include <QLabel>
-#include <QListWidget>
-#include <QMenu>
-#include <QPushButton>
-#include <QSplitter>
-#include <QStack>
-#include <QStackedWidget>
-#include <QString>
-#include <QTreeWidget>
-#include <QVBoxLayout>
-#include <QWidget>
+#include "zloadingwidget.h"
 #include <QApplication>
 #include <QDebug>
 #include <QDesktopServices>
@@ -42,6 +30,9 @@
 #include <QHeaderView>
 #include <QIcon>
 #include <QInputDialog>
+#include <QLabel>
+#include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPalette>
@@ -49,16 +40,19 @@
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QSplitterHandle>
+#include <QStack>
+#include <QStackedWidget>
+#include <QString>
 #include <QTreeWidget>
+#include <QVBoxLayout>
 #include <QVariant>
-#include "zloadingwidget.h"
-
+#include <QWidget>
 
 class FileExplorerWidget : public QWidget
 {
     Q_OBJECT
 public:
-    explicit FileExplorerWidget(const iDescriptorDevice *device,
+    explicit FileExplorerWidget(const std::shared_ptr<iDescriptorDevice> device,
                                 QWidget *parent = nullptr);
     void init();
 
@@ -69,9 +63,9 @@ private:
     ZLoadingWidget *m_loadingWidget;
     QSplitter *m_mainSplitter;
     QStackedWidget *m_stackedWidget;
-    AfcClientHandle *currentAfcClient;
+    // AfcClientHandle *currentAfcClient;
     QTreeWidget *m_sidebarTree;
-    const iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
 
     // Tree items
     QTreeWidgetItem *m_defaultAfcItem;

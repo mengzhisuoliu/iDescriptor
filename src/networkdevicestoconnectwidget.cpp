@@ -165,16 +165,16 @@ NetworkDevicesToConnectWidget::NetworkDevicesToConnectWidget(QWidget *parent)
 
     updateDeviceList();
 
-    connect(AppContext::sharedInstance(),
-            &AppContext::noPairingFileForWirelessDevice, this,
+    connect(AppContext::sharedInstance()->core, &CXX::Core::no_pairing_file,
+            this,
             &NetworkDevicesToConnectWidget::onNoPairingFileForWirelessDevice);
-    connect(AppContext::sharedInstance(), &AppContext::initFailed, this,
+    connect(AppContext::sharedInstance()->core, &CXX::Core::init_failed, this,
             &NetworkDevicesToConnectWidget::onDeviceInitFailed);
     connect(AppContext::sharedInstance(), &AppContext::initStarted, this,
             &NetworkDevicesToConnectWidget::onDeviceInitStarted);
     connect(AppContext::sharedInstance(), &AppContext::deviceAdded, this,
             &NetworkDevicesToConnectWidget::onDeviceAdded);
-    connect(AppContext::sharedInstance(), &AppContext::deviceAlreadyExists,
+    connect(AppContext::sharedInstance(), &AppContext::deviceAlreadyExistsMAC,
             this, &NetworkDevicesToConnectWidget::onDeviceAlreadyExists);
 }
 
@@ -239,7 +239,6 @@ void NetworkDevicesToConnectWidget::setupUI()
 void NetworkDevicesToConnectWidget::createDeviceCard(
     const NetworkDevice &device)
 {
-    // Main card frame
     NetworkDeviceCard *card = new NetworkDeviceCard(device);
 
     m_deviceLayout->insertWidget(m_deviceLayout->count() - 1, card);
@@ -277,6 +276,11 @@ void NetworkDevicesToConnectWidget::updateDeviceList()
 void NetworkDevicesToConnectWidget::onWirelessDeviceAdded(
     const NetworkDevice &device)
 {
+    if (m_deviceCards.contains(device.macAddress)) {
+        qDebug() << "Device with MAC" << device.macAddress
+                 << "already exists in the list. Skipping addition.";
+        return;
+    }
     createDeviceCard(device);
 
     // Update status
@@ -335,7 +339,7 @@ void NetworkDevicesToConnectWidget::onDeviceInitStarted(const QString &uniq)
 }
 
 void NetworkDevicesToConnectWidget::onDeviceAdded(
-    const iDescriptorDevice *device)
+    const std::shared_ptr<iDescriptorDevice> device)
 {
     NetworkDeviceCard *deviceCard = m_deviceCards[QString::fromStdString(
         device->deviceInfo.wifiMacAddress)];

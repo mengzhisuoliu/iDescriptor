@@ -31,7 +31,7 @@ class DeviceMenuWidget : public QWidget
 {
     Q_OBJECT
 public:
-    explicit DeviceMenuWidget(const iDescriptorDevice *device,
+    explicit DeviceMenuWidget(const std::shared_ptr<iDescriptorDevice> device,
                               QWidget *parent = nullptr);
     void switchToTab(const QString &tabName);
     void init();
@@ -39,7 +39,7 @@ public:
 
 private:
     QStackedWidget *stackedWidget;
-    const iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
     DeviceInfoWidget *m_deviceInfoWidget;
     InstalledAppsWidget *m_installedAppsWidget;
     GalleryWidget *m_galleryWidget;

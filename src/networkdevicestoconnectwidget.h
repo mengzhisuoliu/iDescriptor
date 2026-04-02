@@ -62,7 +62,7 @@ private slots:
     void onNoPairingFileForWirelessDevice(const QString &macAddress);
     void onDeviceInitFailed(const QString &udid);
     void onDeviceInitStarted(const QString &udid);
-    void onDeviceAdded(const iDescriptorDevice *device);
+    void onDeviceAdded(const std::shared_ptr<iDescriptorDevice> device);
     void onDeviceAlreadyExists(const iDescriptor::Uniq &uniq);
 
 private:

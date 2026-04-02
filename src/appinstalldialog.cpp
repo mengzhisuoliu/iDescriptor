@@ -20,7 +20,6 @@
 #include "appinstalldialog.h"
 #include "appcontext.h"
 #include "iDescriptor.h"
-#include "servicemanager.h"
 #include <QApplication>
 #include <QComboBox>
 #include <QDir>
@@ -47,33 +46,16 @@ AppInstallDialog::AppInstallDialog(const QString &appName,
     QVBoxLayout *layout = qobject_cast<QVBoxLayout *>(this->layout());
     // App info section
     QHBoxLayout *appInfoLayout = new QHBoxLayout();
-    QLabel *iconLabel = new QLabel();
+    IDLoadingIconLabel *iconLabel = new IDLoadingIconLabel();
+    QPointer<IDLoadingIconLabel> safeIconLabel = iconLabel;
+
     ::fetchAppIconFromApple(
         m_manager, bundleId,
-        [iconLabel](const QPixmap &pixmap, const QJsonObject &appInfo) {
-            if (!pixmap.isNull()) {
-                QPixmap scaled =
-                    pixmap.scaled(64, 64, Qt::KeepAspectRatioByExpanding,
-                                  Qt::SmoothTransformation);
-                QPixmap rounded(64, 64);
-                rounded.fill(Qt::transparent);
-
-                QPainter painter(&rounded);
-                painter.setRenderHint(QPainter::Antialiasing);
-                QPainterPath path;
-                path.addRoundedRect(QRectF(0, 0, 64, 64), 16, 16);
-                painter.setClipPath(path);
-                painter.drawPixmap(0, 0, scaled);
-                painter.end();
-
-                iconLabel->setPixmap(rounded);
+        [safeIconLabel](const QPixmap &pixmap, const QJsonObject &appInfo) {
+            if (safeIconLabel) {
+                safeIconLabel->setLoadedPixmap(pixmap);
             }
         });
-    QPixmap icon = QApplication::style()
-                       ->standardIcon(QStyle::SP_ComputerIcon)
-                       .pixmap(64, 64);
-    iconLabel->setPixmap(icon);
-    iconLabel->setFixedSize(64, 64);
     appInfoLayout->addWidget(iconLabel);
 
     QVBoxLayout *detailsLayout = new QVBoxLayout();
@@ -140,9 +122,9 @@ void AppInstallDialog::updateDeviceList()
         for (const auto &device : devices) {
             QString deviceName =
                 QString::fromStdString(device->deviceInfo.productType);
-            QString deviceId = QString::fromStdString(device->udid);
-            m_deviceCombo->addItem(
-                deviceName + " / " + deviceId.left(8) + "...", deviceId);
+            m_deviceCombo->addItem(deviceName + " / " + device->udid.left(8) +
+                                       "...",
+                                   device->udid);
         }
         m_actionButton->setDefault(true);
         m_actionButton->setEnabled(true);
@@ -157,55 +139,56 @@ void AppInstallDialog::performInstallation(const QString &ipaPath,
     m_statusLabel->setText("Installing app...");
 
     // Setup install watcher
-    m_installWatcher = new QFutureWatcher<IdeviceFfiError *>(this);
-    connect(
-        m_installWatcher, &QFutureWatcher<IdeviceFfiError *>::finished, this,
-        [this]() {
-            IdeviceFfiError *result = m_installWatcher->result();
-            m_installWatcher->deleteLater();
-            m_installWatcher = nullptr;
+    // m_installWatcher = new QFutureWatcher<IdeviceFfiError *>(this);
+    // connect(
+    //     m_installWatcher, &QFutureWatcher<IdeviceFfiError *>::finished, this,
+    //     [this]() {
+    //         IdeviceFfiError *result = m_installWatcher->result();
+    //         m_installWatcher->deleteLater();
+    //         m_installWatcher = nullptr;
 
-            if (result == nullptr) {
-                m_statusLabel->setText("Installation completed successfully!");
-                m_statusLabel->setStyleSheet(
-                    "font-size: 14px; color: #34C759; padding: 5px;");
-                QMessageBox::information(this, "Success",
-                                         "App installed successfully!");
-                accept();
-            } else {
-                m_statusLabel->setText("Installation failed");
-                m_statusLabel->setStyleSheet(
-                    "font-size: 14px; color: #FF3B30; padding: 5px;");
-                QMessageBox::critical(
-                    this, "Error",
-                    QString(
-                        "Installation failed with message %1 and error code %2")
-                        .arg(QString::fromUtf8(result->message))
-                        .arg(result->code));
-                idevice_error_free(result);
-                reject();
-            }
-        });
+    //         if (result == nullptr) {
+    //             m_statusLabel->setText("Installation completed
+    //             successfully!"); m_statusLabel->setStyleSheet(
+    //                 "font-size: 14px; color: #34C759; padding: 5px;");
+    //             QMessageBox::information(this, "Success",
+    //                                      "App installed successfully!");
+    //             accept();
+    //         } else {
+    //             m_statusLabel->setText("Installation failed");
+    //             m_statusLabel->setStyleSheet(
+    //                 "font-size: 14px; color: #FF3B30; padding: 5px;");
+    //             QMessageBox::critical(
+    //                 this, "Error",
+    //                 QString(
+    //                     "Installation failed with message %1 and error code
+    //                     %2") .arg(QString::fromUtf8(result->message))
+    //                     .arg(result->code));
+    //             idevice_error_free(result);
+    //             reject();
+    //         }
+    //     });
 
     // Run installation in background thread
-    QFuture<IdeviceFfiError *> future = QtConcurrent::run(
-        [ipaPath, ipaName, deviceUdid]() -> IdeviceFfiError * {
-            iDescriptorDevice *device = AppContext::sharedInstance()->getDevice(
-                deviceUdid.toStdString());
-            if (!device) {
-                return nullptr;
-            }
+    // QFuture<IdeviceFfiError *> future = QtConcurrent::run(
+    //     [ipaPath, ipaName, deviceUdid]() -> IdeviceFfiError * {
+    //         iDescriptorDevice *device =
+    //         AppContext::sharedInstance()->getDevice(
+    //             deviceUdid.toStdString());
+    //         if (!device) {
+    //             return nullptr;
+    //         }
 
-            IdeviceFfiError *err = ServiceManager::install_IPA(
-                device, ipaPath.toStdString().c_str(),
-                ipaName.toStdString().c_str());
-            if (err != nullptr) {
-                return err;
-            }
-            return nullptr;
-        });
+    //         // IdeviceFfiError *err = ServiceManager::install_IPA(
+    //         //     device, ipaPath.toStdString().c_str(),
+    //         //     ipaName.toStdString().c_str());
+    //         // if (err != nullptr) {
+    //         //     return err;
+    //         // }
+    //         return nullptr;
+    //     });
 
-    m_installWatcher->setFuture(future);
+    // m_installWatcher->setFuture(future);
 }
 void AppInstallDialog::onInstallClicked()
 {
@@ -285,16 +268,16 @@ void AppInstallDialog::onInstallClicked()
 void AppInstallDialog::reject()
 {
     // Cancel installation if it's running
-    if (m_installWatcher && !m_installWatcher->isFinished()) {
-        m_installWatcher->cancel();
-        m_installWatcher->deleteLater();
-        m_installWatcher = nullptr;
-        if (m_statusLabel) {
-            m_statusLabel->setText("Installation cancelled");
-            m_statusLabel->setStyleSheet(
-                "font-size: 14px; color: #FF3B30; padding: 5px;");
-        }
-    }
+    // if (m_installWatcher && !m_installWatcher->isFinished()) {
+    //     m_installWatcher->cancel();
+    //     m_installWatcher->deleteLater();
+    //     m_installWatcher = nullptr;
+    //     if (m_statusLabel) {
+    //         m_statusLabel->setText("Installation cancelled");
+    //         m_statusLabel->setStyleSheet(
+    //             "font-size: 14px; color: #FF3B30; padding: 5px;");
+    //     }
+    // }
 
     AppDownloadBaseDialog::reject();
 }

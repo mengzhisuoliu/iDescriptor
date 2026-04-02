@@ -48,7 +48,7 @@ private:
     QComboBox *m_deviceCombo;
     QString m_bundleId;
     QLabel *m_statusLabel;
-    QFutureWatcher<IdeviceFfiError *> *m_installWatcher;
+    QFutureWatcher<void> *m_installWatcher;
     QTemporaryDir *m_tempDir = nullptr;
     void updateDeviceList();
     void performInstallation(const QString &ipaPath, const QString &ipaName,

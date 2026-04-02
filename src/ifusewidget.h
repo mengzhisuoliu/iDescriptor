@@ -42,7 +42,8 @@ class iFuseWidget : public Tool
     Q_OBJECT
 
 public:
-    explicit iFuseWidget(iDescriptorDevice *device, QWidget *parent = nullptr);
+    explicit iFuseWidget(const std::shared_ptr<iDescriptorDevice> device,
+                         QWidget *parent = nullptr);
 
 private slots:
     void onFolderPickerClicked();
@@ -69,7 +70,7 @@ private:
     QPushButton *m_folderPickerButton;
     QLabel *m_folderNameLabel;
     QPushButton *m_mountButton;
-    iDescriptorDevice *m_device;
+    std::shared_ptr<iDescriptorDevice> m_device;
 
     // Data
     QString m_selectedPath;

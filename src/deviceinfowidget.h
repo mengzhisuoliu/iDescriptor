@@ -23,7 +23,6 @@
 #include "deviceimagewidget.h"
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
-#include "servicemanager.h"
 #include <QApplication>
 #include <QDebug>
 #include <QGridLayout>
@@ -47,17 +46,16 @@ class DeviceInfoWidget : public QWidget
 {
     Q_OBJECT
 public:
-    explicit DeviceInfoWidget(const iDescriptorDevice *device,
+    explicit DeviceInfoWidget(const std::shared_ptr<iDescriptorDevice> device,
                               QWidget *parent = nullptr);
-    ~DeviceInfoWidget(); // added destructor
+    ~DeviceInfoWidget();
 
 private slots:
     void onBatteryMoreClicked();
 
 private:
-    const iDescriptorDevice *m_device;
-    QTimer *m_updateTimer;
-    void updateBatteryInfo();
+    const std::shared_ptr<iDescriptorDevice> m_device;
+    void updateBatteryInfo(const QString &diagnostics);
     void updateChargingStatusIcon();
     QLabel *m_chargingStatusLabel;
     QLabel *m_chargingWattsWithCableTypeLabel;

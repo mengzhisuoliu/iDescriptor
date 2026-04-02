@@ -1,6 +1,5 @@
 #include "statusballoon.h"
-#include "exportmanager.h"
-#include "exportmanagerthread.h"
+#include "appcontext.h"
 #include "iDescriptor.h"
 #include "qballoontip.h"
 #include <QApplication>
@@ -147,7 +146,7 @@ void BalloonProcess::onCancelClicked()
 {
     m_cancelButton->setEnabled(false);
     m_cancelButton->setText("Cancelling...");
-    ExportManager::sharedInstance()->cancel(m_item->jobId);
+    // ExportManager::sharedInstance()->cancel(m_item->jobId);
 }
 
 void BalloonProcess::updateUI()
@@ -186,7 +185,8 @@ void BalloonProcess::updateUI()
                 m_item->transferredBytes - m_lastBytesTransferred;
             qint64 bytesPerSecond = (bytesDiff * 1000) / elapsed;
             if (bytesPerSecond > 0) {
-                statsText += " • " + formatTransferRate(bytesPerSecond);
+                statsText += " • " + iDescriptor::Utils::formatTransferRate(
+                                         bytesPerSecond);
             }
             m_lastBytesTransferred = m_item->transferredBytes;
             m_lastUpdateTime = now;
@@ -308,19 +308,21 @@ StatusBalloon::StatusBalloon(QWidget *parent) : QBalloonTip(parent)
 
 void StatusBalloon::connectExportThreadSignals()
 {
-    ExportManager *exportManager = ExportManager::sharedInstance();
+    auto *ioManager = AppContext::sharedInstance()->ioManager;
 
-    connect(exportManager->m_exportThread, &ExportManagerThread::exportFinished,
-            this, &StatusBalloon::onExportFinished); //?
+    connect(ioManager, &CXX::IOManager::export_job_finished, this,
+            &StatusBalloon::onExportJobFinished);
 
-    connect(exportManager->m_exportThread, &ExportManagerThread::itemExported,
-            this, &StatusBalloon::onItemExported);
+    connect(ioManager, &CXX::IOManager::export_item_finished, this,
+            &StatusBalloon::onItemExported);
 
-    connect(exportManager->m_exportThread, &ExportManagerThread::itemImported,
-            this, &StatusBalloon::onItemImported);
+    connect(ioManager, &CXX::IOManager::import_job_finished, this,
+            &StatusBalloon::onImportJobFinished);
 
-    connect(exportManager->m_exportThread,
-            &ExportManagerThread::fileTransferProgress, this,
+    connect(ioManager, &CXX::IOManager::import_item_finished, this,
+            &StatusBalloon::onItemImported);
+
+    connect(ioManager, &CXX::IOManager::file_transfer_progress, this,
             &StatusBalloon::onFileTransferProgress);
     // QTimer::singleShot(3000, this, [this]() {
     //     // test
@@ -346,15 +348,19 @@ void StatusBalloon::onFileTransferProgress(const QUuid &processId,
     handleJobUpdate(item);
 }
 
-void StatusBalloon::onExportFinished(const QUuid &processId,
-                                     const ExportJobSummary &summary)
+void StatusBalloon::onExportJobFinished(const QUuid &job_id, bool cancelled,
+                                        qint64 successful_items,
+                                        qint64 failed_items, qint64 total_bytes)
 {
     QMutexLocker locker(&m_processesMutex);
-    if (!m_processes.contains(processId))
+    if (!m_processes.contains(job_id)) {
+        qDebug() << "Received export job finished signal for unknown job_id:"
+                 << job_id;
         return;
+    }
 
-    auto item = m_processes[processId];
-    if (summary.wasCancelled) {
+    auto item = m_processes[job_id];
+    if (cancelled) {
         item->status = ProcessStatus::Cancelled;
     } else {
         if (item->failedItems > 0) {
@@ -369,15 +375,21 @@ void StatusBalloon::onExportFinished(const QUuid &processId,
     updateHeader();
 }
 
-void StatusBalloon::onItemExported(const QUuid &processId,
-                                   const ExportResult &result)
+void StatusBalloon::onItemExported(const QUuid &job_id,
+                                   const QString &file_name,
+                                   const QString &destination_path,
+                                   bool success, int bytes_transferred,
+                                   const QString &error_message)
 {
     QMutexLocker locker(&m_processesMutex);
-    if (!m_processes.contains(processId))
+    if (!m_processes.contains(job_id)) {
+        qDebug() << "Received export item finished signal for unknown job_id:"
+                 << job_id;
         return;
+    }
 
-    auto item = m_processes[processId];
-    if (result.success)
+    auto item = m_processes[job_id];
+    if (success)
         item->completedItems++;
     else
         item->failedItems++;
@@ -386,15 +398,45 @@ void StatusBalloon::onItemExported(const QUuid &processId,
     updateHeader();
 }
 
-void StatusBalloon::onItemImported(const QUuid &processId,
-                                   const ImportResult &result)
+void StatusBalloon::onImportJobFinished(const QUuid &job_id, bool cancelled,
+                                        qint64 successful_items,
+                                        qint64 failed_items, qint64 total_bytes)
 {
     QMutexLocker locker(&m_processesMutex);
-    if (!m_processes.contains(processId))
+    if (!m_processes.contains(job_id)) {
+        qDebug() << "Received import job finished signal for unknown job_id:"
+                 << job_id;
+        return;
+    }
+
+    auto item = m_processes[job_id];
+    if (cancelled) {
+        item->status = ProcessStatus::Cancelled;
+    } else {
+        if (item->failedItems > 0) {
+            item->status = ProcessStatus::Failed;
+        } else {
+            item->status = ProcessStatus::Completed;
+        }
+    }
+    item->endTime = QDateTime::currentDateTime();
+
+    handleJobUpdate(item);
+    updateHeader();
+}
+
+void StatusBalloon::onItemImported(const QUuid &job_id,
+                                   const QString &file_name,
+                                   const QString &destination_path,
+                                   bool success, int bytes_transferred,
+                                   const QString &error_message)
+{
+    QMutexLocker locker(&m_processesMutex);
+    if (!m_processes.contains(job_id))
         return;
 
-    auto item = m_processes[processId];
-    if (result.success)
+    auto item = m_processes[job_id];
+    if (success)
         item->completedItems++;
     else
         item->failedItems++;
@@ -417,11 +459,10 @@ QUuid StatusBalloon::startProcess(const QString &title, int totalItems,
     item->totalItems = totalItems;
     item->startTime = QDateTime::currentDateTime();
     item->destinationPath = destinationPath;
-    item->jobId = jobId;
 
     {
         QMutexLocker locker(&m_processesMutex);
-        m_processes[item->processId] = item;
+        m_processes[jobId] = item;
     }
 
     createProcessWidget(item);

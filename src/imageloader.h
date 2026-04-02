@@ -13,6 +13,8 @@
 
 class ImageTask;
 
+typedef struct AfcClient *AfcClientHandle;
+
 class ImageLoader : public QObject
 {
     Q_OBJECT
@@ -23,27 +25,31 @@ public:
         static ImageLoader instance;
         return instance;
     }
-    void requestThumbnail(const iDescriptorDevice *device, const QString &path,
-                          unsigned int row = 0);
+    void requestThumbnail(const std::shared_ptr<iDescriptorDevice> device,
+                          const QString &path, unsigned int row = 0);
     void requestImageWithCallback(
-        const iDescriptorDevice *device, const QString &path, int priority,
-        std::function<void(const QPixmap &)> callback,
-        std::optional<AfcClientHandle *> altAfc = std::nullopt);
+        const std::shared_ptr<iDescriptorDevice> device, const QString &path,
+        int priority, std::function<void(const QPixmap &)> callback,
+        std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest =
+            std::nullopt);
     void cancelThumbnail(const QString &path);
     bool isLoading(const QString &path);
     void clear();
     QCache<QString, QPixmap> m_cache;
     static QPixmap loadThumbnailFromDevice(
-        const iDescriptorDevice *device, const QString &filePath,
-        const QSize &size,
-        std::optional<AfcClientHandle *> altAfc = std::nullopt);
+        const std::shared_ptr<iDescriptorDevice> device,
+        const QString &filePath, const QSize &size,
+        std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest =
+            std::nullopt);
     static QPixmap generateVideoThumbnailFFmpeg(
-        const iDescriptorDevice *device, const QString &filePath,
-        const QSize &size,
-        std::optional<AfcClientHandle *> altAfc = std::nullopt);
-    static QPixmap
-    loadImage(const iDescriptorDevice *device, const QString &filePath,
-              std::optional<AfcClientHandle *> altAfc = std::nullopt);
+        const std::shared_ptr<iDescriptorDevice> device,
+        const QString &filePath, const QSize &size,
+        std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest =
+            std::nullopt);
+    static QPixmap loadImage(const std::shared_ptr<iDescriptorDevice> device,
+                             const QString &filePath,
+                             std::optional<std::shared_ptr<CXX::HauseArrest>>
+                                 hause_arrest = std::nullopt);
 signals:
     void thumbnailReady(const QString &path, const QPixmap &image,
                         unsigned int row);

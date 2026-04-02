@@ -52,8 +52,8 @@ public:
 
     enum FilterType { All, ImagesOnly, VideosOnly };
 
-    explicit PhotoModel(const iDescriptorDevice *device, FilterType filterType,
-                        QObject *parent = nullptr);
+    explicit PhotoModel(const std::shared_ptr<iDescriptorDevice> device,
+                        FilterType filterType, QObject *parent = nullptr);
     ~PhotoModel();
 
     // QAbstractItemModel interface
@@ -84,8 +84,7 @@ public:
     void clear();
 
 private:
-    // Data members
-    const iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
     QString m_albumPath;
     QList<PhotoInfo> m_allPhotos; // All photos from device
     QList<PhotoInfo> m_photos;    // Currently filtered/sorted photos

@@ -42,7 +42,7 @@ class QueryMobileGestaltWidget : public Tool
     Q_OBJECT
 
 public:
-    QueryMobileGestaltWidget(iDescriptorDevice *device,
+    QueryMobileGestaltWidget(const std::shared_ptr<iDescriptorDevice> device,
                              QWidget *parent = nullptr);
 
 private slots:
@@ -55,6 +55,7 @@ private:
     void populateKeys();
     QStringList getSelectedKeys();
     void displayResults(const QMap<QString, QVariant> &results);
+    void handleResults(const QMap<QString, QVariant> &results);
 
     // UI Components
     QVBoxLayout *mainLayout;
@@ -68,14 +69,11 @@ private:
     QPushButton *queryButton;
     QTextEdit *outputTextEdit;
     QLabel *statusLabel;
-    iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
 
     // Data
     QStringList mobileGestaltKeys;
     QList<QCheckBox *> keyCheckboxes;
-
-    // Mock query function for demonstration
-    QMap<QString, QVariant> queryMobileGestalt(const QStringList &keys);
 };
 
 #endif // QUERYMOBILEGESTALTWIDGET_H

@@ -346,7 +346,8 @@ void SettingsManager::clearKeys(const QString &keyPrefix)
     emit favoritePlacesChanged();
 }
 
-void SettingsManager::saveRecentLocation(double latitude, double longitude,
+void SettingsManager::saveRecentLocation(const QString &latitude,
+                                         const QString &longitude,
                                          const QString &name)
 {
     // Get existing recent locations

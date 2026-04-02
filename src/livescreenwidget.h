@@ -22,77 +22,30 @@
 
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
-#include "servicemanager.h"
 #include <QLabel>
 #include <QPushButton>
 #include <QThread>
 #include <QTimer>
 #include <QWidget>
 
-class ScreenshotrThread : public QThread
-{
-    Q_OBJECT
-public:
-    explicit ScreenshotrThread(ScreenshotrClientHandle *client,
-                               iDescriptorDevice *device,
-                               QObject *parent = nullptr)
-        : QThread(parent), m_device(device), m_client(client), m_fps(15)
-    {
-    }
-
-protected:
-    void run() override
-    {
-        qDebug() << "Started capturing";
-
-        // Thread loop to continuously fetch screenshots
-        while (!isInterruptionRequested()) {
-            ScreenshotData screenshotData;
-            IdeviceFfiError *err = ServiceManager::takeScreenshot(
-                m_device, m_client, &screenshotData);
-            if (!err && screenshotData.data && screenshotData.length > 0) {
-                QByteArray byteArray(
-                    reinterpret_cast<const char *>(screenshotData.data),
-                    static_cast<int>(screenshotData.length));
-                QImage image;
-                image.loadFromData(byteArray);
-                QPixmap pixmap = QPixmap::fromImage(image);
-                emit screenshotCaptured(pixmap);
-                screenshotr_screenshot_free(screenshotData);
-            } else {
-                qDebug() << "Failed to capture screenshot";
-            }
-            msleep(1000 / m_fps); // Capture at ~m_fps FPS
-        }
-    }
-signals:
-    void screenshotCaptured(const QPixmap &pixmap);
-
-private:
-    ScreenshotrClientHandle *m_client;
-    int m_fps;
-    iDescriptorDevice *m_device;
-};
-
 class LiveScreenWidget : public Tool
 {
     Q_OBJECT
 public:
-    explicit LiveScreenWidget(iDescriptorDevice *device,
+    explicit LiveScreenWidget(const std::shared_ptr<iDescriptorDevice> device,
                               QWidget *parent = nullptr);
     ~LiveScreenWidget();
 
 private:
-    bool initializeScreenshotService(bool notify);
     void updateScreenshot();
     void startCapturing();
     void applyTransformAndDisplay();
+    void handleFailedInitialization();
 
-    iDescriptorDevice *m_device;
+    std::shared_ptr<iDescriptorDevice> m_device;
     QLabel *m_imageLabel;
     QLabel *m_statusLabel;
-    ScreenshotrClientHandle *m_screenshotrClient = nullptr;
-    ScreenshotrThread *m_thread = nullptr;
+    CXX::ScreenshotBackend *m_client;
 
     // controls for rotation / mirroring
     QWidget *m_controlsWidget = nullptr;

@@ -50,10 +50,10 @@ private:
     QPushButton *m_dirButton;
     ZLabel *m_dirLabel;
     QString m_bundleId;
-    // FIXME: remove this if not needed
     QLabel *m_bgLabel;
-    QLabel *m_appIcon;
+    IDLoadingIconLabel *m_appIcon;
     ZLoadingWidget *m_loadingWidget;
+    ZDirPickerLabel *m_dirPickerLabel;
 };
 
 #endif // APPDOWNLOADDIALOG_H

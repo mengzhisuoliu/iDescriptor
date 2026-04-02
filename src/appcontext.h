@@ -21,7 +21,6 @@
 #define APPCONTEXT_H
 
 #include "devicesidebarwidget.h"
-#include "heartbeat.h"
 #include "iDescriptor.h"
 #include "mainwindow.h"
 #include "settingsmanager.h"
@@ -38,13 +37,14 @@ class AppContext : public QObject
     Q_OBJECT
 public:
     static AppContext *sharedInstance();
-    iDescriptorDevice *getDevice(const std::string &udid);
-    QList<iDescriptorDevice *> getAllDevices();
+    std::shared_ptr<iDescriptorDevice> getDevice(const QString &udid);
+    QList<std::shared_ptr<iDescriptorDevice>> getAllDevices();
     explicit AppContext(QObject *parent = nullptr);
     bool noDevicesConnected() const;
     void cachePairingFile(const QString &udid, const QString &pairingFilePath);
     const QString getCachedPairingFile(const QString &udid) const;
-
+    CXX::Core *core = new CXX::Core(this);
+    CXX::IOManager *ioManager = new CXX::IOManager(this);
     void tryToConnectToNetworkDevice(const NetworkDevice &device);
 #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
     QList<iDescriptorRecoveryDevice *> getAllRecoveryDevices();
@@ -57,29 +57,28 @@ public:
     const DeviceSelection &getCurrentDeviceSelection() const;
     const iDescriptorDevice *
     getDeviceByMacAddress(const QString &macAddress) const;
+    void emitNoPairingFileForWirelessDevice(const QString &udid);
+    void emitInitStarted(const QString &macAddress);
 
 private:
-    QMap<std::string, iDescriptorDevice *> m_devices;
+    QMap<QString, std::shared_ptr<iDescriptorDevice>> m_devices;
 #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
     QMap<uint64_t, iDescriptorRecoveryDevice *> m_recoveryDevices;
 #endif
     QStringList m_pendingDevices;
     DeviceSelection m_currentSelection = DeviceSelection("");
-    QMap<QString, QString> m_pairingFileCache;
+    QMap<QString, QVariant> m_pairingFileCache;
     void cachePairedDevices();
-    void emitNoPairingFileForWirelessDevice(const QString &udid);
-    void freeDevice(iDescriptorDevice *device);
     void handlePairing(iDescriptor::Uniq uniq, bool timeout);
-    // void handlePairing(iDescriptorInitDeviceResult *initResult, AddType
-    // addType,
-    //                    iDescriptor::Uniq uniq);
+
 signals:
-    void deviceAdded(const iDescriptorDevice *device);
-    void deviceRemoved(const std::string &udid, const std::string &macAddress,
+    void deviceAdded(std::shared_ptr<iDescriptorDevice> device);
+    void deviceRemoved(const QString &udid, const std::string &macAddress,
                        const std::string &ipAddress, bool wasWireless);
-    void devicePaired(const iDescriptorDevice *device);
+    void devicePaired(std::shared_ptr<iDescriptorDevice> device);
     void devicePasswordProtected(const QString &udid);
     void deviceAlreadyExists(const iDescriptor::Uniq &uniq);
+    void deviceAlreadyExistsMAC(const iDescriptor::Uniq &uniq);
 #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
     void recoveryDeviceAdded(const iDescriptorRecoveryDevice *deviceInfo);
     void recoveryDeviceRemoved(uint64_t ecid);
@@ -92,8 +91,6 @@ signals:
     void initStarted(const QString &udid);
     void pairingFailed(const QString &udid);
 
-    void systemSleepStarting();
-    void systemWakeup();
     /*
         Generic change event for any device state change we
         need this because many UI elements need to update by
@@ -105,10 +102,10 @@ signals:
     void currentDeviceSelectionChanged(const DeviceSelection &selection);
     void deviceHeartbeatFailed(const QString &macAddress, int tries);
 public slots:
-    void removeDevice(iDescriptor::Uniq uniq);
+    void removeDevice(iDescriptor::Uniq uniq, bool ask_backend = false);
     void addDevice(iDescriptor::Uniq udid,
                    iDescriptor::IdeviceConnectionType connType, AddType addType,
-                   QString wifiMacAddress = QString(),
+                   QString info = QString(), QString wifiMacAddress = QString(),
                    QString ipAddress = QString());
     void heartbeatFailed(const QString &macAddress, int tries);
     // void heartbeatThreadExited(const QString &macAddress);

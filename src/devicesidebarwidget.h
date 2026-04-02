@@ -35,10 +35,9 @@ class DeviceSidebarItem : public QFrame
     Q_OBJECT
 
 public:
-    explicit DeviceSidebarItem(const QString &deviceName,
-                               const std::string &uuid, bool isWireless,
-                               QWidget *parent = nullptr);
-    const std::string &getDeviceUuid() const;
+    explicit DeviceSidebarItem(const QString &deviceName, const QString &uuid,
+                               bool isWireless, QWidget *parent = nullptr);
+    const QString &getDeviceUuid() const;
 
     void setSelected(bool selected);
     bool isSelected() const { return m_selected; }
@@ -48,8 +47,8 @@ public:
     // protected:
     //     void paintEvent(QPaintEvent *event) override;
 signals:
-    void deviceSelected(const std::string &uuid);
-    void navigationRequested(const std::string &uuid, const QString &section);
+    void deviceSelected(const QString &uuid);
+    void navigationRequested(const QString &uuid, const QString &section);
 
 private slots:
     void onToggleCollapse();
@@ -60,7 +59,7 @@ private:
     void updateToggleButton();
     void toggleCollapse();
 
-    std::string m_uuid;
+    QString m_uuid;
     QString m_deviceName;
     bool m_selected;
     bool m_collapsed;
@@ -127,30 +126,30 @@ signals:
 struct DeviceSelection {
     enum Type { Normal, Recovery, Pending };
     Type type;
-    std::string udid;
+    QString udid;
     uint64_t ecid = 0;
     QString section = "Info";
 
     bool valid() const
     {
         if (type == Normal) {
-            return !udid.empty();
+            return !udid.isEmpty();
         } else if (type == Recovery) {
             return ecid != 0;
         } else if (type == Pending) {
-            return !udid.empty();
+            return !udid.isEmpty();
         }
         return false;
     }
 
-    DeviceSelection(const std::string &deviceUdid, const QString &nav = "")
+    DeviceSelection(const QString &deviceUdid, const QString &nav = "")
         : type(Normal), udid(deviceUdid), section(nav)
     {
     }
     DeviceSelection(uint64_t recoveryEcid) : type(Recovery), ecid(recoveryEcid)
     {
     }
-    static DeviceSelection pending(const std::string &deviceUuid)
+    static DeviceSelection pending(const QString &deviceUuid)
     {
         DeviceSelection sel(deviceUuid);
         sel.type = Pending;
@@ -166,13 +165,13 @@ public:
     explicit DeviceSidebarWidget(QWidget *parent = nullptr);
 
     // Unified interface
-    DeviceSidebarItem *addDevice(const QString &deviceName,
-                                 const std::string &uuid, bool isWireless);
+    DeviceSidebarItem *addDevice(const QString &deviceName, const QString &uuid,
+                                 bool isWireless);
     DevicePendingSidebarItem *addPendingDevice(const QString &uuid);
     RecoveryDeviceSidebarItem *addRecoveryDevice(uint64_t ecid);
 
-    void removeDevice(const std::string &uuid);
-    void removePendingDevice(const std::string &uuid);
+    void removeDevice(const QString &uuid);
+    void removePendingDevice(const QString &uuid);
     void removeRecoveryDevice(uint64_t ecid);
 
     void setCurrentSelection(const DeviceSelection &selection);
@@ -190,8 +189,8 @@ private:
     QVBoxLayout *m_contentLayout;
 
     DeviceSelection m_currentSelection;
-    QMap<std::string, DeviceSidebarItem *> m_deviceItems;
-    QMap<std::string, DevicePendingSidebarItem *> m_pendingItems;
+    QMap<QString, DeviceSidebarItem *> m_deviceItems;
+    QMap<QString, DevicePendingSidebarItem *> m_pendingItems;
     QMap<uint64_t, RecoveryDeviceSidebarItem *> m_recoveryItems;
 };
 

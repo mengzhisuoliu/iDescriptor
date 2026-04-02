@@ -32,28 +32,15 @@
 #include <QTransform>
 #include <QVBoxLayout>
 
-LiveScreenWidget::LiveScreenWidget(iDescriptorDevice *device, QWidget *parent)
+LiveScreenWidget::LiveScreenWidget(
+    const std::shared_ptr<iDescriptorDevice> device, QWidget *parent)
     : Tool{parent, false}, m_device(device)
 {
     setWindowTitle("Live Screen - iDescriptor");
     setAttribute(Qt::WA_DeleteOnClose);
 
-    unsigned int deviceMajorVersion =
-        m_device->deviceInfo.parsedDeviceVersion.major;
-
-    if (deviceMajorVersion > 16) {
-        QMessageBox::warning(
-            this, "Unsupported iOS Version",
-            "Real-time Screen feature requires iOS 16 or earlier.\n"
-            "Your device is running iOS " +
-                QString::number(deviceMajorVersion) +
-                ", which is not yet supported.");
-        QTimer::singleShot(0, this, &QWidget::close);
-        return;
-    }
-
     connect(AppContext::sharedInstance(), &AppContext::deviceRemoved, this,
-            [this, device](const std::string &removed_uuid) {
+            [this, device](const QString &removed_uuid) {
                 if (device->udid == removed_uuid) {
                     this->close();
                     this->deleteLater();
@@ -66,7 +53,7 @@ LiveScreenWidget::LiveScreenWidget(iDescriptorDevice *device, QWidget *parent)
     mainLayout->setSpacing(10);
 
     // Status label
-    m_statusLabel = new QLabel("Initializing...");
+    m_statusLabel = new QLabel("Connecting to screenshot service...");
     m_statusLabel->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(m_statusLabel);
 
@@ -108,93 +95,53 @@ LiveScreenWidget::LiveScreenWidget(iDescriptorDevice *device, QWidget *parent)
         applyTransformAndDisplay();
     });
 
+    m_client =
+        new CXX::ScreenshotBackend(m_device->udid, m_device->ios_version);
+
+    connect(m_client, &CXX::ScreenshotBackend::screenshot_captured, this,
+            [this](const QByteArray bytes) {
+                m_lastPixmap = QPixmap::fromImage(QImage::fromData(bytes));
+                applyTransformAndDisplay();
+            });
+
     QTimer::singleShot(0, this, &LiveScreenWidget::startInitialization);
 }
 
 void LiveScreenWidget::startInitialization()
 {
-    const bool initializeScreenshotServiceSuccess =
-        initializeScreenshotService(false);
-    if (initializeScreenshotServiceSuccess)
-        return;
 
-    // Start the initialization process - auto-mount mode
-    auto *helper = new DevDiskImageHelper(m_device, this);
+    m_client->start_capture();
 
-    connect(helper, &DevDiskImageHelper::mountingCompleted, this,
-            [this, helper](bool success) {
-                if (success) {
-                    // for some reason it does not work immediately, so delay a
-                    // bit
-                    QTimer::singleShot(1000, this, [this]() {
-                        initializeScreenshotService(true);
-                    });
-                } else {
-                    m_statusLabel->setText(
-                        "Failed to mount developer disk image");
-                }
-            });
-
-    helper->start();
+    m_statusLabel->setText("Capturing");
+    m_controlsWidget->setVisible(true);
 }
 
-LiveScreenWidget::~LiveScreenWidget()
+void LiveScreenWidget::handleFailedInitialization()
 {
-    if (m_thread) {
-        m_thread->requestInterruption();
-        m_thread->wait();
-        m_thread->deleteLater();
-        m_thread = nullptr;
-    }
-    if (m_screenshotrClient) {
-        screenshotr_client_free(m_screenshotrClient);
-        m_screenshotrClient = nullptr;
+    bool dvt = m_device->ios_version >= 17;
+    if (!dvt) {
+        // Start the initialization process - auto-mount mode
+        auto *helper = new DevDiskImageHelper(m_device, this);
+
+        connect(helper, &DevDiskImageHelper::mountingCompleted, this,
+                [this, helper](bool success) {
+                    if (success) {
+                        QTimer::singleShot(
+                            400, this, &LiveScreenWidget::startInitialization);
+                    } else {
+                        m_statusLabel->setText(
+                            "Failed to mount developer disk image");
+                    }
+                });
+
+        helper->start();
+
+    } else {
+        // TODO: need a widget here to show how to enable DEV mode on device
     }
 }
 
-bool LiveScreenWidget::initializeScreenshotService(bool notify)
-{
-    try {
-        m_statusLabel->setText("Connecting to screenshot service...");
-        IdeviceFfiError *err =
-            screenshotr_connect(m_device->provider, &m_screenshotrClient);
-        if (err) {
-            qDebug() << "Failed to create Screenshotr client";
-            return false; // proceed to mount image
-        }
-        // Successfully initialized, start capturing
-        m_statusLabel->setText("Capturing");
-        if (m_controlsWidget)
-            m_controlsWidget->setVisible(true); // show rotation/mirror buttons
-        startCapturing();
-        return true;
-    } catch (const std::exception &e) {
-        m_statusLabel->setText("Exception occurred");
-        if (notify)
-            QMessageBox::critical(
-                this, "Exception",
-                QString("Exception occurred: %1").arg(e.what()));
-        return false;
-    }
-}
-
-void LiveScreenWidget::startCapturing()
-{
-    if (!m_screenshotrClient) {
-        qWarning()
-            << "Cannot start capturing: screenshot client not initialized";
-        return;
-    }
-
-    m_thread = new ScreenshotrThread(m_screenshotrClient, m_device, this);
-    connect(m_thread, &ScreenshotrThread::screenshotCaptured, this,
-            [this](const QPixmap &pixmap) {
-                // store raw pixmap and render with current rotation/mirror
-                m_lastPixmap = pixmap;
-                applyTransformAndDisplay();
-            });
-    m_thread->start();
-}
+LiveScreenWidget::~LiveScreenWidget() { delete m_client; }
 
 void LiveScreenWidget::applyTransformAndDisplay()
 {

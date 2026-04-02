@@ -45,8 +45,8 @@ public:
     ~SSHTerminalTool();
 private slots:
     void onOpenSSHTerminal();
-    void On_iDeviceAdded(const iDescriptorDevice *device);
-    void On_iDeviceRemoved(const std::string &udid);
+    void On_iDeviceAdded(const std::shared_ptr<iDescriptorDevice> device);
+    void On_iDeviceRemoved(const QString &udid);
     void onWirelessDeviceAdded(const NetworkDevice &device);
     void onWirelessDeviceRemoved(const QString &deviceName);
     void onDeviceSelected(QAbstractButton *button);
@@ -56,7 +56,7 @@ private:
     void setupDeviceSelectionUI(QVBoxLayout *layout);
     void updateDeviceList();
     void clearDeviceButtons();
-    void addDevice(const iDescriptorDevice *device);
+    void addDevice(const std::shared_ptr<iDescriptorDevice> device);
     void addWirelessDevice(const NetworkDevice &device);
     void resetSelection();
 

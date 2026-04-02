@@ -22,6 +22,7 @@
 
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
+#include "zloadingwidget.h"
 #include <QAction>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -45,9 +46,10 @@ class AfcExplorerWidget : public QWidget
 {
     Q_OBJECT
 public:
-    explicit AfcExplorerWidget(const iDescriptorDevice *device = nullptr,
+    explicit AfcExplorerWidget(const std::shared_ptr<iDescriptorDevice> device,
                                bool favEnabled = false,
-                               AfcClientHandle *afcClient = nullptr,
+                               std::optional<std::shared_ptr<CXX::HauseArrest>>
+                                   hause_arrest = std::nullopt,
                                QString root = "/", QWidget *parent = nullptr);
     void navigateToPath(const QString &path);
     void goHome();
@@ -87,11 +89,12 @@ private:
     ZIconWidget *m_upButton;
     ZIconWidget *m_enterButton;
     ZIconWidget *m_deleteButton;
-    const iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
     bool m_favEnabled;
-    AfcClientHandle *m_afc;
+    std::optional<std::shared_ptr<CXX::HauseArrest>> m_hauseArrest;
     QString m_errorMessage;
     QString m_root;
+    ZLoadingWidget *m_loadingWidget;
 
     // Export system
     ExportManager *m_exportManager;
@@ -112,6 +115,10 @@ private:
                                    const QString &directory);
     void updateButtonStates();
     void goUp();
+
+    void onLoadPathFinished(bool success,
+                            const QMap<QString, QVariant> &entries);
+
 #ifndef WIN32
     void updateNavStyles();
 

@@ -24,8 +24,8 @@
 #include "mediapreviewdialog.h"
 #include "settingsmanager.h"
 
-FileExplorerWidget::FileExplorerWidget(const iDescriptorDevice *device,
-                                       QWidget *parent)
+FileExplorerWidget::FileExplorerWidget(
+    const std::shared_ptr<iDescriptorDevice> device, QWidget *parent)
     : QWidget(parent), m_device(device)
 {
     QVBoxLayout *rootLayout = new QVBoxLayout(this);
@@ -35,9 +35,11 @@ FileExplorerWidget::FileExplorerWidget(const iDescriptorDevice *device,
     rootLayout->addWidget(m_loadingWidget);
 }
 
-void FileExplorerWidget::init() {
+void FileExplorerWidget::init()
+{
     if (m_loaded) {
-        qDebug() << "[FileExplorerWidget]: Already initialized, skipping init()";
+        qDebug()
+            << "[FileExplorerWidget]: Already initialized, skipping init()";
         return;
     }
     m_loaded = true;
@@ -58,18 +60,20 @@ void FileExplorerWidget::init() {
 
     // Add normal AFC explorer (index 0)
     AfcExplorerWidget *afcExplorer =
-        new AfcExplorerWidget(m_device, true, m_device->afcClient, "/", this);
+        new AfcExplorerWidget(m_device, true, std::nullopt, "/", this);
     connect(afcExplorer, &AfcExplorerWidget::favoritePlaceAdded, this,
             &FileExplorerWidget::saveFavoritePlace);
 
     m_stackedWidget->addWidget(afcExplorer);
 
-    // Add AFC2 explorer (index 1)
-    AfcExplorerWidget *afc2Explorer =
-        new AfcExplorerWidget(m_device, true, m_device->afc2Client, "/", this);
-    connect(afc2Explorer, &AfcExplorerWidget::favoritePlaceAdded, this,
-            &FileExplorerWidget::saveFavoritePlaceAfc2);
-    m_stackedWidget->addWidget(afc2Explorer);
+    // FIXME: AFC2
+    // // Add AFC2 explorer (index 1)
+    // AfcExplorerWidget *afc2Explorer =
+    //     new AfcExplorerWidget(m_device, true, m_device->afc2Client, "/",
+    //     this);
+    // connect(afc2Explorer, &AfcExplorerWidget::favoritePlaceAdded, this,
+    //         &FileExplorerWidget::saveFavoritePlaceAfc2);
+    // m_stackedWidget->addWidget(afc2Explorer);
 
     // Start with normal AFC client
     m_stackedWidget->setCurrentIndex(0);

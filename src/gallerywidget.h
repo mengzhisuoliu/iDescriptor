@@ -48,7 +48,7 @@ class GalleryWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit GalleryWidget(const iDescriptorDevice *device,
+    explicit GalleryWidget(const std::shared_ptr<iDescriptorDevice> device,
                            QWidget *parent = nullptr);
     void load();
     ~GalleryWidget();
@@ -66,7 +66,7 @@ private:
     void setupControlsLayout();
     void setupAlbumSelectionView();
     void setupPhotoGalleryView();
-    void loadAlbumList(const AFCFileTree &dcimTree);
+    void onAlbumListLoaded(const QList<QString> &dcimTree);
     void setControlsEnabled(bool enabled);
     QString selectExportDirectory();
     QIcon loadAlbumThumbnail(const QString &albumPath);
@@ -74,8 +74,9 @@ private:
     void onPhotoContextMenu(const QPoint &pos);
     PhotoModel::FilterType getCurrentFilterType() const;
     void handleImport();
+    void onError();
 
-    const iDescriptorDevice *m_device;
+    const std::shared_ptr<iDescriptorDevice> m_device;
     bool m_loaded = false;
     QString m_currentAlbumPath;
 
@@ -86,13 +87,13 @@ private:
     QPushButton *m_retryButton;
     QPushButton *m_importButton;
     // Album selection view
-    QWidget *m_albumSelectionWidget;
-    QListView *m_albumListView;
+    QWidget *m_albumSelectionWidget = nullptr;
+    QListView *m_albumListView = nullptr;
 
     // Photo gallery view
-    QWidget *m_photoGalleryWidget;
-    QListView *m_listView;
-    PhotoModel *m_model;
+    QWidget *m_photoGalleryWidget = nullptr;
+    QListView *m_listView = nullptr;
+    PhotoModel *m_model = nullptr;
     QStandardItemModel *m_albumModel;
 
     // Control widgets
@@ -100,7 +101,7 @@ private:
     QComboBox *m_filterComboBox;
     QPushButton *m_exportSelectedButton;
     QPushButton *m_exportAllButton;
-    ZIconWidget *m_backButton;
+    ZIconWidget *m_backButton = nullptr;
 
     // Export manager
     ExportManager *m_exportManager;

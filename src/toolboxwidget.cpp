@@ -294,7 +294,7 @@ void ToolboxWidget::updateDeviceList()
     m_deviceCombo->blockSignals(true);
     m_deviceCombo->clear();
 
-    QList<iDescriptorDevice *> devices =
+    QList<std::shared_ptr<iDescriptorDevice>> devices =
         AppContext::sharedInstance()->getAllDevices();
 
     if (devices.isEmpty()) {
@@ -303,14 +303,13 @@ void ToolboxWidget::updateDeviceList()
         m_uuid.clear();
     } else {
         m_deviceCombo->setEnabled(true);
-        for (iDescriptorDevice *device : devices) {
-            QString shortUdid =
-                QString::fromStdString(device->udid).left(8) + "...";
+        for (const std::shared_ptr<iDescriptorDevice> device : devices) {
+            QString shortUdid = device->udid.left(8) + "...";
             m_deviceCombo->addItem(
                 QString::fromStdString(device->deviceInfo.productType) + " / " +
                     shortUdid +
                     (device->deviceInfo.isWireless ? " (Wi-Fi)" : ""),
-                QString::fromStdString(device->udid));
+                device->udid);
         }
     }
 
@@ -322,7 +321,7 @@ void ToolboxWidget::updateDeviceList()
     if (m_deviceCombo->count() > 0 && m_deviceCombo->currentIndex() >= 0) {
         QString currentUdid = m_deviceCombo->currentData().toString();
         if (!currentUdid.isEmpty()) {
-            m_uuid = currentUdid.toStdString();
+            m_uuid = currentUdid;
             qDebug() << "[toolboxwidget] Initialized m_uuid to:" << currentUdid;
         }
     }
@@ -387,8 +386,7 @@ void ToolboxWidget::onDeviceSelectionChanged()
         return;
     }
 
-    if (AppContext::sharedInstance()->getDevice(selectedUdid.toStdString()) ==
-        nullptr) {
+    if (AppContext::sharedInstance()->getDevice(selectedUdid) == nullptr) {
         QMessageBox::warning(this, "Device Not Found",
                              "The selected device is no longer connected.");
         m_uuid.clear(); // Clear stale UUID
@@ -396,18 +394,17 @@ void ToolboxWidget::onDeviceSelectionChanged()
         return;
     }
 
-    m_uuid = selectedUdid.toStdString();
+    m_uuid = selectedUdid;
     qDebug() << "[toolboxwidget] Selected device UDID:" << selectedUdid;
     // Update the selected device in main menu
     AppContext::sharedInstance()->setCurrentDeviceSelection(
-        DeviceSelection(selectedUdid.toStdString()));
+        DeviceSelection(selectedUdid));
 }
 
 void ToolboxWidget::onCurrentDeviceChanged(const DeviceSelection &selection)
 {
     if (selection.valid() && selection.type == DeviceSelection::Normal) {
-        int index =
-            m_deviceCombo->findData(QString::fromStdString(selection.udid));
+        int index = m_deviceCombo->findData(selection.udid);
         if (index != -1) {
             // Block signals to prevent recursive calls when we update the UI
             m_deviceCombo->blockSignals(true);
@@ -425,7 +422,7 @@ void ToolboxWidget::onCurrentDeviceChanged(const DeviceSelection &selection)
 void ToolboxWidget::onToolboxClicked(iDescriptorTool tool, bool requiresDevice)
 {
     // final check to make sure device is connected if required
-    iDescriptorDevice *device = AppContext::sharedInstance()->getDevice(m_uuid);
+    auto device = AppContext::sharedInstance()->getDevice(m_uuid);
     if (!device && requiresDevice) {
         QMessageBox::warning(
             this, "Device Disconnected ?",
@@ -433,7 +430,7 @@ void ToolboxWidget::onToolboxClicked(iDescriptorTool tool, bool requiresDevice)
         return;
     }
 
-    qDebug() << "idevice exists:" << (device != nullptr) << m_uuid.c_str();
+    qDebug() << "idevice exists:" << (device != nullptr) << m_uuid;
     switch (tool) {
     case iDescriptorTool::Airplayer: {
         if (!m_airplayWidget) {
@@ -495,7 +492,8 @@ void ToolboxWidget::onToolboxClicked(iDescriptorTool tool, bool requiresDevice)
     } break;
     case iDescriptorTool::DeveloperDiskImages: {
         if (!m_devDiskImagesWidget) {
-            m_devDiskImagesWidget = new DevDiskImagesWidget(device);
+            m_devDiskImagesWidget =
+                new DevDiskImagesWidget(device ? device->udid : QString());
             m_devDiskImagesWidget->setAttribute(Qt::WA_DeleteOnClose);
             connect(m_devDiskImagesWidget, &QObject::destroyed, this,
                     [this]() { m_devDiskImagesWidget = nullptr; });
@@ -557,7 +555,8 @@ void ToolboxWidget::onToolboxClicked(iDescriptorTool tool, bool requiresDevice)
     }
 }
 
-void ToolboxWidget::restartDevice(const iDescriptorDevice *device)
+void ToolboxWidget::restartDevice(
+    const std::shared_ptr<iDescriptorDevice> device)
 {
     QMessageBox msgBox;
     msgBox.setWindowTitle("Restart Device");
@@ -567,82 +566,84 @@ void ToolboxWidget::restartDevice(const iDescriptorDevice *device)
     int ret = msgBox.exec();
     if (ret != QMessageBox::Yes)
         return;
-    if (!device || device->udid.empty()) {
+    if (!device || device->udid.isEmpty()) {
         return;
     }
 
-    // FIXME: move to servicemanager
-    auto res = device->diagRelay->restart();
+    // // FIXME: move to servicemanager
+    // auto res = device->diagRelay->restart();
 
-    if (res.is_err()) {
-        QMessageBox::warning(
-            nullptr, "Restart Failed",
-            "Failed to restart device: " +
-                QString::fromStdString(res.unwrap_err().message));
-    } else {
-        QMessageBox::information(nullptr, "Restart Initiated",
-                                 "Device will restart once unplugged.");
-        qDebug() << "Restarting device";
-    }
+    // if (res.is_err()) {
+    //     QMessageBox::warning(
+    //         nullptr, "Restart Failed",
+    //         "Failed to restart device: " +
+    //             QString::fromStdString(res.unwrap_err().message));
+    // } else {
+    //     QMessageBox::information(nullptr, "Restart Initiated",
+    //                              "Device will restart once unplugged.");
+    //     qDebug() << "Restarting device";
+    // }
 }
 
-void ToolboxWidget::shutdownDevice(const iDescriptorDevice *device)
+void ToolboxWidget::shutdownDevice(
+    const std::shared_ptr<iDescriptorDevice> device)
 {
 
-    QMessageBox msgBox;
-    msgBox.setWindowTitle("Shutdown Device");
-    msgBox.setText("Are you sure you want to shutdown the device?");
-    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-    msgBox.setDefaultButton(QMessageBox::No);
+    // QMessageBox msgBox;
+    // msgBox.setWindowTitle("Shutdown Device");
+    // msgBox.setText("Are you sure you want to shutdown the device?");
+    // msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    // msgBox.setDefaultButton(QMessageBox::No);
 
-    int ret = msgBox.exec();
-    if (ret != QMessageBox::Yes)
-        return;
-    if (!device || device->udid.empty()) {
-        return;
-    }
+    // int ret = msgBox.exec();
+    // if (ret != QMessageBox::Yes)
+    //     return;
+    // if (!device || device->udid.empty()) {
+    //     return;
+    // }
 
-    // FIXME: move to servicemanager
-    auto res = device->diagRelay->shutdown();
+    // // FIXME: move to servicemanager
+    // auto res = device->diagRelay->shutdown();
 
-    if (res.is_err()) {
-        QMessageBox::warning(
-            nullptr, "Shutdown Failed",
-            "Failed to shutdown device: " +
-                QString::fromStdString(res.unwrap_err().message));
-    } else {
-        QMessageBox::information(nullptr, "Shutdown Initiated",
-                                 "Device will shutdown once unplugged.");
-        qDebug() << "Shutting down device";
-    }
+    // if (res.is_err()) {
+    //     QMessageBox::warning(
+    //         nullptr, "Shutdown Failed",
+    //         "Failed to shutdown device: " +
+    //             QString::fromStdString(res.unwrap_err().message));
+    // } else {
+    //     QMessageBox::information(nullptr, "Shutdown Initiated",
+    //                              "Device will shutdown once unplugged.");
+    //     qDebug() << "Shutting down device";
+    // }
 }
 
-void ToolboxWidget::enterRecoveryMode(const iDescriptorDevice *device)
+void ToolboxWidget::enterRecoveryMode(
+    const std::shared_ptr<iDescriptorDevice> device)
 {
-    QMessageBox msgBox;
-    msgBox.setWindowTitle("Enter Recovery Mode");
-    msgBox.setText("Are you sure you want to enter recovery mode?");
-    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-    msgBox.setDefaultButton(QMessageBox::No);
+    // QMessageBox msgBox;
+    // msgBox.setWindowTitle("Enter Recovery Mode");
+    // msgBox.setText("Are you sure you want to enter recovery mode?");
+    // msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    // msgBox.setDefaultButton(QMessageBox::No);
 
-    int ret = msgBox.exec();
-    if (ret != QMessageBox::Yes)
-        return;
+    // int ret = msgBox.exec();
+    // if (ret != QMessageBox::Yes)
+    //     return;
 
-    if (!device || device->udid.empty()) {
-        return;
-    }
+    // if (!device || device->udid.empty()) {
+    //     return;
+    // }
 
-    IdeviceFfiError *error = lockdownd_enter_recovery(device->lockdown);
-    if (error != nullptr) {
-        QMessageBox::warning(nullptr, "Enter Recovery Mode Failed",
-                             "Failed to enter recovery mode: " +
-                                 QString::fromStdString(error->message));
-        idevice_error_free(error);
-    } else {
-        QMessageBox::information(nullptr, "Enter Recovery Mode Initiated",
-                                 "Device will enter recovery mode.");
-    }
+    // IdeviceFfiError *error = lockdownd_enter_recovery(device->lockdown);
+    // if (error != nullptr) {
+    //     QMessageBox::warning(nullptr, "Enter Recovery Mode Failed",
+    //                          "Failed to enter recovery mode: " +
+    //                              QString::fromStdString(error->message));
+    //     idevice_error_free(error);
+    // } else {
+    //     QMessageBox::information(nullptr, "Enter Recovery Mode Initiated",
+    //                              "Device will enter recovery mode.");
+    // }
 }
 
 void ToolboxWidget::restartAirPlayWidget()

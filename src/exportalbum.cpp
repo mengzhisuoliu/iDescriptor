@@ -1,6 +1,6 @@
 #include "exportalbum.h"
 
-ExportAlbum::ExportAlbum(const iDescriptorDevice *device,
+ExportAlbum::ExportAlbum(const std::shared_ptr<iDescriptorDevice> device,
                          const QStringList &paths, QWidget *parent)
     : QDialog(parent), m_device(device), m_listCount(paths.size())
 {
@@ -16,8 +16,7 @@ ExportAlbum::ExportAlbum(const iDescriptorDevice *device,
 
     getTotalPhotoCount(paths);
     connect(AppContext::sharedInstance(), &AppContext::deviceRemoved, this,
-            [this](const std::string &udid, const std::string &macAddress,
-                   const std::string &ipAddress, bool wasWireless) {
+            [this](const QString &udid) {
                 if (udid == m_device->udid) {
                     m_exiting = true;
                     QTimer::singleShot(0, this, [this]() { close(); });
@@ -35,7 +34,7 @@ ExportAlbum::ExportAlbum(const iDescriptorDevice *device,
     QPushButton *exportButton = new QPushButton("Export", this);
     buttonLayout->addWidget(exportButton);
     buttonLayout->addWidget(cancelButton);
-    m_dirPickerLabel = new DirPickerLabel(this);
+    m_dirPickerLabel = new ZDirPickerLabel();
 
     contentLayout->addWidget(m_dirPickerLabel);
 
@@ -101,38 +100,18 @@ void ExportAlbum::getTotalPhotoCount(const QStringList &paths)
         size_t count = 0;
         bool errorOccurred = false;
         for (const QString &path : paths) {
-            size_t innerCount = 0;
-            char **items = nullptr;
+            QList<QString> items = m_device->afc_backend->list_files_flat(path);
 
-            IdeviceFfiError *err = ServiceManager::safeAfcReadDirectory(
-                m_device, path.toStdString().c_str(), &items, &innerCount);
-
-            if (err) {
-                qDebug() << "Failed to read directory:"
-                         << path.toStdString().c_str()
-                         << "Error:" << err->message << "Code:" << err->code;
-
+            if (items.isEmpty()) {
                 errorOccurred = true;
-                idevice_error_free(err);
             } else {
-                for (size_t i = 0; i < innerCount; ++i) {
-                    const char *item = items[i];
-                    if (!item) {
+                for (const QString &item : items) {
+                    if (item.isEmpty()) {
                         continue;
                     }
-                    QString fileName = QString::fromUtf8(item);
-
-                    if (fileName.endsWith(".") || fileName.endsWith("..")) {
-                        continue;
-                    }
-
-                    QString filePath = path + "/" + QString::fromUtf8(item);
-
-                    m_exportItems.append(
-                        ExportItem(filePath, fileName, m_device->udid));
+                    m_exportItems.append(item);
                 }
-                free_directory_listing(items, innerCount);
-                count += innerCount;
+                count += items.size();
             }
         }
         return std::make_pair(!errorOccurred, count);
@@ -149,7 +128,7 @@ void ExportAlbum::updateInfoLabel(size_t photoCount)
 
 void ExportAlbum::startExport()
 {
-    ExportManager::sharedInstance()->startExport(
+    IOManagerClient::sharedInstance()->startExport(
         m_device, m_exportItems, m_dirPickerLabel->getOutputDir(),
         "Exporting Album(s)");
 }
@@ -171,23 +150,13 @@ void ExportAlbum::calculateTotalExportSize()
     timer->start();
 
     QThreadPool::globalInstance()->start([this, timer]() {
-        for (const ExportItem &item : m_exportItems) {
+        for (const QString &item : m_exportItems) {
             if (m_exiting.load()) {
                 return;
             }
-            AfcFileInfo info = {};
-            IdeviceFfiError *err = ServiceManager::safeAfcGetFileInfo(
-                m_device, item.sourcePathOnDevice.toStdString().c_str(), &info);
 
-            if (err) {
-                qDebug() << "Failed to get file info for:"
-                         << item.sourcePathOnDevice << "Error:" << err->message
-                         << "Code:" << err->code;
-                idevice_error_free(err);
-            } else {
-                this->m_totalExportSize += info.size;
-                afc_file_info_free(&info);
-            }
+            int size = m_device->afc_backend->get_file_size(item);
+            this->m_totalExportSize += size;
         }
 
         QMetaObject::invokeMethod(

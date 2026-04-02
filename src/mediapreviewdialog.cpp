@@ -23,42 +23,20 @@
 #include "imageloader.h"
 #include "mediastreamermanager.h"
 #include "photomodel.h"
-#include <QApplication>
-#include <QAudioOutput>
-#include <QCoreApplication>
-#include <QDebug>
-#include <QFileInfo>
-#include <QFutureWatcher>
-#include <QGraphicsPixmapItem>
-#include <QGraphicsScene>
-#include <QGraphicsView>
-#include <QHBoxLayout>
-#include <QKeyEvent>
-#include <QLabel>
-#include <QMediaPlayer>
-#include <QPushButton>
-#include <QResizeEvent>
-#include <QScreen>
-#include <QSlider>
-#include <QTimer>
-#include <QVBoxLayout>
-#include <QVideoWidget>
-#include <QWheelEvent>
-#include <QtConcurrent/QtConcurrent>
-#include <QtGlobal>
 
-MediaPreviewDialog::MediaPreviewDialog(const iDescriptorDevice *device,
-                                       AfcClientHandle *afcClient,
-                                       const QString &filePath, QWidget *parent)
+MediaPreviewDialog::MediaPreviewDialog(
+    const std::shared_ptr<iDescriptorDevice> device, const QString &filePath,
+    std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest,
+    QWidget *parent)
     : QDialog(parent), m_device(device), m_filePath(filePath),
       m_isVideo(iDescriptor::Utils::isVideoFile(filePath)),
-      m_afcClient(afcClient)
+      m_hause_arrest(hause_arrest)
 {
     setWindowTitle(QFileInfo(filePath).fileName() + " - iDescriptor");
 #ifdef WIN32
     setupWinWindow(this);
 #endif
-
+    setAttribute(Qt::WA_DeleteOnClose);
     // Make dialog fullscreen
     setWindowState(Qt::WindowMaximized);
     setWindowFlags(Qt::Window | Qt::WindowMaximizeButtonHint |
@@ -71,7 +49,7 @@ MediaPreviewDialog::MediaPreviewDialog(const iDescriptorDevice *device,
     setupUI();
     loadMedia();
     connect(AppContext::sharedInstance(), &AppContext::deviceRemoved, this,
-            [this](const std::string &udid) {
+            [this](const QString &udid) {
                 if (udid == m_device->udid) {
                     close();
                 }
@@ -200,7 +178,7 @@ void MediaPreviewDialog::loadImage()
     // 99999 is so that it gets the highest priority in the queue
     unsigned int priority = 99999;
     ImageLoader::sharedInstance().requestImageWithCallback(
-        m_device, m_filePath, priority, callback, m_afcClient);
+        m_device, m_filePath, priority, callback, m_hause_arrest);
 }
 
 void MediaPreviewDialog::loadVideo()
@@ -209,7 +187,7 @@ void MediaPreviewDialog::loadVideo()
 
     // Get streamer URL from the singleton manager
     QUrl streamUrl = MediaStreamerManager::sharedInstance()->getStreamUrl(
-        m_device, m_afcClient, m_filePath);
+        m_device, m_hause_arrest, m_filePath);
     qDebug() << "Streaming video from URL:" << streamUrl;
     if (streamUrl.isEmpty()) {
         // TODO: connect to retry signal to attempt restarting the stream

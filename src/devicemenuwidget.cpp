@@ -18,21 +18,19 @@
  */
 
 #include "devicemenuwidget.h"
-// #include "Toast.h"
 #include "cableinfowidget.h"
 #include "devdiskimageswidget.h"
 #include "iDescriptor.h"
 #include "livescreenwidget.h"
 #include "qprocessindicator.h"
 #include "querymobilegestaltwidget.h"
-#include "servicemanager.h"
 #include "virtuallocationwidget.h"
 #include <QDebug>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
-DeviceMenuWidget::DeviceMenuWidget(const iDescriptorDevice *device,
-                                   QWidget *parent)
+DeviceMenuWidget::DeviceMenuWidget(
+    const std::shared_ptr<iDescriptorDevice> device, QWidget *parent)
     : QWidget{parent}, m_device(device)
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);

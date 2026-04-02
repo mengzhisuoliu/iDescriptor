@@ -33,7 +33,8 @@
 #include "platform/windows/win_common.h"
 #endif
 
-iFuseWidget::iFuseWidget(iDescriptorDevice *device, QWidget *parent)
+iFuseWidget::iFuseWidget(const std::shared_ptr<iDescriptorDevice> device,
+                         QWidget *parent)
     : Tool(parent), m_mainLayout(nullptr), m_ifuseProcess(nullptr),
       m_device(device)
 {
@@ -140,7 +141,7 @@ void iFuseWidget::setupUI()
 
 void iFuseWidget::updateDeviceComboBox()
 {
-    QList<iDescriptorDevice *> devices =
+    QList<std::shared_ptr<iDescriptorDevice>> devices =
         AppContext::sharedInstance()->getAllDevices();
 
     m_deviceComboBox->blockSignals(true);
@@ -148,20 +149,18 @@ void iFuseWidget::updateDeviceComboBox()
     m_deviceComboBox->setEnabled(true);
     m_mountButton->setEnabled(true);
 
-    for (iDescriptorDevice *device : devices) {
+    for (std::shared_ptr<iDescriptorDevice> device : devices) {
         QString displayText =
             QString::fromStdString(device->deviceInfo.productType) + " / " +
-            QString::fromStdString(device->udid);
-        m_deviceComboBox->addItem(displayText,
-                                  QString::fromStdString(device->udid));
+            device->udid;
+        m_deviceComboBox->addItem(displayText, device->udid);
     }
     m_deviceComboBox->blockSignals(false);
 
     // Try to find and select the device passed to the widget
     int deviceIndex = -1;
     if (m_device) {
-        deviceIndex =
-            m_deviceComboBox->findData(QString::fromStdString(m_device->udid));
+        deviceIndex = m_deviceComboBox->findData(m_device->udid);
     }
 
     if (deviceIndex != -1) {
@@ -433,7 +432,7 @@ void iFuseWidget::updatePath()
 
 void iFuseWidget::updateUI()
 {
-    QList<iDescriptorDevice *> devices =
+    QList<std::shared_ptr<iDescriptorDevice>> devices =
         AppContext::sharedInstance()->getAllDevices();
 
     if (devices.isEmpty()) {
@@ -488,11 +487,11 @@ void iFuseWidget::setStatusMessage(const QString &message, bool isError)
 void iFuseWidget::onDeviceChanged(const QString &text)
 {
     QString selectedUdid = m_deviceComboBox->currentData().toString();
-    QList<iDescriptorDevice *> devices =
+    QList<std::shared_ptr<iDescriptorDevice>> devices =
         AppContext::sharedInstance()->getAllDevices();
 
-    for (iDescriptorDevice *device : devices) {
-        if (QString::fromStdString(device->udid) == selectedUdid) {
+    for (const std::shared_ptr<iDescriptorDevice> &device : devices) {
+        if (device->udid == selectedUdid) {
             m_device = device;
 
             // Update mount path to reflect new device

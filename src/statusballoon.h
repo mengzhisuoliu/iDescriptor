@@ -38,7 +38,7 @@ struct ProcessItem {
     QDateTime startTime;
     QDateTime endTime;
     QString destinationPath;
-    QUuid jobId;
+    // QUuid jobId;
 
     BalloonProcess *processWidget = nullptr;
 };
@@ -111,10 +111,18 @@ private:
     void handleShow(bool forceVisible = false);
     void createProcessWidget(std::shared_ptr<ProcessItem> item);
     void connectExportThreadSignals();
-    void onExportFinished(const QUuid &processId,
-                          const ExportJobSummary &summary);
-    void onItemExported(const QUuid &processId, const ExportResult &result);
-    void onItemImported(const QUuid &processId, const ImportResult &result);
+    void onExportJobFinished(const QUuid &job_id, bool cancelled,
+                             qint64 successful_items, qint64 failed_items,
+                             qint64 total_bytes);
+    void onItemExported(const QUuid &job_id, const QString &file_name,
+                        const QString &destination_path, bool success,
+                        int bytes_transferred, const QString &error_message);
+    void onImportJobFinished(const QUuid &job_id, bool cancelled,
+                             qint64 successful_items, qint64 failed_items,
+                             qint64 total_bytes);
+    void onItemImported(const QUuid &job_id, const QString &file_name,
+                        const QString &destination_path, bool success,
+                        int bytes_transferred, const QString &error_message);
     void handleJobUpdate(const std::shared_ptr<ProcessItem> &item);
 
     QVBoxLayout *m_mainLayout;

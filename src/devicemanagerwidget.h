@@ -45,8 +45,8 @@ class DeviceManagerWidget : public QWidget
 public:
     explicit DeviceManagerWidget(QWidget *parent = nullptr);
 
-    void setCurrentDevice(const std::string &uuid);
-    std::string getCurrentDevice() const;
+    void setCurrentDevice(const QString &uuid);
+    QString getCurrentDevice() const;
 
 signals:
     void updateNoDevicesConnected();
@@ -60,25 +60,24 @@ protected:
 private:
     void setupUI();
     void updateUI();
-    void addDevice(const iDescriptorDevice *device);
-    void removeDevice(const std::string &uuid);
+    void addDevice(const std::shared_ptr<iDescriptorDevice> device);
+    void removeDevice(const QString &uuid);
 #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
     void addRecoveryDevice(const iDescriptorRecoveryDevice *device);
     void removeRecoveryDevice(uint64_t ecid);
 #endif
     void addPendingDevice(const QString &udid, bool locked);
-    void addPairedDevice(const iDescriptorDevice *device);
+    void addPairedDevice(const std::shared_ptr<iDescriptorDevice> device);
     void removePendingDevice(const QString &udid);
 
     QHBoxLayout *m_mainLayout;
     DeviceSidebarWidget *m_sidebar;
     QStackedWidget *m_stackedWidget;
 
-    QMap<std::string, std::pair<DeviceMenuWidget *, DeviceSidebarItem *>>
+    QMap<QString, std::pair<DeviceMenuWidget *, DeviceSidebarItem *>>
         m_deviceWidgets; // Map to store devices by UDID
 
-    QMap<std::string,
-         std::pair<DevicePendingWidget *, DevicePendingSidebarItem *>>
+    QMap<QString, std::pair<DevicePendingWidget *, DevicePendingSidebarItem *>>
         m_pendingDeviceWidgets; // Map to store devices by UDID
 
 #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
@@ -87,7 +86,7 @@ private:
         m_recoveryDeviceWidgets; // Map to store recovery devices by ECID
 #endif
 
-    std::string m_currentDeviceUuid;
+    QString m_currentDeviceUuid;
     QLabel *m_noDevicesLabel = nullptr;
 };
 
