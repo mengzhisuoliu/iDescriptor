@@ -134,7 +134,6 @@ endif()
 cxx_qt_import_crate(
     MANIFEST_PATH src/rust/Cargo.toml 
     CRATES idescriptor_rust_codebase 
-    LOCKED
     QT_MODULES Qt::Core Qt::Gui Qt::Qml Qt::QuickControls2
 )
 
@@ -264,6 +263,11 @@ endif()
 
 set(RUST_CODEBASE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/rust)
 
+if(WIN32)
+    # sqlite3 deps for rust codebase
+    target_link_libraries(idescriptor_rust_codebase INTERFACE bcrypt userenv ws2_32 advapi32)
+endif()
+
 target_link_libraries(iDescriptor PRIVATE
     Qt6::Widgets
     Qt6::Multimedia
@@ -289,8 +293,8 @@ target_link_libraries(iDescriptor PRIVATE
     uxplay
     ipatool-go
     ZUpdater
-    SQLite3::SQLite3
     idescriptor_rust_codebase
+    SQLite::SQLite3
 )
 
 if(ENABLE_RECOVERY_DEVICE_SUPPORT)
