@@ -73,7 +73,12 @@ irecv_device_event_context_t context;
 
 void handleCallback(int code, const QString &udid, const QString &info)
 {
-    qDebug() << "Device event: " << (code == 1 ? "Connected" : "Disconnected")
+    qDebug() << "Device event: "
+             << (code == 1   ? "Connected"
+                 : code == 2 ? "Disconnected"
+                 : code == 3 ? "Pairing Pending"
+                 : code == 4 ? "Pairing Failed"
+                             : "Unknown")
              << ", UDID: " << udid;
     AddType addType;
 
