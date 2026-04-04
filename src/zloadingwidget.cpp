@@ -11,6 +11,7 @@ ZLoadingWidget::ZLoadingWidget(bool retryEnabled, QWidget *parent)
 {
     m_loadingIndicator->setType(QProcessIndicator::line_rotate);
     m_loadingIndicator->setFixedSize(64, 32);
+    m_loadingIndicator->start();
 
     // Create a proper container widget for the loading indicator
     QWidget *loadingWidget = new QWidget(this);
