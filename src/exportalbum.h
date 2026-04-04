@@ -14,14 +14,21 @@
 #include <QtConcurrent>
 #include <atomic>
 
+struct ScanResult {
+    bool ok;
+    size_t count;
+    QStringList items;
+};
 class ExportAlbum : public QDialog
 {
     Q_OBJECT
 public:
     explicit ExportAlbum(const std::shared_ptr<iDescriptorDevice> device,
                          const QStringList &paths, QWidget *parent = nullptr);
+    ~ExportAlbum();
 
 private:
+    QFutureWatcher<ScanResult> *m_watcher = nullptr;
     ZLoadingWidget *m_loadingWidget;
     const std::shared_ptr<iDescriptorDevice> m_device;
     QLabel *m_infoLabel;

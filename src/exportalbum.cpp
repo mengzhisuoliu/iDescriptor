@@ -75,48 +75,54 @@ ExportAlbum::ExportAlbum(const std::shared_ptr<iDescriptorDevice> device,
 
 void ExportAlbum::getTotalPhotoCount(const QStringList &paths)
 {
-    QFutureWatcher<std::pair<bool, size_t>> *watcher =
-        new QFutureWatcher<std::pair<bool, size_t>>(this);
 
-    connect(watcher, &QFutureWatcher<std::pair<bool, size_t>>::finished, this,
-            [this, watcher]() {
-                std::pair<bool, size_t> result = watcher->result();
-                qDebug() << "Total photo count:" << result.second << "with"
-                         << (result.first ? 0 : 1) << "errors";
+    m_watcher = new QFutureWatcher<ScanResult>(this);
 
-                if (result.first) {
-                    updateInfoLabel(result.second);
-                    calculateTotalExportSize();
-                    m_loadingWidget->stop();
-                } else {
-                    QMessageBox::warning(
-                        nullptr, "Error",
-                        "Failed to read directory: cannot export album(s)");
-                    reject();
-                }
-            });
+    connect(m_watcher, &QFutureWatcher<ScanResult>::finished, this, [this]() {
+        ScanResult result = m_watcher->result();
+        qDebug() << "Total photo count:" << result.count << "with"
+                 << (result.ok ? 0 : 1) << "errors";
 
-    watcher->setFuture(QtConcurrent::run([this, paths]() {
-        size_t count = 0;
-        bool errorOccurred = false;
-        // FIXME: if a dir returns empty, it could be an error or just an empty
-        // dir, we should check that
+        if (result.ok) {
+            m_exportItems = std::move(result.items);
+            updateInfoLabel(result.count);
+            calculateTotalExportSize();
+            m_loadingWidget->stop();
+        } else {
+            QMessageBox::warning(
+                nullptr, "Error",
+                "Failed to read directory: cannot export album(s)");
+            reject();
+        }
+
+        m_watcher->deleteLater();
+        m_watcher = nullptr;
+    });
+
+    // FIXME: if a dir returns empty, it could be an error or just an empty
+    // dir, we should check that
+    m_watcher->setFuture(QtConcurrent::run([device = m_device,
+                                            paths]() -> ScanResult {
+        ScanResult res{true, 0, {}};
+
         for (const QString &path : paths) {
-            QList<QString> items = m_device->afc_backend->list_files_flat(path);
+            QList<QString> items = device->afc_backend->list_files_flat(path);
 
             if (items.isEmpty()) {
-                errorOccurred = true;
-            } else {
-                for (const QString &item : items) {
-                    if (item.isEmpty()) {
-                        continue;
-                    }
-                    m_exportItems.append(item);
-                }
-                count += items.size();
+                res.ok = false;
+                continue;
             }
+
+            for (const QString &item : items) {
+                if (item.isEmpty())
+                    continue;
+                res.items.append(item);
+            }
+            res.count += items.size();
         }
-        return std::make_pair(!errorOccurred, count);
+        qDebug() << "[m_watcher] Finished scanning albums, total items found:"
+                 << res.count;
+        return res;
     }));
 }
 
@@ -178,4 +184,14 @@ void ExportAlbum::calculateTotalExportSize()
             },
             Qt::QueuedConnection);
     });
+}
+
+ExportAlbum::~ExportAlbum()
+{
+    if (m_watcher) {
+        qDebug() << "Cancelling ongoing scan in ExportAlbum destructor";
+        m_watcher->cancel();
+        // m_watcher->waitForFinished();
+        m_watcher->deleteLater();
+    }
 }
