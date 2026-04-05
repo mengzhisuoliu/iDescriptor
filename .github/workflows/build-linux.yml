@@ -35,14 +35,6 @@ jobs:
         with:
           submodules: "recursive"
 
-      # not yet merged into main
-      - name: Switch branch
-        run: |
-          cd "$GITHUB_WORKSPACE"
-          cd lib/idevice-rs
-          git pull
-          git switch idescriptor-compat
-
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
