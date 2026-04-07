@@ -114,14 +114,13 @@ private:
     QHBoxLayout *m_controlsLayout;
 
     // Image viewing components
-    QGraphicsView *m_imageView;
-    QGraphicsScene *m_imageScene;
-    QGraphicsPixmapItem *m_pixmapItem;
+    QGraphicsView *m_imageView = nullptr;
+    QGraphicsScene *m_imageScene = nullptr;
+    QGraphicsPixmapItem *m_pixmapItem = nullptr;
 
     // Video viewing components
-    QVideoWidget *m_videoWidget;
-    QMediaPlayer *m_mediaPlayer;
-
+    QVideoWidget *m_videoWidget = nullptr;
+    QMediaPlayer *m_mediaPlayer = nullptr;
     // Video control components
     QHBoxLayout *m_videoControlsLayout;
     QPushButton *m_playPauseBtn;
