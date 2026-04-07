@@ -48,6 +48,11 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
+#ifdef __linux__
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
+#include <QStandardPaths>
+#endif
 
 #include "service.h"
 
@@ -106,8 +111,8 @@ private:
 #endif
 
 #ifdef __linux__
-    bool checkUdevRulesInstalled();
-    bool checkAvahiDaemonRunning();
+    SERVICE_AVAILABILITY checkUdevRulesInstalled();
+    SERVICE_AVAILABILITY checkAvahiDaemonRunning();
 #endif
 
     QVBoxLayout *m_mainLayout;

@@ -83,10 +83,9 @@ void DependencyItem::setInstalled(SERVICE_AVAILABILITY availability,
     setChecking(false);
     m_availability = availability;
 
-    const bool isInstalled = (availability != SERVICE_UNAVAILABLE);
-    const bool isRunning = (availability == SERVICE_AVAILABLE);
-
-    if (isRunning) {
+    switch (availability) {
+    case SERVICE_AVAILABLE:
+        /* code */
         if (m_name == "Avahi Daemon" || m_name == "Bonjour Service") {
             m_statusLabel->setText("Activated");
         } else {
@@ -103,25 +102,25 @@ void DependencyItem::setInstalled(SERVICE_AVAILABILITY availability,
 #endif
         m_installButton->setVisible(false);
         return;
-    }
+        break;
 
-    // Not running or not installed
-    if (isInstalled) {
-        // Installed but not running (only meaningful for services)
+    case SERVICE_AVAILABLE_BUT_NOT_RUNNING:
         m_statusLabel->setText("Installed but not running");
         m_installButton->setText("Enable");
-    } else {
-        if (m_name == "Avahi Daemon") {
-            m_statusLabel->setText("Not activated");
-            m_installButton->setText("Enable");
+        break;
+    case UNABLE_TO_CHECK:
+        m_statusLabel->setText("Action needed");
+        m_installButton->setText("Info");
+        break;
+    case SERVICE_UNAVAILABLE:
+        if (isRequired) {
+            m_statusLabel->setText("Not Installed");
         } else {
-            if (isRequired) {
-                m_statusLabel->setText("Not Installed");
-            } else {
-                m_statusLabel->setText("Not Installed (Optional)");
-            }
-            m_installButton->setText("Install");
+            m_statusLabel->setText("Not Installed (Optional)");
         }
+        break;
+    default:
+        break;
     }
 
 #ifndef WIN32
@@ -203,14 +202,12 @@ DiagnoseWidget::DiagnoseWidget(QWidget *parent)
 #endif
 
 #ifdef __linux__
+    addDependencyItem("Avahi Daemon", "Required for AirPlay, wireless devices");
 #ifdef ENABLE_RECOVERY_DEVICE_SUPPORT
     addDependencyItem("UDEV rules",
                       "Required for recovery devices requires manual setup",
                       true);
 #endif
-    addDependencyItem(
-        "Avahi Daemon",
-        "Required for Airplay, wireless devices and network service discovery");
 #endif
 
     // Auto-check on startup
@@ -538,67 +535,64 @@ void DiagnoseWidget::onInstallRequested(const QString &name)
     }
 
     if (name == "Avahi Daemon") {
-        DependencyItem *itemToInstall = nullptr;
-        for (DependencyItem *item : m_dependencyItems) {
-            if (item->property("name").toString() == name) {
-                itemToInstall = item;
-                break;
-            }
-        }
-
-        if (!itemToInstall)
-            return;
-
-        itemToInstall->setInstalling(true);
-
-        QProcess *installProcess = new QProcess(this);
-        connect(
-            installProcess, &QProcess::finished, this,
-            [this, installProcess,
-             itemToInstall](int exitCode, QProcess::ExitStatus exitStatus) {
-                if (exitStatus != QProcess::NormalExit || exitCode != 0) {
-                    QString errorOutput =
-                        installProcess->readAllStandardError();
-                    if (errorOutput.isEmpty()) {
-                        errorOutput = installProcess->readAllStandardOutput();
+        if (availability == SERVICE_AVAILABLE_BUT_NOT_RUNNING) {
+            QProcess *installProcess = new QProcess(this);
+            connect(
+                installProcess, &QProcess::finished, this,
+                [this, installProcess,
+                 itemToInstall](int exitCode, QProcess::ExitStatus exitStatus) {
+                    if (exitStatus != QProcess::NormalExit || exitCode != 0) {
+                        QString errorOutput =
+                            installProcess->readAllStandardError();
+                        if (errorOutput.isEmpty()) {
+                            errorOutput =
+                                installProcess->readAllStandardOutput();
+                        }
+                        QMessageBox::warning(this, "Error",
+                                             "Failed to enable Avahi daemon. "
+                                             "This might be because the action "
+                                             "was cancelled or an "
+                                             "error occurred.\n\nDetails: " +
+                                                 errorOutput.trimmed());
+                        checkDependencies(false);
+                    } else {
+                        checkDependencies(false);
                     }
-                    QMessageBox::warning(
-                        this, "Error",
-                        "Failed to enable Avahi daemon. "
-                        "This might be because the action was cancelled or an "
-                        "error occurred.\n\nDetails: " +
-                            errorOutput.trimmed());
-                    checkDependencies(false);
-                } else {
-                    checkDependencies(false);
-                }
-                itemToInstall->setInstalling(false);
-                installProcess->deleteLater();
-            });
+                    itemToInstall->setInstalling(false);
+                    installProcess->deleteLater();
+                });
 
-        QStringList args;
-        args << "systemctl"
-             << "enable"
-             << "--now"
-             << "avahi-daemon.service";
-        installProcess->start("pkexec", args);
+            QStringList args;
+            args << "systemctl"
+                 << "enable"
+                 << "--now"
+                 << "avahi-daemon.service";
+            installProcess->start("pkexec", args);
+            return;
+        }
+        QMessageBox::information(this, "Avahi Daemon",
+                                 "The Avahi daemon is responsible for network "
+                                 "service discovery and is required for "
+                                 "AirPlay and wireless device features.\n\n"
+                                 "Please use your distribution's package "
+                                 "manager to install 'avahi'");
     }
 
 #endif
 }
 
 #ifdef __linux__
-bool DiagnoseWidget::checkUdevRulesInstalled()
+SERVICE_AVAILABILITY DiagnoseWidget::checkUdevRulesInstalled()
 {
     // Check if udev rules file exists
     QFile rulesFile("/etc/udev/rules.d/99-idevice.rules");
     if (!rulesFile.exists()) {
-        return false;
+        return UNABLE_TO_CHECK;
     }
 
     // Check if the file contains the correct rule
     if (!rulesFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return false;
+        return UNABLE_TO_CHECK;
     }
 
     QTextStream in(&rulesFile);
@@ -611,7 +605,7 @@ bool DiagnoseWidget::checkUdevRulesInstalled()
     bool hasMode = content.contains("MODE=\"0666\"");
 
     if (!hasUsbSubsystem || !hasAppleVendor || !hasMode) {
-        return false;
+        return UNABLE_TO_CHECK;
     }
 
     // Check if current user is in the idevice group
@@ -621,7 +615,7 @@ bool DiagnoseWidget::checkUdevRulesInstalled()
 
     if (groupsProcess.exitCode() != 0) {
         // If we can't check groups, consider it not installed
-        return false;
+        return UNABLE_TO_CHECK;
     }
 
     QString groupsOutput =
@@ -630,24 +624,37 @@ bool DiagnoseWidget::checkUdevRulesInstalled()
         groupsOutput.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
 
     bool isInIdeviceGroup = groups.contains("idevice");
-
-    return isInIdeviceGroup;
+    qDebug() << "Is user in 'idevice' group?" << isInIdeviceGroup;
+    return isInIdeviceGroup ? SERVICE_AVAILABLE : UNABLE_TO_CHECK;
 }
 
-bool DiagnoseWidget::checkAvahiDaemonRunning()
+SERVICE_AVAILABILITY DiagnoseWidget::checkAvahiDaemonRunning()
 {
-    QProcess checkProcess;
-    checkProcess.start("systemctl", QStringList()
-                                        << "is-active" << "avahi-daemon");
-    checkProcess.waitForFinished(3000);
-
-    if (checkProcess.exitCode() != 0) {
-        return false;
+    // Connect to the system bus
+    QDBusConnection systemBus = QDBusConnection::systemBus();
+    if (!systemBus.isConnected()) {
+        return UNABLE_TO_CHECK;
     }
 
-    QString output =
-        QString::fromUtf8(checkProcess.readAllStandardOutput()).trimmed();
-    return output == "active";
+    QDBusConnectionInterface *iface = systemBus.interface();
+    if (!iface) {
+        return UNABLE_TO_CHECK;
+    }
+
+    // Avahi daemon D-Bus name
+    const QString avahiService = QStringLiteral("org.freedesktop.Avahi");
+
+    // If the service is registered, Avahi is running
+    if (iface->isServiceRegistered(avahiService).value()) {
+        return SERVICE_AVAILABLE;
+    }
+
+    // maybe installed ?
+    bool hasBinary =
+        !QStandardPaths::findExecutable(QStringLiteral("avahi-browse"))
+             .isEmpty();
+
+    return hasBinary ? SERVICE_AVAILABLE_BUT_NOT_RUNNING : SERVICE_UNAVAILABLE;
 }
 #endif
 

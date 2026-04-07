@@ -53,6 +53,10 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia MultimediaWidgets Network QuickControls2 SerialPort Positioning Location QuickWidgets) 
+# DBUS
+if (UNIX AND NOT APPLE)
+    find_package(Qt6 REQUIRED COMPONENTS DBus)
+endif()
 find_package(SQLite3 REQUIRED)
 # Add QTermWidget
 # Prefer CMake-native qtermwidget6, fallback to pkg-config if needed
@@ -296,6 +300,10 @@ target_link_libraries(iDescriptor PRIVATE
     idescriptor_rust_codebase
     SQLite::SQLite3
 )
+
+if (UNIX AND NOT APPLE)
+    target_link_libraries(iDescriptor PRIVATE Qt6::DBus)
+endif()
 
 if(ENABLE_RECOVERY_DEVICE_SUPPORT)
     target_link_libraries(iDescriptor PRIVATE ${IRECOVERY_LIBRARY})
