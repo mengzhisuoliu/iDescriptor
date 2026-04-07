@@ -62,7 +62,7 @@ using u_int64_t = uint64_t;
 
 #define DeviceLockedMountErrorCode -21
 #define NotFoundErrorCode -14
-#define ServiceNotFoundErrorCode -15
+#define ServiceNotFoundErrorCode 21
 #define PairingDialogResponsePending -28
 #define InvalidHostID -10
 #define PasswordProtected -30
