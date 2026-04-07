@@ -3,7 +3,7 @@ use cxx_qt_lib::{
     QByteArray, QDateTime, QList, QMap, QMapPair_QString_QVariant, QString, QTimeZone, QVariant,
 };
 
-use crate::{APP_DEVICE_STATE, RUNTIME, VIDEO_STREAMS, afc, run_sync};
+use crate::{APP_DEVICE_STATE, RUNTIME, afc, run_sync};
 use idevice::{
     IdeviceService,
     afc::{AfcClient, opcode::AfcFopenMode},
@@ -628,10 +628,27 @@ impl qobject::AfcBackend {
         let url_clone = url.clone();
         let url_clone_for_log = url.clone();
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
-        {
-            let mut map = VIDEO_STREAMS.lock().unwrap();
-            map.insert(url.clone(), shutdown_tx);
+        let udid_for_insert = udid_str.clone();
+        let url_for_insert = url.clone();
+        let inserted = run_sync(async move {
+            let maybe_device = APP_DEVICE_STATE.lock().await.get(&udid_for_insert).cloned();
+            let device = match maybe_device {
+                Some(d) => d,
+                None => return false,
+            };
+
+            let mut video_streams = device.video_streams.lock().await;
+            video_streams.insert(url_for_insert, shutdown_tx);
+            true
+        });
+        if !inserted {
+            eprintln!(
+                "start_video_stream: failed to insert video stream for udid={} path={}",
+                udid_str, cloned_path
+            );
+            return QString::default();
         }
+
         eprintln!(
             "start_video_stream: serving {} for udid={} path={}",
             url_clone, udid_str, cloned_path

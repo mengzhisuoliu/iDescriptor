@@ -130,6 +130,13 @@ mod qobject {
 
         #[qsignal]
         fn install_ipa_progress(self: Pin<&mut ServiceManager>, progress: f64, state: QString);
+
+
+        #[qinvokable]
+        fn enable_wifi_connections(&self);
+
+        #[qsignal]
+        fn enable_wifi_connections_result(self: Pin<&mut ServiceManager>, success: bool);
     }
 
     impl cxx_qt::Threading for ServiceManager {}
@@ -793,7 +800,7 @@ impl qobject::ServiceManager {
                 }
                 _ = tokio::time::sleep(Duration::from_secs(10)) => {
                     eprintln!("set_location: timed out");
-                    -71
+                    idevice::IdeviceError::Timeout.code()
                 }
             }
         })
@@ -1132,6 +1139,56 @@ impl qobject::ServiceManager {
                 println!("install_ipa: Successfully initiated installation on device {udid}");
             }
         });
+    }
+
+    fn enable_wifi_connections(&self) {
+        let qt_t = self.qt_thread();
+        let udid = self.get_udid().to_string();
+
+
+        RUNTIME.spawn(async move {
+            let qt_thread = qt_t.clone();
+            
+            let lc_arc = {
+                let maybe_device = APP_DEVICE_STATE
+                    .lock()
+                    .await
+                    .get(udid.as_str())
+                    .cloned();
+
+                let device = match maybe_device {
+                    Some(d) => d,
+                    None => {
+                        eprintln!("enable_wifi_connections: device {udid} not found");
+                        let _ = qt_thread.queue(|t| {
+                            t.enable_wifi_connections_result(false);
+                        }).ok();
+                        return;
+                    }
+                };
+
+                device.lockdown.clone()
+            };
+
+            let mut lc = lc_arc.lock().await;
+
+            let value = Value::Boolean(true);
+            match lc.set_value("EnableWifiConnections", value, Some("com.apple.mobile.wireless_lockdown")).await {
+                Ok(_) => {
+                    let _ = qt_thread.queue(|t| {
+                        t.enable_wifi_connections_result(true);
+                    }).ok();
+                },
+                Err(e) => {
+                    eprintln!("wireless: LockdownClient::set_value failed: {e:?}");
+                    let _ = qt_thread.queue(|t| {
+                        t.enable_wifi_connections_result(false);
+                    }).ok();
+                }
+            }
+
+        });
+
     }
 }
 

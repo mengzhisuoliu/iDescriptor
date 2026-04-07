@@ -37,7 +37,7 @@ public:
                  std::optional<std::shared_ptr<CXX::HauseArrest>> hause_arrest,
                  bool useAfc2, const QString &filePath);
 
-    void releaseStreamer(const QString &filePath);
+    void releaseStreamer(const QString &udid, const QString &filePath);
 
     void cleanup();
 

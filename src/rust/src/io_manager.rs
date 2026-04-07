@@ -1,4 +1,4 @@
-use crate::{APP_DEVICE_STATE, RUNTIME, VIDEO_STREAMS, utils};
+use crate::{APP_DEVICE_STATE, RUNTIME, run_sync, utils};
 use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::QUuid;
 use idevice::{IdeviceService, afc::AfcClient, services::afc::opcode::AfcFopenMode};
@@ -144,7 +144,7 @@ mod qobject {
         );
 
         #[qinvokable]
-        fn release_video_streamer(self: &IOManager, url: &QString);
+        fn release_video_streamer(self: &IOManager, udid: &QString, url: &QString);
     }
 
     impl cxx_qt::Threading for IOManager {}
@@ -695,20 +695,26 @@ impl qobject::IOManager {
         }
     }
 
-    fn release_video_streamer(&self, url: &qobject::QString) {
-        let s = url.to_string();
+    fn release_video_streamer(&self, udid: &qobject::QString, url: &qobject::QString) {
+        let udid_str = udid.to_string();
+        let url_str = url.to_string();
+        let url_str_clone = url_str.clone();
+        let tx_opt = run_sync(async move {
+            let mut state = APP_DEVICE_STATE.lock().await;
+            let Some(device) = state.get_mut(&udid_str) else {
+                eprintln!("release_streamer: device {udid_str} not found");
+                return None;
+            };
 
-        let tx_opt = {
-            let mut map = VIDEO_STREAMS.lock().unwrap();
-            map.remove(&s)
-        };
+            let mut streams = device.video_streams.lock().await;
+            streams.remove(&url_str)
+        });
 
         if let Some(tx) = tx_opt {
-            eprintln!("release_streamer: sending shutdown for URL: {s}");
-            // ignore if receiver is already gone
+            eprintln!("release_streamer: sending shutdown for URL: {url_str_clone}");
             let _ = tx.send(());
         } else {
-            eprintln!("release_streamer: no streamer found for URL: {s}");
+            eprintln!("release_streamer: no streamer found for URL: {url_str_clone}");
         }
     }
 }

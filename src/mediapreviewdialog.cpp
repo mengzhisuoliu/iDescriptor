@@ -60,7 +60,8 @@ MediaPreviewDialog::~MediaPreviewDialog()
 {
     // Release the streamer if it was used for video
     if (m_isVideo) {
-        MediaStreamerManager::sharedInstance()->releaseStreamer(m_filePath);
+        MediaStreamerManager::sharedInstance()->releaseStreamer(m_device->udid,
+                                                                m_filePath);
     }
 }
 

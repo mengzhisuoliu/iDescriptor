@@ -10,7 +10,6 @@ use idevice::{
     IdeviceError,
     usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection, UsbmuxdListenEvent},
 };
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::{any::type_name, sync::Arc};
 use std::{collections::HashMap, net::IpAddr};
 use tokio::sync::Mutex;
@@ -51,7 +50,7 @@ pub struct DeviceServices {
     pub afc2: Option<Arc<Mutex<AfcClient>>>,
     pub diag: Arc<Mutex<DiagnosticsRelayClient>>,
     pub heartbeat_task: Option<Arc<JoinHandle<()>>>,
-    pub video_streams: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
+    pub video_streams: Arc<Mutex<HashMap<String, oneshot::Sender<()>>>>,
     pub provider: Arc<Mutex<Box<dyn idevice::provider::IdeviceProvider>>>,
     pub lockdown: Arc<Mutex<LockdownClient>>,
 }
@@ -66,9 +65,6 @@ static RUNTIME: Lazy<Runtime> = Lazy::new(|| {
         .build()
         .unwrap()
 });
-
-static VIDEO_STREAMS: Lazy<std::sync::Mutex<HashMap<String, oneshot::Sender<()>>>> =
-    Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
 
 pub fn run_sync<F, R>(fut: F) -> R
 where
@@ -463,7 +459,7 @@ impl qobject::Core {
             let result = tokio::select! {
                 res = init_idescriptor_device(t, qt_t.clone()) => res,
                 // timeout
-                _ = tokio::time::sleep(tokio::time::Duration::from_secs(10)) => {
+                _ = tokio::time::sleep(tokio::time::Duration::from_secs(20)) => {
                     eprintln!("Timeout collecting device info for wireless device mac address: {mac_address_owned}");
                     None 
                 }
@@ -574,9 +570,13 @@ impl qobject::Core {
 async fn clean_device_from_app_state(udid: &str) {
     let mut state = APP_DEVICE_STATE.lock().await;
     if let Some(svc) = state.remove(udid) {
-        let streams = svc.video_streams.lock().await;
-        for (_path, flag) in streams.iter() {
-            flag.store(true, Ordering::Relaxed);
+        if let Some(t) = &svc.heartbeat_task {
+            t.abort();
+        }
+
+        let mut streams = svc.video_streams.lock().await;
+        for (_url, tx) in streams.drain() {
+            let _ = tx.send(());
         }
         println!("Removed device with UDID {}", udid);
     } else {
@@ -605,14 +605,14 @@ async fn init_idescriptor_device<
     let mut lc = match LockdownClient::connect(&provider).await {
         Ok(lc) => lc,
         Err(e) => {
-            eprintln!("wireless: LockdownClient::connect failed : {e:?}");
+            eprintln!("LockdownClient::connect failed : {e:?}");
             return None;
         }
     };
 
     eprintln!("init_idescriptor_device: Attempting to start Lockdown session.");
     if let Err(e) = lc.start_session(&pf).await {
-        eprintln!("wireless: start_session failed: {e:?}");
+        eprintln!("start_session failed: {e:?}");
         return None;
     }
     eprintln!("init_idescriptor_device: Lockdown session started.");
@@ -621,7 +621,7 @@ async fn init_idescriptor_device<
     let mut def_vals = match lc.get_value(None, None).await {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("wireless: get_value(None, None) failed : {e:?}");
+            eprintln!("get_value(None, None) failed : {e:?}");
             return None;
         }
     };
@@ -651,24 +651,10 @@ async fn init_idescriptor_device<
         eprintln!("init_idescriptor_device: Connected to HeartbeatClient.");
     }
 
-    // FIXME: this cannot be done when paired wirelessly
-    //    lockdownd_set_value(device->lockdown, "EnableWifiConnections",
-    // //                                 value, "com.apple.mobile.wireless_lockdown");
-
-    // let value = Value::Boolean(true);
-    // match lc.set_value("EnableWifiConnections", value, Some("com.apple.mobile.wireless_lockdown")).await {
-    //     Ok(_) => {},
-    //     Err(e) => {
-    //         eprintln!("wireless: LockdownClient::set_value failed: {e:?}");
-    //         return None;
-    //         // continue anyway, as this might not be critical
-    //     }
-    // }
-
     let disk_vals = match lc.get_value(None, Some("com.apple.disk_usage")).await {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("wireless: get_value(com.apple.disk_usage) failed: {e:?}");
+            eprintln!("get_value(com.apple.disk_usage) failed: {e:?}");
             return None;
         }
     };
@@ -692,7 +678,6 @@ async fn init_idescriptor_device<
         }
     };
     eprintln!("init_idescriptor_device: Connected to DiagnosticsRelayClient.");
-    // afc_client.set_timeout(Some(5000)).await;
 
     let afc2 = match AfcClient::new_afc2(&provider).await {
         Ok(c) => Some(Arc::new(Mutex::new(c))),

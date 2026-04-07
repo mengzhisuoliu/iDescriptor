@@ -69,7 +69,8 @@ QUrl MediaStreamerManager::getStreamUrl(
     return QUrl(rustUrl);
 }
 
-void MediaStreamerManager::releaseStreamer(const QString &filePath)
+void MediaStreamerManager::releaseStreamer(const QString &udid,
+                                           const QString &filePath)
 {
     QMutexLocker locker(&m_streamersMutex);
     auto it = m_streamers.find(filePath);
@@ -83,7 +84,7 @@ void MediaStreamerManager::releaseStreamer(const QString &filePath)
                      << filePath;
             // delete it->streamer;
             AppContext::sharedInstance()->ioManager->release_video_streamer(
-                it.value().rustUrl);
+                udid, it.value().rustUrl);
             m_streamers.erase(it);
         }
     }
