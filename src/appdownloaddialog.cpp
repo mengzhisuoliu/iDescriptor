@@ -18,7 +18,6 @@
  */
 
 #include "appdownloaddialog.h"
-#include "BackDrop.h"
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
 #include "libipatool-go.h"
