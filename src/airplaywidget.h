@@ -22,6 +22,7 @@
 
 #include "iDescriptor-ui.h"
 #include "qprocessindicator.h"
+#include "service.h"
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QComboBox>

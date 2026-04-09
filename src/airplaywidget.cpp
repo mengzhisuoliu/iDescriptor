@@ -156,14 +156,13 @@ AirPlayWidget::AirPlayWidget(QWidget *parent)
         setMinimumSize(0, 0);
     });
 
-/* FIXME: this can be handled better, add linux support */
+/* FIXME: this can be handled better, also check for linux */
 #ifdef WIN32
-    bool bonjour = IsBonjourServiceInstalled();
+    bool bonjour = IsBonjourServiceInstalled() == SERVICE_AVAILABLE;
     if (!bonjour) {
         QMessageBox::warning(
             this, "Bonjour Service Not Installed",
-            "Bonjour service is not installed on your system. Please install "
-            "it to enable AirPlay functionality.");
+            "Bonjour service is not available on your system.");
 
         DiagnoseDialog *diagnoseDialog = new DiagnoseDialog();
         diagnoseDialog->show();

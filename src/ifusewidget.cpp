@@ -130,8 +130,9 @@ void iFuseWidget::setupUI()
     QString defaultMountPath = QDir(homeDir).absoluteFilePath(productType);
     m_mountPathLabel->setText(defaultMountPath);
 
+/* FIXME: this can be handled better, also check for linux */
 #ifdef WIN32
-    if (!IsWinFspInstalled()) {
+    if (IsWinFspInstalled() != SERVICE_AVAILABLE) {
         DiagnoseDialog *diagnoseDialog = new DiagnoseDialog(this);
         diagnoseDialog->setAttribute(Qt::WA_DeleteOnClose);
         diagnoseDialog->show();
@@ -150,6 +151,11 @@ void iFuseWidget::updateDeviceComboBox()
     m_mountButton->setEnabled(true);
 
     for (std::shared_ptr<iDescriptorDevice> device : devices) {
+
+        if (device->deviceInfo.isWireless) {
+            continue; // Skip wireless devices since ifuse only works with USB
+        }
+
         QString displayText =
             QString::fromStdString(device->deviceInfo.productType) + " / " +
             device->udid;

@@ -23,6 +23,7 @@
 #include "appcontext.h"
 #include "iDescriptor-ui.h"
 #include "iDescriptor.h"
+#include "service.h"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDesktopServices>
