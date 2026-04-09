@@ -850,30 +850,59 @@ impl qobject::ServiceManager {
                         }).ok();
                         return;
                     }
-                    let maybe_device = APP_DEVICE_STATE
-                    .lock()
-                    .await
-                    .get(udid.as_str())
-                    .cloned();
-    
-                    let device = match maybe_device {
-                        Some(d) => d,
-                        None => {
-                            eprintln!("fetch_disk_usage: device {udid} not found");
+                    
+                    let afc_arc = {
+                        let maybe_device = APP_DEVICE_STATE
+                        .lock()
+                        .await
+                        .get(udid.as_str())
+                        .cloned();
+        
+                        let device = match maybe_device {
+                            Some(d) => d,
+                            None => {
+                                eprintln!("fetch_disk_usage: device {udid} not found");
+                                return;
+                            }
+                        };
+                        
+                        device.afc.clone()
+                    };
+                    let mut afc = afc_arc.lock().await;
+
+                    let mut fd = match afc
+                        .open("/PhotoData/Photos.sqlite", AfcFopenMode::RdOnly)
+                        .await
+                    {
+                        Ok(fd) => fd,
+                        Err(e) => {
+                            eprintln!(
+                                "fetch_disk_usage: Failed to open Photos.sqlite for device {udid}: {e}"
+                            );
+                            qt_thread
+                                .queue(move |t| {
+                                    // apps_usage is u64 (Copy), so safe to capture
+                                    t.disk_usage_retrieved(true, apps_usage, 0);
+                                })
+                                .ok();
                             return;
                         }
                     };
 
-                    let mut afc = device.afc.lock().await;
-
-                    // FIXME: go safer here
-                    let mut fd = afc.open("/PhotoData/Photos.sqlite", AfcFopenMode::RdOnly).await.map_err(|e| {
-                        eprintln!("fetch_disk_usage: Failed to read gallery database for device {udid}: {e}");
-                        e
-                     }).unwrap();
-
-                    let mut gallery_db_bytes = fd.read_entire().await.unwrap();
-
+                    let mut gallery_db_bytes = match fd.read_entire().await {
+                        Ok(bytes) => bytes,
+                        Err(e) => {
+                            eprintln!(
+                                "fetch_disk_usage: Failed to read Photos.sqlite for device {udid}: {e}"
+                            );
+                            qt_thread
+                                .queue(move |t| {
+                                    t.disk_usage_retrieved(true, apps_usage, 0);
+                                })
+                                .ok();
+                            return;
+                        }
+                    };
 
                     match utils::query_gallery_usage(&mut gallery_db_bytes) {
                         Ok(gallery_usage) => {
