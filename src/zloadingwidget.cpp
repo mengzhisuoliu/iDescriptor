@@ -6,15 +6,15 @@
 #include <QStackedWidget>
 
 ZLoadingWidget::ZLoadingWidget(bool retryEnabled, QWidget *parent)
-    : QStackedWidget{parent}, m_loadingIndicator(new QProcessIndicator()),
-      m_retryEnabled(retryEnabled)
+    : QStackedWidget{parent}, m_retryEnabled(retryEnabled)
 {
+    QWidget *loadingWidget = new QWidget(this);
+
+    m_loadingIndicator = new QProcessIndicator(loadingWidget);
     m_loadingIndicator->setType(QProcessIndicator::line_rotate);
     m_loadingIndicator->setFixedSize(64, 32);
     m_loadingIndicator->start();
 
-    // Create a proper container widget for the loading indicator
-    QWidget *loadingWidget = new QWidget(this);
     QHBoxLayout *loadingLayout = new QHBoxLayout(loadingWidget);
     loadingLayout->setSpacing(1);
     loadingLayout->addStretch();
@@ -124,7 +124,5 @@ ZLoadingWidget::~ZLoadingWidget()
 {
     if (m_loadingIndicator) {
         m_loadingIndicator->stop();
-        delete m_loadingIndicator;
-        m_loadingIndicator = nullptr;
     }
 }
