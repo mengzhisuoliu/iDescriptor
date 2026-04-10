@@ -138,15 +138,46 @@ BalloonProcess::BalloonProcess(std::shared_ptr<ProcessItem> item,
 void BalloonProcess::updateStyles()
 {
     QString style;
-    bool dark = isDarkMode();
+    const bool dark = isDarkMode();
 
     if (!dark) {
+#ifdef WIN32
         style = "QWidget#BalloonProcess {     background-color: "
                 "rgba(0, 0, 0, 10); border-radius: 5px; }";
+#else
+        style = "QWidget#BalloonProcess { background-color: rgba(0,0,0,10); "
+                "border-radius: 5px; }"
+                "QWidget#BalloonProcess QPushButton {"
+                "  background-color: palette(Button);"
+                "  color: palette(ButtonText);"
+                "  border: 1px solid palette(Mid);"
+                "  border-radius: 4px;"
+                "  padding: 4px 8px;"
+                "}"
+                "QWidget#BalloonProcess QPushButton:hover {"
+                "  background-color: #D6D6D6;"
+                "}";
+#endif
     } else {
+#ifdef WIN32
         style = "QWidget#BalloonProcess {     background-color: rgba(255, "
                 "255, 255, 16); border-radius: 5px; }";
+#else
+        style = "QWidget#BalloonProcess { background-color: "
+                "rgba(255,255,255,16); border-radius: 5px; }"
+                "QWidget#BalloonProcess QPushButton {"
+                "  background-color: palette(Button);"
+                "  color: palette(ButtonText);"
+                "  border: 1px solid palette(Mid);"
+                "  border-radius: 4px;"
+                "  padding: 4px 8px;"
+                "}"
+                "QWidget#BalloonProcess QPushButton:hover {"
+                "  background-color: rgba(255,255,255,26);"
+                "}";
+#endif
     }
+
     if (style != styleSheet())
         setStyleSheet(style);
 }
