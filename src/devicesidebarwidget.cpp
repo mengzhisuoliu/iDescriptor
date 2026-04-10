@@ -63,11 +63,11 @@ void DeviceSidebarItem::setupUI()
     m_deviceLabel->setWordWrap(true);
     nameLayout->addWidget(m_deviceLabel);
     if (m_wireless) {
-        auto wirelessIcon = new ZIconLabel(
+        m_wirelessIcon = new ZIconLabel(
             QIcon(":/resources/icons/QlementineIconsWireless116.png"),
             "Wireless", 1.0, this);
         nameLayout->setSpacing(5);
-        nameLayout->addWidget(wirelessIcon);
+        nameLayout->addWidget(m_wirelessIcon);
     }
     headerLayout->addLayout(nameLayout);
 
@@ -175,6 +175,15 @@ void DeviceSidebarItem::setupUI()
             });
 
     setSelected(false);
+}
+
+void DeviceSidebarItem::gotWired()
+{
+    m_wireless = false;
+    if (m_wirelessIcon) {
+        m_wirelessIcon->deleteLater();
+        m_wirelessIcon = nullptr;
+    }
 }
 
 void DeviceSidebarItem::setSelected(bool selected)
@@ -389,6 +398,14 @@ DeviceSidebarWidget::DeviceSidebarWidget(QWidget *parent)
     connect(AppContext::sharedInstance(),
             &AppContext::currentDeviceSelectionChanged, this,
             &DeviceSidebarWidget::setCurrentSelection);
+
+    // Device became wired -> update sidebar item
+    connect(AppContext::sharedInstance(), &AppContext::deviceBecameWired, this,
+            [this](const QString &udid) {
+                if (m_deviceItems.contains(udid)) {
+                    m_deviceItems[udid]->gotWired();
+                }
+            });
 }
 
 DeviceSidebarItem *DeviceSidebarWidget::addDevice(const QString &deviceName,

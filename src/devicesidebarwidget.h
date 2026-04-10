@@ -44,8 +44,7 @@ public:
     void setCollapsed(bool collapsed);
     bool isCollapsed() const { return m_collapsed; }
 
-    // protected:
-    //     void paintEvent(QPaintEvent *event) override;
+    void gotWired();
 signals:
     void deviceSelected(const QString &uuid);
     void navigationRequested(const QString &uuid, const QString &section);
@@ -76,6 +75,7 @@ private:
     QPushButton *m_galleryButton;
     QPushButton *m_filesButton;
     QButtonGroup *m_navigationGroup;
+    ZIconLabel *m_wirelessIcon;
 };
 
 #ifndef DEVICEPENDINGSIDEBARITEM_H

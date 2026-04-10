@@ -123,6 +123,9 @@ mod qobject {
 
         #[qsignal]
         fn sleepy_time_detected(self: Pin<&mut Core>);
+
+        #[qsignal]
+        fn device_became_wired(self: Pin<&mut Core>, udid: &QString);
     }
     impl cxx_qt::Threading for Core {}
 }
@@ -747,10 +750,22 @@ async fn init_idescriptor_device<
         lockdown: Arc::new(Mutex::new(lc)),
     };
 
-    APP_DEVICE_STATE
-        .lock()
-        .await
-        .insert(udid.to_string(), device_services);
+    {
+        let mut state = APP_DEVICE_STATE.lock().await;
+        if let Some(mut old) = state.insert(udid.to_string(), device_services) {
+            eprintln!(
+                "device became wired - UDID {}",
+                udid
+            );
+            if let Some(task) = old.heartbeat_task.take() {
+                task.abort();
+            }
+            let udid_for_signal = udid.clone();
+            qt_thread.queue(move |core_qobj| {
+                core_qobj.device_became_wired(&QString::from(udid_for_signal));
+            }).ok();
+        } 
+    }
 
     if is_wireless {
         match hb {
