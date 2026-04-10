@@ -72,7 +72,7 @@ install_name_tool -add_rpath "@executable_path/../Frameworks" "${APP_PATH}/Conte
 
 # Bundle libsqlite3 - if not done macOS tries to load sqlite from system libs
 cp "$(brew --prefix sqlite3)/lib/libsqlite3.dylib" "${APP_PATH}/Contents/Frameworks/"
-install_name_tool -change /usr/lib/libsqlite3.dylib @rpath/libsqlite3.dylib
+install_name_tool -change /usr/lib/libsqlite3.dylib @rpath/libsqlite3.dylib "${APP_PATH}/Contents/MacOS/iDescriptor"
 
 # Copy GStreamer + GLib core libraries
 GST_LIBS=(
