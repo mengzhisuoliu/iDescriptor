@@ -155,7 +155,7 @@ void BalloonProcess::updateStyles()
                 "  padding: 4px 8px;"
                 "}"
                 "QWidget#BalloonProcess QPushButton:hover {"
-                "  background-color: #D6D6D6;"
+                "background-color: palette(Dark);"
                 "}";
 #endif
     } else {
@@ -173,7 +173,7 @@ void BalloonProcess::updateStyles()
                 "  padding: 4px 8px;"
                 "}"
                 "QWidget#BalloonProcess QPushButton:hover {"
-                "  background-color: rgba(255,255,255,26);"
+                "background-color: palette(Light);"
                 "}";
 #endif
     }
