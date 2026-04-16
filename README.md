@@ -33,7 +33,21 @@
    <a href="https://opencollective.com/idescriptor">
     <img src="https://img.shields.io/badge/OpenCollective-1F87FF?style=for-the-badge&logo=OpenCollective&logoColor=white" alt="AppImage"/>
   </a>
+
+<br/>
+<br/>
+<br/>
+
+<div align="center">Sponsored by
+  <br/>
+  <a href="https://www.cape.co/"><img width="250" src="./resources/repo/cape.svg"></a>
+  <br/>
+  first-of-its kind private and secure consumer cellular service in the US
+</div>
 </p>
+
+<br/>
+<br/>
 
 ## Download
 
@@ -254,6 +268,17 @@ You might get this pop-up on any platform this is because this app uses secure b
     <img src="./resources/repo/authentication-required.png"><br/>
 </p>
 
+## Sponsors
+
+## Cape (Platinum)
+
+  <br/>
+  <a href="https://www.cape.co/"><img width="405" src="./resources/repo/cape.svg"></a>
+  <br/>
+  Cape is first-of-its kind private and secure consumer cellular service in the US,
+
+<a href="https://www.cape.co/get-cape/enroll">Try Cape risk-free for just $30 for your first month.</a> Use code `trycape30` at checkout to apply.
+
 ## Become a Sponsor
 
 <div style="flex-direction: row; align-items: center; display: flex; gap: 10px;">
@@ -312,7 +337,7 @@ You can also send a pr to main branch but it should be something related to buil
 - Download any version of any app from app store
 - Implement sideloading
 - Import music
-- Companion app on device 
+- Companion app on device
 
 **You can always become a sponsor/donate to request/prioritize a feature or speed up the development process!**
 
