@@ -2,16 +2,17 @@ name: iDescriptor CI (Linux)
 
 on:
   workflow_dispatch:
-  # push:
-  #   paths:
-  #     - "**.cpp"
-  #     - "**.h"
-  #     - "**.hpp"
-  #     - "**.cxx"
-  #     - "**.cc"
-  #     - "CMakeLists.txt"
-  #     - "**.cmake"
-  #     - ".github/workflows/ci.yml"
+  push:
+    paths:
+      - "**.cpp"
+      - "**.h"
+      - "**.hpp"
+      - "**.cxx"
+      - "**.cc"
+      - "**.rs"
+      - "CMakeLists.txt"
+      - "**.cmake"
+      - ".github/workflows/ci.yml"
 
 env:
   QT_VERSION: "6.7.2"
@@ -217,6 +218,7 @@ jobs:
 
       - name: Build AppImage
         run: |
+          #FIXME
           export VERSION=1.0.0
           # linuxdeployqt tries to bundle SQL drivers which we don't need
           rm -rf ${{ github.workspace }}/Qt/{${{ env.QT_VERSION }}/gcc_64/plugins/sqldrivers/**
