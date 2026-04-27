@@ -98,7 +98,7 @@ pub fn query_gallery_usage(db_bytes: &mut Vec<u8>) -> Result<u64, rusqlite::Erro
     unsafe {
         let db_ptr = rusqlite::ffi::sqlite3_deserialize(
             conn.handle(),
-            b"main\0".as_ptr() as *const i8,
+            b"main\0".as_ptr() as *const std::os::raw::c_char,
             db_bytes.as_mut_ptr(),
             db_bytes.len() as i64,
             db_bytes.len() as i64,
